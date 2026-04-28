@@ -45,15 +45,6 @@ class AuthNotifier extends Notifier<AppAuthState> {
     }
   }
 
-  // Future<void> _listen() async {
-  //   _streamSubscription = supabase.auth.onAuthStateChange.listen((
-  //     supabasestate,
-  //   ) {
-  //     if (supabasestate.event == AuthChangeEvent.signedOut) {
-  //     } else if (supabasestate.event == AuthChangeEvent.signedIn) {}
-  //   });
-  // }
-
   void login() async {
     state = AppAuthState.loading();
 
@@ -64,17 +55,48 @@ class AuthNotifier extends Notifier<AppAuthState> {
       return;
     }
 
-    // Handle soft-deleted/banned users
-    final UserModel existing = UserModel.fromJson(
-      await supabase.from('profiles').select().eq('id', user.id).single(),
-    );
+    try {
+      final profile = await _fetchOrAwaitProfile(user.id);
 
-    // if (postSignInResult.errorMessage != null) {
-    //   state = AppAuthState.error(postSignInResult.errorMessage!);
-    //   return;
-    // }
+      if (profile == null) {
+        state = AppAuthState.error('Failed to load profile. Please try again.');
+        return;
+      }
 
-    // state = AppAuthState.authenticated(postSignInResult.user!);
+      if (profile.deletedAt != null) {
+        state = const AppAuthState.deleted();
+        return;
+      }
+
+      state = AppAuthState.authenticated(profile);
+    } catch (e) {
+      debugPrint('login error: $e');
+      state = AppAuthState.error('Something went wrong, please try again.');
+    }
+  }
+
+  // Returns the profile, waiting briefly for the handle_new_user() DB trigger
+  // to complete if this is a first-time sign-in.
+  Future<UserModel?> _fetchOrAwaitProfile(String userId) async {
+    final rows = await supabase
+        .from('profiles')
+        .select()
+        .eq('id', userId)
+        .limit(1);
+
+    if (rows.isNotEmpty) {
+      return UserModel.fromJson(rows.first);
+    }
+
+    // New user — handle_new_user() trigger fires async on Supabase; retry once.
+    await Future.delayed(const Duration(milliseconds: 800));
+    final row = await supabase
+        .from('profiles')
+        .select()
+        .eq('id', userId)
+        .maybeSingle();
+
+    return row != null ? UserModel.fromJson(row) : null;
   }
 
   Future<User?> _googleSignIn() async {
@@ -84,47 +106,46 @@ class AuthNotifier extends Notifier<AppAuthState> {
     /// iOS Client ID that you registered with Google Cloud.
     final iosClientId = env.googleLoginIosClientId;
 
+    final scopes = ['email', 'profile'];
+
     // Google sign in on Android will work without providing the Android
     // Client ID registered on Google Cloud.
 
-    final GoogleSignIn signIn = GoogleSignIn.instance;
+    final GoogleSignIn googleSignIn = GoogleSignIn.instance;
 
     // At the start of your app, initialize the GoogleSignIn instance
-    unawaited(
-      signIn.initialize(clientId: iosClientId, serverClientId: webClientId),
+    await googleSignIn.initialize(
+      clientId: iosClientId,
+      serverClientId: webClientId,
     );
 
-    try {
-      // Perform the sign in
-      final googleAccount = await signIn.authenticate();
+    final googleUser = await googleSignIn.authenticate();
 
-      final googleAuthorization = await googleAccount.authorizationClient
-          .authorizationForScopes(['email']);
-      final googleAuthentication = googleAccount.authentication;
-      final idToken = googleAuthentication.idToken;
-      final accessToken = googleAuthorization?.accessToken;
+    final authorization =
+        await googleUser.authorizationClient.authorizationForScopes(scopes) ??
+        await googleUser.authorizationClient.authorizeScopes(scopes);
 
-      if (idToken == null) {
-        throw 'No ID Token found.';
-      }
+    final idToken = googleUser.authentication.idToken;
+    final accessToken = authorization.accessToken;
 
-      await supabase.auth.signInWithIdToken(
-        provider: OAuthProvider.google,
-        idToken: idToken,
-        accessToken: accessToken,
-      );
-
-      return supabase.auth.currentUser;
-    } catch (e) {
-      debugPrint('_googleSignIn error: $e');
-      return null;
+    if (idToken == null) {
+      throw 'No ID Token found.';
     }
+
+    await supabase.auth.signInWithIdToken(
+      provider: OAuthProvider.google,
+      idToken: idToken,
+      accessToken: accessToken,
+    );
+
+    return supabase.auth.currentUser;
   }
 
   void logout() async {
     state = const AppAuthState.loading();
 
     await supabase.auth.signOut();
+    await GoogleSignIn.instance.disconnect();
 
     state = const AppAuthState.unauthenticated();
   }

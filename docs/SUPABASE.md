@@ -213,6 +213,16 @@ final subscription = supabase
 
 ## Common Issues
 
+### Infinite recursion in RLS policies
+
+Caused by two tables whose RLS policies reference each other. In this schema, `split_bills` and `split_bill_shares` had a mutual reference:
+- `sb_select` on `split_bills` queried `split_bill_shares`
+- `shares_select` on `split_bill_shares` queried `split_bills`
+
+Fix: the `is_split_participant(bill_id)` security definer function in section 15g breaks the cycle. It reads `split_bill_shares` directly (bypassing RLS), so `split_bills` policy no longer triggers `shares_select`. Do not remove this function.
+
+If you see `42P17: infinite recursion detected in policy for relation "X"`, check whether any policy on X queries a table whose policy also queries X.
+
 ### "Permission denied" errors
 
 Almost always RLS-related. Either:

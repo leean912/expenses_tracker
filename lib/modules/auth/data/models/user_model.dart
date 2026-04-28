@@ -9,13 +9,16 @@ abstract class UserModel with _$UserModel {
     required String id,
     required String email,
     String? username,
-    required String displayName,
-    String? avatarUrl,
-    @Default('MYR') String defaultCurrency,
-    @Default('free') String subscriptionTier,
-    DateTime? subscriptionExpiresAt,
-    DateTime? createdAt,
-    DateTime? updatedAt,
+    @JsonKey(name: 'display_name') String? displayName,
+    @JsonKey(name: 'avatar_url') String? avatarUrl,
+    @JsonKey(name: 'default_currency') @Default('MYR') String defaultCurrency,
+    @JsonKey(name: 'subscription_tier')
+    @Default('free')
+    String subscriptionTier,
+    @JsonKey(name: 'subscription_expires_at') DateTime? subscriptionExpiresAt,
+    @JsonKey(name: 'created_at') DateTime? createdAt,
+    @JsonKey(name: 'updated_at') DateTime? updatedAt,
+    @JsonKey(name: 'deleted_at') DateTime? deletedAt,
   }) = _UserModel;
 
   factory UserModel.fromJson(Map<String, dynamic> json) =>

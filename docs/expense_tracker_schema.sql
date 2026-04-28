@@ -485,7 +485,7 @@ create trigger trg_on_collab_created
 
 -- 13b. Auto-create profile + seed default categories + default accounts when a user signs up
 create or replace function handle_new_user()
-returns trigger language plpgsql security definer as $$
+returns trigger language plpgsql security definer set search_path = public as $$ 
 declare
   new_profile_id uuid;
   default_cats text[][] := array[
@@ -1995,13 +1995,20 @@ create policy bud_update on budgets for update
 -- 15g. SPLIT_BILLS
 alter table split_bills enable row level security;
 
+-- Security definer helper: checks split_bill_shares without triggering its RLS,
+-- breaking the mutual-recursion cycle between sb_select and shares_select.
+create or replace function is_split_participant(p_bill_id uuid)
+returns boolean language sql security definer stable as $$
+  select exists (
+    select 1 from split_bill_shares
+    where split_bill_id = p_bill_id and user_id = auth.uid()
+  );
+$$;
+
 create policy sb_select on split_bills for select using (
   created_by = auth.uid()
   or paid_by = auth.uid()
-  or id in (
-    select split_bill_id from split_bill_shares
-    where user_id = auth.uid()
-  )
+  or is_split_participant(id)
 );
 
 create policy sb_insert on split_bills for insert with check (created_by = auth.uid());
@@ -2014,15 +2021,14 @@ create policy sb_update on split_bills for update
 -- 15h. SPLIT_BILL_SHARES
 alter table split_bill_shares enable row level security;
 
+-- Note: do not query split_bill_shares from within this policy (self-recursion),
+-- and do not query split_bills here if split_bills policy queries split_bill_shares
+-- (mutual recursion). Creator/payer visibility is handled via sb_select above.
 create policy shares_select on split_bill_shares for select using (
   user_id = auth.uid()
   or split_bill_id in (
     select id from split_bills
     where created_by = auth.uid() or paid_by = auth.uid()
-  )
-  or split_bill_id in (
-    select sbs.split_bill_id from split_bill_shares sbs
-    where sbs.user_id = auth.uid()
   )
 );
 
