@@ -362,6 +362,96 @@ final billDetail = await supabase.from('split_bills')
   .single();
 ```
 
+## V2: Splitting with non-onboarded users (email-based)
+
+> **Not yet deployed.** Schema and logic are in `docs/split_v2.sql`. Apply that file after `expense_tracker_schema.sql` when ready.
+
+### The problem
+
+`create_split_bill` requires every participant's `user_id`, which means they must already have a profile. If Alice wants to split with Bob before Bob signs up, the current schema blocks it.
+
+### How it works in V2
+
+Alice provides Bob's email in a new `p_email_shares` parameter. The RPC:
+1. Validates the email isn't already a real profile (if it is, caller should use `p_shares` with the user_id instead)
+2. Inserts a row into `pending_split_shares` — NOT into `split_bill_shares`
+3. Returns `pending_shares_sent: 1` in the result JSON
+
+When Bob signs up, `handle_new_user()` detects the pending row and automatically:
+1. Inserts a real `split_bill_shares` row (status = 'pending')
+2. Creates bidirectional contacts (Alice ↔ Bob)
+3. Marks the pending row claimed
+
+Bob opens the app for the first time and sees the split in his activity feed.
+
+### Calling create_split_bill with email participants
+
+```dart
+final result = await supabase.rpc('create_split_bill', params: {
+  'p_paid_by': currentUserId,
+  'p_total_amount_cents': 12000,
+  'p_currency': 'MYR',
+  'p_note': 'Dinner at Sushi King',
+  'p_expense_date': '2026-04-25',
+  'p_category_id': foodCategoryId,
+  'p_collab_id': null,
+  'p_group_id': null,
+  'p_google_place_id': null,
+  'p_place_name': null,
+  'p_latitude': null,
+  'p_longitude': null,
+  'p_receipt_url': null,
+
+  // Onboarded participants (user_id based — existing behaviour)
+  'p_shares': [
+    {'user_id': charlieId, 'share_cents': 4000},
+    {'user_id': currentUserId, 'share_cents': 4000},
+  ],
+
+  // Non-onboarded participants (email based — V2)
+  'p_email_shares': [
+    {'email': 'bob@email.com', 'share_cents': 4000},
+  ],
+});
+
+print('bill: ${result['split_bill_id']}');
+print('pending invites sent: ${result['pending_shares_sent']}');  // 1
+```
+
+### UI considerations for pending email participants
+
+Pending email participants are in `pending_split_shares`, not `split_bill_shares`. When rendering the bill detail view, query both:
+
+```dart
+// Real shares (onboarded participants)
+final shares = await supabase
+  .from('split_bill_shares')
+  .select('*, user:profiles(id, username, display_name, avatar_url)')
+  .eq('split_bill_id', billId);
+
+// Pending email shares (V2)
+final pending = await supabase
+  .from('pending_split_shares')
+  .select('invitee_email, share_cents, claimed_at')
+  .eq('split_bill_id', billId)
+  .is_('claimed_at', null);
+
+// Merge for display — show pending participants with a clock/pending badge
+```
+
+- Show a "pending" indicator (e.g., email address + clock icon) for unclaimed participants
+- Disable "Settle" and "Dispute" actions for pending rows
+- Optionally show a "Remind" button to prompt Alice to re-send the invite link
+
+### Edge cases
+
+| Scenario | Behaviour |
+|---|---|
+| Bob signs up with a different email | Pending row never claimed. Alice must manually add Bob and redo the split |
+| Bill deleted before Bob signs up | `pending_split_shares` row cascade-deleted. Nothing claimed on signup |
+| Alice invites bob@email.com who is already onboarded | RPC raises error with `hint = 'use_p_shares'`. UI should pre-check and fall back to user_id path |
+| Same email invited twice to same bill | `unique (split_bill_id, invitee_email)` deduplicates silently |
+
 ## Common mistakes
 
 1. **Don't insert split_bills directly.** Always use `create_split_bill` RPC.

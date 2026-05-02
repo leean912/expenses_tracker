@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
-import '../screens/home_state.dart';
+import '../../providers/home/home_state.dart';
 
 /// A single small budget card. Designed to fit 3-per-row in a grid.
 class BudgetCard extends StatelessWidget {

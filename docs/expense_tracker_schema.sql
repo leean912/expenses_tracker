@@ -912,9 +912,11 @@ begin
   select * into v_bill from split_bills where id = v_share.split_bill_id;
 
   -- Compute this share's portion of the home amount (preserve bill's snapshot rate)
-  -- If the bill has no home conversion (same currency throughout), all *_home values stay null.
+  -- Cross-currency: derive from conversion_rate. Same currency: home = local.
   if v_bill.conversion_rate is not null then
     v_share_home_cents := round(v_share.share_cents::numeric / v_bill.conversion_rate)::bigint;
+  elsif v_bill.home_currency is not null then
+    v_share_home_cents := v_share.share_cents;
   else
     v_share_home_cents := null;
   end if;

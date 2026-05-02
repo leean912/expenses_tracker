@@ -51,7 +51,11 @@ class TestingLogin extends ConsumerWidget {
       if (prev != next) {
         next.whenOrNull(
           authenticated: (user) {
-            context.pushReplacement(homeRoute);
+            if (user.username == null) {
+              context.pushReplacement(userNameRoute);
+            } else {
+              context.pushReplacement(homeRoute);
+            }
           },
         );
       }

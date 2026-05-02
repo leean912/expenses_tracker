@@ -103,7 +103,7 @@ All RPCs are `security definer`. They internally validate `auth.uid()` and rejec
 
 | RPC | Purpose |
 |---|---|
-| `create_split_bill(...)` | Create bill + shares + payer's auto-expense. Validates participants are contacts |
+| `create_split_bill(...)` | Create bill + shares + payer's auto-expense. Validates onboarded participants are contacts. Email participants (V2) go to `pending_split_shares` |
 | `settle_split_share(p_share_id, p_category_id, p_account_id)` | Mark share settled, create both expense rows, copy bill's conversion |
 | `unsettle_split_share(p_share_id)` | Soft-undo a settlement |
 | `dispute_split_share(p_share_id, p_reason)` | Mark share disputed with reason |
@@ -126,9 +126,19 @@ All RPCs are `security definer`. They internally validate `auth.uid()` and rejec
 
 | Function | Purpose |
 |---|---|
-| `handle_new_user()` | Auto-fires on auth.users insert; creates profile + seeds categories + seeds accounts |
+| `handle_new_user()` | Auto-fires on auth.users insert; creates profile + seeds categories + seeds accounts + claims any pending_split_shares (V2) |
 | `handle_new_collab()` | Auto-fires on collabs insert; creates collab_members row for owner |
 | `set_updated_at()` | Generic trigger function for `updated_at` columns |
+
+### Split V2 — Not yet deployed
+
+Defined in `docs/split_v2.sql`. Run after the base schema when ready.
+
+| Component | What changes |
+|---|---|
+| `pending_split_shares` table | New table. Stores email-based share slots for non-onboarded participants |
+| `create_split_bill(...)` | New optional param `p_email_shares jsonb`. Email participants bypass contacts check and land in `pending_split_shares` |
+| `handle_new_user()` | Extended to claim pending shares on signup: inserts real `split_bill_shares` row + creates bidirectional contacts |
 
 ## Calling RPCs from Flutter
 

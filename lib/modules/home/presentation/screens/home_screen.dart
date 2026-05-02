@@ -6,7 +6,9 @@ import '../../../../core/routes/routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../auth/providers/auth_provider.dart';
 import '../../../auth/providers/states/auth_state.dart';
-import '../../providers/home_provider.dart';
+import '../../../expenses/presentation/widgets/add_expense_sheet.dart';
+import '../../providers/home/home_provider.dart';
+import '../../providers/home/home_state.dart';
 import '../widgets/analytics_banner.dart';
 import '../widgets/budget_grid.dart';
 import '../widgets/custom_bottom_nav.dart';
@@ -14,7 +16,6 @@ import '../widgets/expense_tile.dart';
 import '../widgets/greeting_header.dart';
 import '../widgets/period_summary_header.dart';
 import '../widgets/time_filter_chips.dart';
-import 'home_state.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -26,6 +27,16 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   TimePeriod _selectedPeriod = TimePeriod.today;
   int _navIndex = 0;
+
+  void _showAddExpenseSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      enableDrag: false,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const AddExpenseSheet(),
+    );
+  }
 
   String get _periodTitle {
     switch (_selectedPeriod) {
@@ -52,9 +63,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       }
     });
 
-    final userName = ref.watch(authProvider).whenOrNull(
-          authenticated: (user) => user.displayName ?? user.username,
-        ) ??
+    final userName =
+        ref
+            .watch(authProvider)
+            .whenOrNull(authenticated: (user) => user.username) ??
         '';
 
     final homeAsync = ref.watch(homeDataProvider(_selectedPeriod));
@@ -72,7 +84,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               child: GreetingHeader(
                 userName: userName,
                 onBellTap: () => debugPrint('Bell tapped'),
-                onAvatarTap: () => debugPrint('Avatar tapped'),
+                onAvatarTap: () => context.push(contactsRoute),
               ),
             ),
 
@@ -146,6 +158,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 SliverToBoxAdapter(
                   child: ExpenseListCard(
                     expenses: homeData.expenses,
+                    timePeriod: _selectedPeriod,
                     onTileTap: (e) => debugPrint('Expense tapped: ${e.title}'),
                   ),
                 ),
@@ -165,8 +178,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         top: false,
         child: CustomBottomNav(
           currentIndex: _navIndex,
-          onTabTap: (index) => setState(() => _navIndex = index),
-          onAddTap: () => debugPrint('Add expense tapped'),
+          onTabTap: (index) {
+            if (index == 1) {
+              context.push(splitBillsRoute);
+              return;
+            }
+            setState(() => _navIndex = index);
+          },
+          onAddTap: _showAddExpenseSheet,
         ),
       ),
     );

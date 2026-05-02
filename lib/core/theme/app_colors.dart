@@ -43,6 +43,12 @@ class AppColors {
 
   static const Color incomeLight = Color(0xFFE1F5EE);
   static const Color incomeDark = Color(0xFF0F6E56);
+  static const Color expenseLight = Color(
+    0xFFff1919,
+  ); // for negative amounts with category
+  static const Color expenseDark = Color(
+    0xFF6E1E00,
+  ); // for negative amounts without category
 
   static const Color budgetOverallBar = Color(0xFFBA7517);
 

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../../../../core/theme/app_colors.dart';
-import '../screens/home_state.dart';
+import '../../providers/home/home_state.dart';
 
 /// One expense row.
 /// No leading icon — relies on category tag for visual identity.
@@ -96,7 +97,7 @@ class ExpenseTile extends StatelessWidget {
                 fontWeight: FontWeight.w500,
                 color: expense.isIncome
                     ? AppColors.incomeDark
-                    : AppColors.textPrimary,
+                    : AppColors.expenseLight,
               ),
             ),
           ],
@@ -106,42 +107,148 @@ class ExpenseTile extends StatelessWidget {
   }
 }
 
-/// Container that wraps a list of expense tiles in a single rounded card.
+/// Renders expenses grouped by date, each group in its own rounded card.
+/// Supports swipe-to-delete with a confirmation dialog.
 class ExpenseListCard extends StatelessWidget {
-  const ExpenseListCard({super.key, required this.expenses, this.onTileTap});
+  const ExpenseListCard({
+    super.key,
+    required this.expenses,
+    this.timePeriod = TimePeriod.month,
+    this.onTileTap,
+    this.onDelete,
+  });
 
   final List<ExpenseTileData> expenses;
+  final TimePeriod timePeriod;
   final void Function(ExpenseTileData expense)? onTileTap;
+  final Future<void> Function(String id)? onDelete;
+
+  bool get _groupByMonth => timePeriod == TimePeriod.year;
+
+  String _formatHeader(DateTime date) {
+    if (_groupByMonth) {
+      return DateFormat('MMMM yyyy').format(date);
+    }
+    final today = DateTime.now();
+    final todayDate = DateTime(today.year, today.month, today.day);
+    final yesterday = todayDate.subtract(const Duration(days: 1));
+    if (date == todayDate) return 'Today';
+    if (date == yesterday) return 'Yesterday';
+    return DateFormat('EEE, d MMM').format(date);
+  }
+
+  /// Groups expenses preserving the existing sort order.
+  List<(DateTime, List<ExpenseTileData>)> _group(List<ExpenseTileData> list) {
+    final Map<DateTime, List<ExpenseTileData>> map = {};
+    final List<DateTime> order = [];
+    for (final e in list) {
+      final key = _groupByMonth
+          ? DateTime(e.date.year, e.date.month)
+          : DateTime(e.date.year, e.date.month, e.date.day);
+      if (!map.containsKey(key)) {
+        order.add(key);
+        map[key] = [];
+      }
+      map[key]!.add(e);
+    }
+    return [for (final d in order) (d, map[d]!)];
+  }
+
+  Future<bool?> _confirmDelete(BuildContext context) {
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete expense?'),
+        content: const Text('This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
-      child: Container(
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(AppRadius.xl),
-          border: Border.all(color: AppColors.border, width: 0.5),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          children: [
-            for (int i = 0; i < expenses.length; i++) ...[
-              ExpenseTile(
-                expense: expenses[i],
-                onTap: onTileTap == null ? null : () => onTileTap!(expenses[i]),
+    if (expenses.isEmpty) return const SizedBox.shrink();
+
+    final groups = _group(expenses);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final (date, group) in groups) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.xl,
+              AppSpacing.lg,
+              AppSpacing.xl,
+              AppSpacing.sm,
+            ),
+            child: Text(
+              _formatHeader(date),
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textSecondary,
+                letterSpacing: 0.4,
               ),
-              if (i < expenses.length - 1)
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.xl,
-                  ),
-                  child: Container(height: 0.5, color: AppColors.border),
-                ),
-            ],
-          ],
-        ),
-      ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+            child: Container(
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(AppRadius.xl),
+                border: Border.all(color: AppColors.border, width: 0.5),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                children: [
+                  for (int i = 0; i < group.length; i++) ...[
+                    Dismissible(
+                      key: Key(group[i].id),
+                      direction: DismissDirection.endToStart,
+                      confirmDismiss: (_) => _confirmDelete(context),
+                      onDismissed: (_) => onDelete?.call(group[i].id),
+                      background: Container(
+                        alignment: Alignment.centerRight,
+                        padding: const EdgeInsets.only(right: AppSpacing.xl),
+                        color: Colors.red,
+                        child: const Icon(
+                          Icons.delete_outline,
+                          color: Colors.white,
+                        ),
+                      ),
+                      child: ExpenseTile(
+                        expense: group[i],
+                        onTap: onTileTap == null
+                            ? null
+                            : () => onTileTap!(group[i]),
+                      ),
+                    ),
+                    if (i < group.length - 1)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.xl,
+                        ),
+                        child: Container(height: 0.5, color: AppColors.border),
+                      ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

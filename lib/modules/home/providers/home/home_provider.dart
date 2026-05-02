@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../service_locator.dart';
-import '../presentation/screens/home_state.dart';
+import '../../../../service_locator.dart';
+import 'home_state.dart';
 
 /// All data needed to render the home screen for a given [TimePeriod].
 ///
@@ -45,7 +45,7 @@ final homeDataProvider =
     supabase
         .from('expenses')
         .select(
-          'id, note, home_amount_cents, type, category_id, '
+          'id, note, home_amount_cents, type, expense_date, category_id, '
           'category:categories(name, color), account:accounts(name)',
         )
         .eq('user_id', userId)
@@ -86,19 +86,23 @@ final homeDataProvider =
 
   for (final r in expenseRows) {
     final row = r as Map<String, dynamic>;
-    if (row['type'] != 'expense') continue;
-
     final cents = row['home_amount_cents'] as int? ?? 0;
-    totalCents += cents;
+    final isIncome = row['type'] == 'income';
 
-    final catId = row['category_id'] as String? ?? '';
-    final catName =
-        (row['category'] as Map<String, dynamic>?)?['name'] as String? ?? catId;
-    final existing = spendByCategory[catId];
-    spendByCategory[catId] = (
-      cents: (existing?.cents ?? 0) + cents,
-      name: catName,
-    );
+    if (isIncome) {
+      totalCents -= cents;
+    } else {
+      totalCents += cents;
+
+      final catId = row['category_id'] as String? ?? '';
+      final catName =
+          (row['category'] as Map<String, dynamic>?)?['name'] as String? ?? catId;
+      final existing = spendByCategory[catId];
+      spendByCategory[catId] = (
+        cents: (existing?.cents ?? 0) + cents,
+        name: catName,
+      );
+    }
   }
 
   final int prevTotalCents = prevRows.fold(
@@ -175,6 +179,7 @@ final homeDataProvider =
       categoryName: catMap?['name'] as String? ?? 'Other',
       categoryLight: _lighten(color),
       categoryDark: _darken(color),
+      date: DateTime.parse(row['expense_date'] as String),
       accountName:
           (row['account'] as Map<String, dynamic>?)?['name'] as String?,
     );

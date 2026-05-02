@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../service_locator.dart';
-import '../presentation/screens/home_state.dart';
+import 'home/home_state.dart';
 
 /// Fetches [AnalyticsSummary] for the given [TimePeriod].
 ///

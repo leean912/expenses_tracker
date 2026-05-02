@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
-import '../screens/home_state.dart';
+import '../../providers/home/home_state.dart';
 
 /// Horizontal scrollable chips: Today, Week, Month, Year, Custom.
 class TimeFilterChips extends StatelessWidget {

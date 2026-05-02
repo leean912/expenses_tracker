@@ -146,6 +146,7 @@ class ExpenseTileData {
     required this.categoryName,
     required this.categoryLight,
     required this.categoryDark,
+    required this.date,
     this.accountName,
   });
 
@@ -156,5 +157,6 @@ class ExpenseTileData {
   final String categoryName;
   final Color categoryLight;
   final Color categoryDark;
+  final DateTime date;
   final String? accountName;
 }

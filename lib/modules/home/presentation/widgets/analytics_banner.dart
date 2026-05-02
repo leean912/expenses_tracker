@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
-import '../screens/home_state.dart';
+import '../../providers/home/home_state.dart';
 
 /// Banner card showing total spent + 3-stat row.
 /// Tappable — navigates to analytics detail.
@@ -62,7 +62,7 @@ class AnalyticsBanner extends StatelessWidget {
                           _fmtCents(summary.totalSpentCents),
                           style: const TextStyle(
                             fontSize: 24,
-                            fontWeight: FontWeight.w500,
+                            fontWeight: FontWeight.w700,
                             color: AppColors.textPrimary,
                           ),
                         ),
