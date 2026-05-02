@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../../core/routes/routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../service_locator.dart';
 import '../../../auth/providers/auth_provider.dart';
@@ -85,13 +87,21 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
   String _formatDate(DateTime date) {
     final now = DateTime.now();
     final isToday =
-        date.year == now.year &&
-        date.month == now.month &&
-        date.day == now.day;
+        date.year == now.year && date.month == now.month && date.day == now.day;
     if (isToday) return 'Today';
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     final m = months[date.month - 1];
     return date.year == now.year
@@ -124,7 +134,8 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
     if (_splitCategoryId == null) return false;
     if (_splitAccountId == null) return false;
     return _splitParticipants.any(
-      (p) => !p.isCurrentUser &&
+      (p) =>
+          !p.isCurrentUser &&
           (double.tryParse(p.controller.text.trim()) ?? 0) > 0,
     );
   }
@@ -137,8 +148,7 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
     final remainder = total - (base * count);
     for (var i = 0; i < count; i++) {
       final cents = i < remainder ? base + 1 : base;
-      _splitParticipants[i].controller.text =
-          (cents / 100).toStringAsFixed(2);
+      _splitParticipants[i].controller.text = (cents / 100).toStringAsFixed(2);
     }
   }
 
@@ -275,26 +285,29 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
     });
 
     try {
-      await supabase.rpc('create_split_bill', params: {
-        'p_paid_by': supabase.auth.currentUser!.id,
-        'p_total_amount_cents': _splitTotalCents,
-        'p_currency': currency,
-        'p_note': _splitNoteController.text.trim(),
-        'p_expense_date': DateFormat('yyyy-MM-dd').format(_splitDate),
-        'p_category_id': _splitCategoryId,
-        'p_collab_id': null,
-        'p_group_id': null,
-        'p_google_place_id': null,
-        'p_place_name': null,
-        'p_latitude': null,
-        'p_longitude': null,
-        'p_receipt_url': null,
-        'p_shares': shares,
-        'p_home_amount_cents': _splitTotalCents,
-        'p_home_currency': currency,
-        'p_conversion_rate': null,
-        'p_account_id': _splitAccountId,
-      });
+      await supabase.rpc(
+        'create_split_bill',
+        params: {
+          'p_paid_by': supabase.auth.currentUser!.id,
+          'p_total_amount_cents': _splitTotalCents,
+          'p_currency': currency,
+          'p_note': _splitNoteController.text.trim(),
+          'p_expense_date': DateFormat('yyyy-MM-dd').format(_splitDate),
+          'p_category_id': _splitCategoryId,
+          'p_collab_id': null,
+          'p_group_id': null,
+          'p_google_place_id': null,
+          'p_place_name': null,
+          'p_latitude': null,
+          'p_longitude': null,
+          'p_receipt_url': null,
+          'p_shares': shares,
+          'p_home_amount_cents': _splitTotalCents,
+          'p_home_currency': currency,
+          'p_conversion_rate': null,
+          'p_account_id': _splitAccountId,
+        },
+      );
 
       if (mounted) {
         ref.invalidate(splitBillsProvider);
@@ -1150,8 +1163,11 @@ class _SplitBillForm extends ConsumerWidget {
               child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.person_add_alt_1_rounded,
-                      size: 16, color: AppColors.textSecondary),
+                  Icon(
+                    Icons.person_add_alt_1_rounded,
+                    size: 16,
+                    color: AppColors.textSecondary,
+                  ),
                   SizedBox(width: AppSpacing.sm),
                   Text(
                     'Add person',
@@ -1174,10 +1190,7 @@ class _SplitBillForm extends ConsumerWidget {
               children: [
                 const Text(
                   'Remaining: ',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textTertiary,
-                  ),
+                  style: TextStyle(fontSize: 12, color: AppColors.textTertiary),
                 ),
                 Text(
                   remainingCents < 0
@@ -1400,11 +1413,31 @@ class _ContactPickerSheet extends ConsumerWidget {
             ),
             data: (contacts) {
               if (contacts.isEmpty) {
-                return const Padding(
+                return Padding(
                   padding: EdgeInsets.all(AppSpacing.xxl),
-                  child: Text(
-                    'No contacts yet',
-                    style: TextStyle(color: AppColors.textTertiary),
+                  child: Column(
+                    spacing: AppSpacing.sm,
+                    children: [
+                      Text(
+                        'No contacts yet',
+                        style: TextStyle(color: AppColors.textTertiary),
+                      ),
+                      ListTile(
+                        leading: Icon(
+                          Icons.add_rounded,
+                          color: AppColors.accent,
+                        ),
+                        title: Text(
+                          'Add Contact',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        onTap: () => context.push(contactsRoute),
+                      ),
+                    ],
                   ),
                 );
               }
@@ -1412,9 +1445,7 @@ class _ContactPickerSheet extends ConsumerWidget {
                 maxHeight: 320,
                 child: ListView.builder(
                   shrinkWrap: true,
-                  padding: const EdgeInsets.symmetric(
-                    vertical: AppSpacing.md,
-                  ),
+                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
                   itemCount: contacts.length,
                   itemBuilder: (context, i) {
                     final contact = contacts[i];
@@ -1422,6 +1453,69 @@ class _ContactPickerSheet extends ConsumerWidget {
                     final initial = contact.displayLabel.isNotEmpty
                         ? contact.displayLabel[0].toUpperCase()
                         : '?';
+                    if (i == 0) {
+                      return Column(
+                        children: [
+                          ListTile(
+                            leading: Icon(
+                              Icons.add_rounded,
+                              color: AppColors.accent,
+                            ),
+                            title: Text(
+                              'Add Contact',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                            onTap: () => context.push(contactsRoute),
+                          ),
+                          ListTile(
+                            leading: Container(
+                              width: 36,
+                              height: 36,
+                              decoration: const BoxDecoration(
+                                color: AppColors.surfaceMuted,
+                                shape: BoxShape.circle,
+                              ),
+                              alignment: Alignment.center,
+                              child: Text(
+                                initial,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ),
+                            title: Text(
+                              contact.displayLabel,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                color: isAdded
+                                    ? AppColors.textTertiary
+                                    : AppColors.textPrimary,
+                              ),
+                            ),
+                            trailing: isAdded
+                                ? const Icon(
+                                    Icons.check_rounded,
+                                    size: 18,
+                                    color: AppColors.positiveDark,
+                                  )
+                                : null,
+                            onTap: isAdded
+                                ? null
+                                : () {
+                                    onSelect(contact);
+                                    Navigator.of(context).pop();
+                                  },
+                          ),
+                        ],
+                      );
+                    }
                     return ListTile(
                       leading: Container(
                         width: 36,

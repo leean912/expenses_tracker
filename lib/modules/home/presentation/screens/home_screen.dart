@@ -7,12 +7,10 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../service_locator.dart';
 import '../../../auth/providers/auth_provider.dart';
 import '../../../auth/providers/states/auth_state.dart';
-import '../../../expenses/presentation/widgets/add_expense_sheet.dart';
 import '../../providers/home/home_provider.dart';
 import '../../providers/home/home_state.dart';
 import '../widgets/analytics_banner.dart';
 import '../widgets/budget_grid.dart';
-import '../widgets/custom_bottom_nav.dart';
 import '../widgets/expense_tile.dart';
 import '../widgets/greeting_header.dart';
 import '../widgets/period_summary_header.dart';
@@ -27,24 +25,66 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   TimePeriod _selectedPeriod = TimePeriod.today;
-  int _navIndex = 0;
+  DateTimeRange? _customRange;
+
+  HomeFilter get _filter => HomeFilter(
+    period: _selectedPeriod,
+    customStart: _customRange?.start,
+    customEnd: _customRange?.end,
+  );
+
+  Future<void> _onPeriodSelected(TimePeriod period) async {
+    if (period == TimePeriod.custom) {
+      final now = DateTime.now();
+      final range = await showDateRangePicker(
+        context: context,
+        firstDate: DateTime(2026),
+        lastDate: now,
+        initialEntryMode: DatePickerEntryMode.calendarOnly,
+        initialDateRange:
+            _customRange ??
+            DateTimeRange(start: DateTime(now.year, now.month, 1), end: now),
+        builder: (context, child) => Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: Theme.of(
+              context,
+            ).colorScheme.copyWith(primary: AppColors.accent),
+          ),
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(AppRadius.xl),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: MediaQuery.sizeOf(context).height * 0.7,
+                  child: child!,
+                ),
+              ),
+            ),
+          ),
+        ),
+        saveText: 'Apply',
+      );
+      if (range == null || !mounted) return;
+      setState(() {
+        _selectedPeriod = TimePeriod.custom;
+        _customRange = range;
+      });
+    } else {
+      setState(() {
+        _selectedPeriod = period;
+        _customRange = null;
+      });
+    }
+  }
 
   Future<void> _deleteExpense(String id) async {
     await supabase
         .from('expenses')
         .update({'deleted_at': DateTime.now().toIso8601String()})
         .eq('id', id);
-    ref.invalidate(homeDataProvider(_selectedPeriod));
-  }
-
-  void _showAddExpenseSheet() {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      enableDrag: false,
-      backgroundColor: Colors.transparent,
-      builder: (_) => const AddExpenseSheet(),
-    );
+    ref.invalidate(homeDataProvider(_filter));
   }
 
   String get _periodTitle {
@@ -78,7 +118,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             .whenOrNull(authenticated: (user) => user.username) ??
         '';
 
-    final homeAsync = ref.watch(homeDataProvider(_selectedPeriod));
+    final homeAsync = ref.watch(homeDataProvider(_filter));
     final homeData = homeAsync.valueOrNull;
     final isLoading = homeAsync.isLoading;
     final hasError = homeAsync.hasError && homeData == null;
@@ -90,120 +130,108 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         child: RefreshIndicator(
           color: AppColors.accent,
           onRefresh: () async {
-            ref.invalidate(homeDataProvider(_selectedPeriod));
-            await ref.read(homeDataProvider(_selectedPeriod).future);
+            ref.invalidate(homeDataProvider(_filter));
+            await ref.read(homeDataProvider(_filter).future);
           },
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
-            SliverToBoxAdapter(
-              child: GreetingHeader(
-                userName: userName,
-                onBellTap: () => debugPrint('Bell tapped'),
-                onAvatarTap: () => context.push(contactsRoute),
-              ),
-            ),
-
-            // Thin loading bar shown while refetching (period switch).
-            if (isLoading)
-              const SliverToBoxAdapter(
-                child: LinearProgressIndicator(
-                  minHeight: 2,
-                  backgroundColor: AppColors.surfaceMuted,
-                  color: AppColors.accent,
-                ),
-              ),
-
-            if (hasError)
-              SliverFillRemaining(
-                hasScrollBody: false,
-                child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text(
-                        'Failed to load data.',
-                        style: TextStyle(color: AppColors.textSecondary),
-                      ),
-                      const SizedBox(height: 12),
-                      TextButton(
-                        onPressed: () =>
-                            ref.invalidate(homeDataProvider(_selectedPeriod)),
-                        child: const Text('Retry'),
-                      ),
-                    ],
-                  ),
-                ),
-              )
-            else ...[
-              if (homeData != null)
-                SliverToBoxAdapter(
-                  child: AnalyticsBanner(
-                    summary: homeData.analytics,
-                    onTap: () => debugPrint('Analytics banner tapped'),
-                  ),
-                ),
-
-              if (homeData != null)
-                SliverToBoxAdapter(
-                  child: BudgetGrid(
-                    budgets: homeData.budgets,
-                    onManageTap: () => debugPrint('Manage budgets tapped'),
-                    onBudgetTap: (b) => debugPrint('Budget tapped: ${b.label}'),
-                    onAddTap: () => debugPrint('Add budget tapped'),
-                  ),
-                ),
-
               SliverToBoxAdapter(
-                child: TimeFilterChips(
-                  selected: _selectedPeriod,
-                  onSelected: (period) =>
-                      setState(() => _selectedPeriod = period),
+                child: GreetingHeader(
+                  userName: userName,
+                  onBellTap: () => debugPrint('Bell tapped'),
+                  onAvatarTap: () => context.push(contactsRoute),
                 ),
               ),
 
-              if (homeData != null)
-                SliverToBoxAdapter(
-                  child: PeriodSummaryHeader(
-                    title: _periodTitle,
-                    totalCents: homeData.periodTotalCents,
+              // Thin loading bar shown while refetching (period switch).
+              if (isLoading)
+                const SliverToBoxAdapter(
+                  child: LinearProgressIndicator(
+                    minHeight: 2,
+                    backgroundColor: AppColors.surfaceMuted,
+                    color: AppColors.accent,
                   ),
                 ),
 
-              if (homeData != null)
-                SliverToBoxAdapter(
-                  child: ExpenseListCard(
-                    expenses: homeData.expenses,
-                    timePeriod: _selectedPeriod,
-                    onTileTap: (e) => debugPrint('Expense tapped: ${e.title}'),
-                    onDelete: _deleteExpense,
-                  ),
-                ),
-
-              if (homeData == null && isLoading)
-                const SliverFillRemaining(
+              if (hasError)
+                SliverFillRemaining(
                   hasScrollBody: false,
-                  child: Center(child: CircularProgressIndicator()),
-                ),
-            ],
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          'Failed to load data.',
+                          style: TextStyle(color: AppColors.textSecondary),
+                        ),
+                        const SizedBox(height: 12),
+                        TextButton(
+                          onPressed: () =>
+                              ref.invalidate(homeDataProvider(_filter)),
+                          child: const Text('Retry'),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else ...[
+                if (homeData != null)
+                  SliverToBoxAdapter(
+                    child: AnalyticsBanner(
+                      summary: homeData.analytics,
+                      onTap: () => debugPrint('Analytics banner tapped'),
+                    ),
+                  ),
 
-            const SliverToBoxAdapter(child: SizedBox(height: 24)),
-          ],
-        ),
-        ),
-      ),
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: CustomBottomNav(
-          currentIndex: _navIndex,
-          onTabTap: (index) {
-            if (index == 1) {
-              context.push(splitBillsRoute);
-              return;
-            }
-            setState(() => _navIndex = index);
-          },
-          onAddTap: _showAddExpenseSheet,
+                if (homeData != null)
+                  SliverToBoxAdapter(
+                    child: BudgetGrid(
+                      budgets: homeData.budgets,
+                      onManageTap: () => debugPrint('Manage budgets tapped'),
+                      onBudgetTap: (b) =>
+                          debugPrint('Budget tapped: ${b.label}'),
+                      onAddTap: () => debugPrint('Add budget tapped'),
+                    ),
+                  ),
+
+                SliverToBoxAdapter(
+                  child: TimeFilterChips(
+                    selected: _selectedPeriod,
+                    onSelected: _onPeriodSelected,
+                  ),
+                ),
+
+                if (homeData != null)
+                  SliverToBoxAdapter(
+                    child: PeriodSummaryHeader(
+                      title: _periodTitle,
+                      totalCents: homeData.periodTotalCents,
+                      filter: _filter,
+                    ),
+                  ),
+
+                if (homeData != null)
+                  SliverToBoxAdapter(
+                    child: ExpenseListCard(
+                      expenses: homeData.expenses,
+                      timePeriod: _selectedPeriod,
+                      onTileTap: (e) =>
+                          debugPrint('Expense tapped: ${e.title}'),
+                      onDelete: _deleteExpense,
+                    ),
+                  ),
+
+                if (homeData == null && isLoading)
+                  const SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+              ],
+
+              const SliverToBoxAdapter(child: SizedBox(height: 24)),
+            ],
+          ),
         ),
       ),
     );

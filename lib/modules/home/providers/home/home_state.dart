@@ -3,6 +3,40 @@ import 'package:flutter/material.dart';
 /// Time period filter for the expense list.
 enum TimePeriod { today, week, month, year, custom }
 
+/// Provider family key: a period + optional custom date range.
+/// Custom dates are only set when [period] == [TimePeriod.custom].
+class HomeFilter {
+  const HomeFilter({required this.period, this.customStart, this.customEnd});
+
+  final TimePeriod period;
+  final DateTime? customStart;
+  final DateTime? customEnd;
+
+  static String _iso(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-'
+      '${d.month.toString().padLeft(2, '0')}-'
+      '${d.day.toString().padLeft(2, '0')}';
+
+  (String start, String end) toDateRange() {
+    if (period == TimePeriod.custom &&
+        customStart != null &&
+        customEnd != null) {
+      return (_iso(customStart!), _iso(customEnd!));
+    }
+    return period.toDateRange();
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is HomeFilter &&
+      other.period == period &&
+      other.customStart == customStart &&
+      other.customEnd == customEnd;
+
+  @override
+  int get hashCode => Object.hash(period, customStart, customEnd);
+}
+
 extension TimePeriodLabel on TimePeriod {
   String get label {
     switch (this) {

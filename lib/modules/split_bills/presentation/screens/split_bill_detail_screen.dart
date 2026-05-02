@@ -1,13 +1,15 @@
+import 'package:expenses_tracker_new/modules/home/providers/home/home_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../service_locator.dart';
 import '../../../expenses/data/models/account_model.dart';
 import '../../../expenses/data/models/category_model.dart';
 import '../../../expenses/providers/accounts_provider.dart';
 import '../../../expenses/providers/categories_provider.dart';
-import '../../../../service_locator.dart';
 import '../../data/models/split_bill_model.dart';
 import '../../data/models/split_share_model.dart';
 import '../../providers/split_bill_detail_provider.dart';
@@ -48,7 +50,8 @@ class SplitBillDetailScreen extends ConsumerWidget {
               ),
               const SizedBox(height: AppSpacing.lg),
               TextButton(
-                onPressed: () => ref.invalidate(splitBillDetailProvider(billId)),
+                onPressed: () =>
+                    ref.invalidate(splitBillDetailProvider(billId)),
                 child: const Text('Retry'),
               ),
             ],
@@ -62,53 +65,60 @@ class SplitBillDetailScreen extends ConsumerWidget {
 
 // ─── Detail body ─────────────────────────────────────────────────────────────
 
-class _BillDetail extends StatelessWidget {
+class _BillDetail extends ConsumerWidget {
   const _BillDetail({required this.bill, required this.billId});
   final SplitBillModel bill;
   final String billId;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final currentUserId = supabase.auth.currentUser?.id ?? '';
 
-    return ListView(
-      padding: const EdgeInsets.all(AppSpacing.xl),
-      children: [
-        _BillHeader(bill: bill),
-        const SizedBox(height: AppSpacing.xl),
-        const Text(
-          'PARTICIPANTS',
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            color: AppColors.textTertiary,
-            letterSpacing: 0.6,
+    return RefreshIndicator(
+      onRefresh: () async => ref.invalidate(splitBillDetailProvider(billId)),
+      child: ListView(
+        padding: const EdgeInsets.all(AppSpacing.xl),
+        children: [
+          _BillHeader(bill: bill),
+          const SizedBox(height: AppSpacing.xl),
+          const Text(
+            'PARTICIPANTS',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textTertiary,
+              letterSpacing: 0.6,
+            ),
           ),
-        ),
-        const SizedBox(height: AppSpacing.md),
-        Container(
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(AppRadius.xl),
-            border: Border.all(color: AppColors.border),
-          ),
-          child: Column(
-            children: [
-              for (int i = 0; i < bill.shares.length; i++) ...[
-                if (i > 0)
-                  const Divider(height: 1, thickness: 1, color: AppColors.border),
-                _ShareRow(
-                  share: bill.shares[i],
-                  currency: bill.currency,
-                  isCurrentUser: bill.shares[i].userId == currentUserId,
-                  billId: billId,
-                ),
+          const SizedBox(height: AppSpacing.md),
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(AppRadius.xl),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Column(
+              children: [
+                for (int i = 0; i < bill.shares.length; i++) ...[
+                  if (i > 0)
+                    const Divider(
+                      height: 1,
+                      thickness: 1,
+                      color: AppColors.border,
+                    ),
+                  _ShareRow(
+                    share: bill.shares[i],
+                    currency: bill.currency,
+                    isCurrentUser: bill.shares[i].userId == currentUserId,
+                    billId: billId,
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
-        ),
-        const SizedBox(height: AppSpacing.xxl),
-      ],
+          const SizedBox(height: AppSpacing.xxl),
+        ],
+      ),
     );
   }
 }
@@ -145,7 +155,10 @@ class _BillHeader extends StatelessWidget {
             ),
           ),
           const SizedBox(height: AppSpacing.lg),
-          _Row(label: 'Total', value: _fmtAmount(bill.totalAmountCents, bill.currency)),
+          _Row(
+            label: 'Total',
+            value: _fmtAmount(bill.totalAmountCents, bill.currency),
+          ),
           const SizedBox(height: AppSpacing.md),
           _Row(label: 'Paid by', value: bill.payer?.displayLabel ?? 'Unknown'),
           const SizedBox(height: AppSpacing.md),
@@ -200,8 +213,7 @@ class _ShareRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final name =
-        isCurrentUser ? 'You' : share.user?.displayLabel ?? 'Unknown';
+    final name = isCurrentUser ? 'You' : share.user?.displayLabel ?? 'Unknown';
 
     return Padding(
       padding: const EdgeInsets.symmetric(
@@ -224,7 +236,10 @@ class _ShareRow extends StatelessWidget {
           ),
           Text(
             _fmtAmount(share.shareCents, currency),
-            style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            style: const TextStyle(
+              fontSize: 13,
+              color: AppColors.textSecondary,
+            ),
           ),
           const SizedBox(width: AppSpacing.md),
           if (isCurrentUser && share.isPending)
@@ -311,11 +326,8 @@ class _SettleButton extends StatelessWidget {
         context: context,
         isScrollControlled: true,
         backgroundColor: Colors.transparent,
-        builder: (_) => _SettleSheet(
-          share: share,
-          currency: currency,
-          billId: billId,
-        ),
+        builder: (_) =>
+            _SettleSheet(share: share, currency: currency, billId: billId),
       ),
       child: Container(
         padding: const EdgeInsets.symmetric(
@@ -368,11 +380,17 @@ class _SettleSheetState extends ConsumerState<_SettleSheet> {
     final canConfirm = _category != null && _account != null && !_loading;
 
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
       child: Container(
         margin: const EdgeInsets.fromLTRB(
-          AppSpacing.xl, 0, AppSpacing.xl, AppSpacing.xl),
-        padding: const EdgeInsets.all(AppSpacing.xxl),
+          AppSpacing.xl,
+          0,
+          AppSpacing.xl,
+          AppSpacing.xl,
+        ),
+        padding: const EdgeInsets.all(AppSpacing.xl),
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(AppRadius.xxl),
@@ -403,8 +421,10 @@ class _SettleSheetState extends ConsumerState<_SettleSheet> {
             const SizedBox(height: AppSpacing.md),
             categoriesAsync.when(
               loading: () => const _PickerSkeleton(),
-              error: (_, _) =>
-                  const Text('Failed to load', style: TextStyle(color: AppColors.textSecondary)),
+              error: (_, _) => const Text(
+                'Failed to load',
+                style: TextStyle(color: AppColors.textSecondary),
+              ),
               data: (cats) => _CategoryChipPicker(
                 categories: cats,
                 selected: _category,
@@ -416,8 +436,10 @@ class _SettleSheetState extends ConsumerState<_SettleSheet> {
             const SizedBox(height: AppSpacing.md),
             accountsAsync.when(
               loading: () => const _PickerSkeleton(),
-              error: (_, _) =>
-                  const Text('Failed to load', style: TextStyle(color: AppColors.textSecondary)),
+              error: (_, _) => const Text(
+                'Failed to load',
+                style: TextStyle(color: AppColors.textSecondary),
+              ),
               data: (accounts) => _AccountChipPicker(
                 accounts: accounts,
                 selected: _account,
@@ -464,7 +486,9 @@ class _SettleSheetState extends ConsumerState<_SettleSheet> {
 
   Future<void> _confirm() async {
     setState(() => _loading = true);
-    final error = await ref.read(splitBillsProvider.notifier).settleShare(
+    final error = await ref
+        .read(splitBillsProvider.notifier)
+        .settleShare(
           shareId: widget.share.id,
           categoryId: _category!.id,
           accountId: _account!.id,
@@ -478,7 +502,8 @@ class _SettleSheetState extends ConsumerState<_SettleSheet> {
       return;
     }
     ref.invalidate(splitBillDetailProvider(widget.billId));
-    Navigator.of(context).pop();
+    ref.invalidate(homeDataProvider);
+    context.pop();
   }
 }
 
@@ -532,7 +557,6 @@ class _CategoryChipPicker extends StatelessWidget {
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
-      clipBehavior: Clip.none,
       child: Row(
         children: categories.map((cat) {
           final isSelected = cat.id == selected?.id;
@@ -616,7 +640,9 @@ class _AccountChipPicker extends StatelessWidget {
                   color: isSelected ? AppColors.accent : AppColors.surface,
                   borderRadius: BorderRadius.circular(AppRadius.pill),
                   border: Border.all(
-                    color: isSelected ? AppColors.accent : AppColors.borderDashed,
+                    color: isSelected
+                        ? AppColors.accent
+                        : AppColors.borderDashed,
                   ),
                 ),
                 child: Row(
@@ -625,7 +651,9 @@ class _AccountChipPicker extends StatelessWidget {
                     Icon(
                       _iconForName(acc.icon),
                       size: 14,
-                      color: isSelected ? AppColors.accentText : AppColors.textSecondary,
+                      color: isSelected
+                          ? AppColors.accentText
+                          : AppColors.textSecondary,
                     ),
                     const SizedBox(width: 5),
                     Text(
@@ -633,7 +661,9 @@ class _AccountChipPicker extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
-                        color: isSelected ? AppColors.accentText : AppColors.textSecondary,
+                        color: isSelected
+                            ? AppColors.accentText
+                            : AppColors.textSecondary,
                       ),
                     ),
                   ],

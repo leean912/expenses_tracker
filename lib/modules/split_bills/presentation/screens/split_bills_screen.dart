@@ -5,7 +5,6 @@ import 'package:intl/intl.dart';
 
 import '../../../../core/routes/routes.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../home/presentation/widgets/custom_bottom_nav.dart';
 import '../../data/models/my_share_item.dart';
 import '../../data/models/split_bill_model.dart';
 import '../../providers/split_bills_provider.dart';
@@ -118,76 +117,88 @@ class _SplitBillsScreenState extends ConsumerState<SplitBillsScreen>
           ],
         ),
       ),
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: CustomBottomNav(
-          currentIndex: 1,
-          onTabTap: (index) {
-            if (index != 1) context.pop();
-          },
-          onAddTap: () {},
-        ),
-      ),
     );
   }
 }
 
 // ─── Tab: I Paid ─────────────────────────────────────────────────────────────
 
-class _IPaidTab extends StatelessWidget {
+class _IPaidTab extends ConsumerWidget {
   const _IPaidTab({required this.bills});
   final List<SplitBillModel> bills;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     if (bills.isEmpty) {
-      return const Center(
-        child: Text(
-          'No bills yet',
-          style: TextStyle(color: AppColors.textTertiary, fontSize: 14),
+      return RefreshIndicator(
+        onRefresh: () async => ref.invalidate(splitBillsProvider),
+        child: ListView(
+          children: const [
+            SizedBox(height: 120),
+            Center(
+              child: Text(
+                'No bills yet',
+                style: TextStyle(color: AppColors.textTertiary, fontSize: 14),
+              ),
+            ),
+          ],
         ),
       );
     }
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        AppSpacing.md,
-        AppSpacing.xl,
-        AppSpacing.xl,
+    return RefreshIndicator(
+      onRefresh: () async => ref.invalidate(splitBillsProvider),
+      child: ListView.separated(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.xl,
+          AppSpacing.md,
+          AppSpacing.xl,
+          AppSpacing.xl,
+        ),
+        itemCount: bills.length,
+        separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
+        itemBuilder: (context, i) => _BillCard(bill: bills[i]),
       ),
-      itemCount: bills.length,
-      separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
-      itemBuilder: (context, i) => _BillCard(bill: bills[i]),
     );
   }
 }
 
 // ─── Tab: I Owe ──────────────────────────────────────────────────────────────
 
-class _IOweTab extends StatelessWidget {
+class _IOweTab extends ConsumerWidget {
   const _IOweTab({required this.shares});
   final List<MyShareItem> shares;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     if (shares.isEmpty) {
-      return const Center(
-        child: Text(
-          'Nothing to settle',
-          style: TextStyle(color: AppColors.textTertiary, fontSize: 14),
+      return RefreshIndicator(
+        onRefresh: () async => ref.invalidate(splitBillsProvider),
+        child: ListView(
+          children: const [
+            SizedBox(height: 120),
+            Center(
+              child: Text(
+                'Nothing to settle',
+                style: TextStyle(color: AppColors.textTertiary, fontSize: 14),
+              ),
+            ),
+          ],
         ),
       );
     }
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        AppSpacing.md,
-        AppSpacing.xl,
-        AppSpacing.xl,
+    return RefreshIndicator(
+      onRefresh: () async => ref.invalidate(splitBillsProvider),
+      child: ListView.separated(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.xl,
+          AppSpacing.md,
+          AppSpacing.xl,
+          AppSpacing.xl,
+        ),
+        itemCount: shares.length,
+        separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
+        itemBuilder: (context, i) => _ShareCard(item: shares[i]),
       ),
-      itemCount: shares.length,
-      separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
-      itemBuilder: (context, i) => _ShareCard(item: shares[i]),
     );
   }
 }

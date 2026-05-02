@@ -1,6 +1,7 @@
 import 'package:expenses_tracker_new/core/routes/routes.dart';
 import 'package:expenses_tracker_new/modules/auth/providers/auth_provider.dart';
 import 'package:expenses_tracker_new/service_locator.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,6 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/routes/router.dart';
 import 'core/theme/app_colors.dart';
+import 'firebase_options.dart';
 import 'modules/auth/providers/states/auth_state.dart';
 
 Future<void> main() async {
@@ -15,6 +17,8 @@ Future<void> main() async {
     url: env.supabaseApiUrl,
     anonKey: env.supabaseApiKey,
   );
+
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   runApp(ProviderScope(child: const MainApp()));
 }

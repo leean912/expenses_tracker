@@ -37,6 +37,11 @@ migrate_working_dir/
 # Environment / secrets (envied)
 env/.env.*
 
+# Firebase secrets
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+lib/firebase_options.dart
+
 # Build runner generated files
 *.g.dart
 *.freezed.dart

@@ -34,9 +34,10 @@ class HomeData {
 /// Budget spend is computed from the expense rows already in memory — no
 /// extra round-trip.
 final homeDataProvider =
-    FutureProvider.family<HomeData, TimePeriod>((ref, period) async {
+    FutureProvider.family<HomeData, HomeFilter>((ref, filter) async {
+  final period = filter.period;
   final userId = supabase.auth.currentUser!.id;
-  final (start, end) = period.toDateRange();
+  final (start, end) = filter.toDateRange();
   final (prevStart, prevEnd) = period.toPreviousDateRange();
   final budgetPeriod = _budgetPeriodFor(period);
 
@@ -53,7 +54,8 @@ final homeDataProvider =
         .lte('expense_date', end)
         .isFilter('deleted_at', null)
         .isFilter('archived_at', null)
-        .order('expense_date', ascending: false),
+        .order('expense_date', ascending: false)
+        .order('created_at', ascending: false),
 
     // 2. Previous-period totals (expense type only, for delta calculation).
     supabase
