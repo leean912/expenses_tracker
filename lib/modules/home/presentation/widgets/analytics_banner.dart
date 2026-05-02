@@ -51,7 +51,7 @@ class AnalyticsBanner extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          'Total spent this month',
+                          'Total expenses within selected period',
                           style: TextStyle(
                             fontSize: 12,
                             color: AppColors.textTertiary,
@@ -60,10 +60,12 @@ class AnalyticsBanner extends StatelessWidget {
                         const SizedBox(height: 2),
                         Text(
                           _fmtCents(summary.totalSpentCents),
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.w700,
-                            color: AppColors.textPrimary,
+                            color: summary.totalSpentCents < 0
+                                ? AppColors.incomeDark
+                                : AppColors.expenseLight,
                           ),
                         ),
                       ],

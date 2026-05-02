@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/routes/routes.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../service_locator.dart';
 import '../../../auth/providers/auth_provider.dart';
 import '../../../auth/providers/states/auth_state.dart';
 import '../../../expenses/presentation/widgets/add_expense_sheet.dart';
@@ -27,6 +28,14 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   TimePeriod _selectedPeriod = TimePeriod.today;
   int _navIndex = 0;
+
+  Future<void> _deleteExpense(String id) async {
+    await supabase
+        .from('expenses')
+        .update({'deleted_at': DateTime.now().toIso8601String()})
+        .eq('id', id);
+    ref.invalidate(homeDataProvider(_selectedPeriod));
+  }
 
   void _showAddExpenseSheet() {
     showModalBottomSheet<void>(
@@ -78,8 +87,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       backgroundColor: AppColors.background,
       body: SafeArea(
         bottom: false,
-        child: CustomScrollView(
-          slivers: [
+        child: RefreshIndicator(
+          color: AppColors.accent,
+          onRefresh: () async {
+            ref.invalidate(homeDataProvider(_selectedPeriod));
+            await ref.read(homeDataProvider(_selectedPeriod).future);
+          },
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
             SliverToBoxAdapter(
               child: GreetingHeader(
                 userName: userName,
@@ -160,6 +176,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     expenses: homeData.expenses,
                     timePeriod: _selectedPeriod,
                     onTileTap: (e) => debugPrint('Expense tapped: ${e.title}'),
+                    onDelete: _deleteExpense,
                   ),
                 ),
 
@@ -172,6 +189,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
             const SliverToBoxAdapter(child: SizedBox(height: 24)),
           ],
+        ),
         ),
       ),
       bottomNavigationBar: SafeArea(
