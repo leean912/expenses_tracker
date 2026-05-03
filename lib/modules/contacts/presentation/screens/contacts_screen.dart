@@ -15,7 +15,6 @@ class ContactsScreen extends ConsumerStatefulWidget {
 class _ContactsScreenState extends ConsumerState<ContactsScreen> {
   final _searchController = TextEditingController();
   String _query = '';
-  bool _adding = false;
   final Set<String> _dismissedIds = {};
 
   @override
@@ -32,26 +31,22 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
     super.dispose();
   }
 
-  Future<void> _submitAdd() async {
-    final identifier = _searchController.text.trim();
-    if (identifier.isEmpty) return;
-    setState(() => _adding = true);
-    final error = await ref
-        .read(contactsProvider.notifier)
-        .addContact(identifier);
-    if (!mounted) return;
-    setState(() => _adding = false);
-    if (error == null) {
-      _searchController.clear();
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: AppColors.textPrimary,
-        ),
-      );
-    }
+  Future<void> _showAddFriendDialog() async {
+    await showDialog<void>(
+      context: context,
+      builder: (_) => _AddFriendDialog(
+        onAdded: () {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Contact added.'),
+              behavior: SnackBarBehavior.floating,
+              backgroundColor: AppColors.textPrimary,
+            ),
+          );
+        },
+      ),
+    );
   }
 
   Future<void> _handleDelete(String contactId, String displayName) async {
@@ -114,7 +109,7 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
                           color: AppColors.textPrimary,
                         ),
                         decoration: const InputDecoration(
-                          hintText: 'Search or add by username…',
+                          hintText: 'Search contacts…',
                           hintStyle: TextStyle(
                             color: AppColors.textTertiary,
                             fontSize: 14,
@@ -127,13 +122,12 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
                           border: InputBorder.none,
                           contentPadding: EdgeInsets.symmetric(vertical: 12),
                         ),
-                        onSubmitted: (_) => _submitAdd(),
                       ),
                     ),
                   ),
                   const SizedBox(width: AppSpacing.md),
                   GestureDetector(
-                    onTap: _adding ? null : _submitAdd,
+                    onTap: _showAddFriendDialog,
                     child: Container(
                       width: 44,
                       height: 44,
@@ -141,22 +135,11 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
                         color: AppColors.accent,
                         borderRadius: BorderRadius.circular(AppRadius.md),
                       ),
-                      child: _adding
-                          ? const Center(
-                              child: SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: AppColors.accentText,
-                                ),
-                              ),
-                            )
-                          : const Icon(
-                              Icons.person_add_rounded,
-                              color: AppColors.accentText,
-                              size: 20,
-                            ),
+                      child: const Icon(
+                        Icons.person_add_rounded,
+                        color: AppColors.accentText,
+                        size: 20,
+                      ),
                     ),
                   ),
                 ],
@@ -196,7 +179,7 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
                     return Center(
                       child: Text(
                         _query.isEmpty
-                            ? 'No contacts yet.\nSearch a username to add.'
+                            ? 'No contacts yet.\nTap + to add a friend.'
                             : 'No results for "$_query".',
                         textAlign: TextAlign.center,
                         style: const TextStyle(
@@ -230,6 +213,111 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _AddFriendDialog extends ConsumerStatefulWidget {
+  const _AddFriendDialog({required this.onAdded});
+
+  final VoidCallback onAdded;
+
+  @override
+  ConsumerState<_AddFriendDialog> createState() => _AddFriendDialogState();
+}
+
+class _AddFriendDialogState extends ConsumerState<_AddFriendDialog> {
+  final _controller = TextEditingController();
+  bool _adding = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final identifier = _controller.text.trim();
+    if (identifier.isEmpty) return;
+    setState(() {
+      _adding = true;
+      _error = null;
+    });
+    final error = await ref
+        .read(contactsProvider.notifier)
+        .addContact(identifier);
+    if (!mounted) return;
+    if (error == null) {
+      Navigator.of(context).pop();
+      widget.onAdded();
+    } else {
+      setState(() {
+        _adding = false;
+        _error = error;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: AppColors.surface,
+      title: const Text(
+        'Add Friend',
+        style: TextStyle(
+          color: AppColors.textPrimary,
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            controller: _controller,
+            autofocus: true,
+            style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
+            decoration: const InputDecoration(
+              hintText: 'Enter username…',
+              hintStyle: TextStyle(color: AppColors.textTertiary),
+              prefixText: '@',
+              prefixStyle: TextStyle(color: AppColors.textSecondary),
+            ),
+            onSubmitted: (_) => _adding ? null : _submit(),
+          ),
+          if (_error != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              _error!,
+              style: const TextStyle(
+                fontSize: 12,
+                color: Color(0xFF993C1D),
+              ),
+            ),
+          ],
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text(
+            'Cancel',
+            style: TextStyle(color: AppColors.textSecondary),
+          ),
+        ),
+        TextButton(
+          onPressed: _adding ? null : _submit,
+          child: _adding
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Add'),
+        ),
+      ],
     );
   }
 }

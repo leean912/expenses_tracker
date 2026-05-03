@@ -38,7 +38,7 @@ class UserNameNotifier extends Notifier<UserNameState> {
     return const UserNameState();
   }
 
-  // Supabase username format: 3–20 chars, lowercase alphanumeric + underscore.
+  // 3–20 chars, lowercase alphanumeric + underscore, any starting char.
   static final _validPattern = RegExp(r'^[a-z0-9_]{3,20}$');
 
   void onUsernameChanged(String value) {

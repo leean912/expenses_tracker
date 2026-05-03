@@ -13,7 +13,7 @@ create table profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   email text unique not null,
   username text unique
-    check (username is null or username ~ '^[a-z][a-z0-9_]{2,19}$'),
+    check (username is null or username ~ '^[a-z0-9_]{3,20}$'),
   display_name text not null,
   avatar_url text,
   default_currency text not null default 'MYR',
@@ -31,7 +31,7 @@ create table profiles (
 |---|---|---|
 | `id` | uuid | PK, also FK to `auth.users(id)`. Cascades on auth user delete. |
 | `email` | text | From OAuth provider. Unique across all users. |
-| `username` | text | User-chosen handle. NULL until user picks one in onboarding. Unique. Lowercase, 3-20 chars, starts with letter, allows digits + underscore. Immutable in MVP. |
+| `username` | text | User-chosen handle. NULL until user picks one in onboarding. Unique. Lowercase, 3-20 chars, allows digits + underscore + any starting char. Immutable in MVP. |
 | `display_name` | text | Human-readable name. From OAuth or fallback to email prefix. Editable. |
 | `avatar_url` | text | NULL in MVP (V2 feature). |
 | `default_currency` | text | ISO code (default 'MYR'). User's home currency. |
@@ -54,11 +54,11 @@ When a user signs in via Google/Apple for the first time:
 
 ## Username constraints
 
-- Format: `^[a-z][a-z0-9_]{2,19}$`
+- Format: `^[a-z0-9_]{3,20}$`
 - Length: 3-20 chars
-- Must start with a letter
 - Lowercase only
 - Allowed chars: a-z, 0-9, underscore
+- Any of the above can appear at the start
 
 The DB-level check constraint enforces format. The `set_username` RPC additionally:
 - Checks uniqueness (raises 'username_taken' hint)

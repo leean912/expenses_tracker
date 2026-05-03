@@ -23,7 +23,7 @@ create table profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   email text unique not null,
   username text unique
-    check (username is null or username ~ '^[a-z][a-z0-9_]{2,19}$'),
+    check (username is null or username ~ '^[a-z0-9_]{3,20}$'),
   display_name text not null,
   avatar_url text,
   default_currency text not null default 'MYR',
@@ -649,9 +649,9 @@ begin
 
   v_normalized := lower(trim(p_username));
 
-  -- Validate format (3-20 chars, starts with letter, lowercase + digits + underscore)
-  if not (v_normalized ~ '^[a-z][a-z0-9_]{2,19}$') then
-    raise exception 'Invalid username format. Use 3-20 lowercase letters, digits, or underscores, starting with a letter.'
+  -- Validate format (3-20 chars, lowercase + digits + underscore, any starting char)
+  if not (v_normalized ~ '^[a-z0-9_]{3,20}$') then
+    raise exception 'Invalid username format. Use 3-20 lowercase letters, digits, or underscores.'
       using errcode = 'P0001', hint = 'invalid_format';
   end if;
 
@@ -694,7 +694,7 @@ begin
   v_normalized := lower(trim(p_username));
 
   -- Validate format first
-  if not (v_normalized ~ '^[a-z][a-z0-9_]{2,19}$') then
+  if not (v_normalized ~ '^[a-z0-9_]{3,20}$') then
     return false;
   end if;
 

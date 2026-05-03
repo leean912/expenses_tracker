@@ -127,14 +127,14 @@ extension TimePeriodRange on TimePeriod {
 class AnalyticsSummary {
   const AnalyticsSummary({
     required this.totalSpentCents,
-    required this.changePercent, // negative = spent less than last month
+    // required this.changePercent, // negative = spent less than last month
     required this.avgPerDayCents,
     required this.topCategory,
     required this.changeVsLastMonthCents,
   });
 
   final int totalSpentCents;
-  final double changePercent;
+  // final double changePercent;
   final int avgPerDayCents;
   final String topCategory;
   final int changeVsLastMonthCents;

@@ -63,8 +63,8 @@ class AnalyticsBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDownFromLast = summary.changePercent < 0;
-    final changePct = summary.changePercent.abs().round();
+    // final isDownFromLast = summary.changePercent < 0;
+    // final changePct = summary.changePercent.abs().round();
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
@@ -115,7 +115,20 @@ class AnalyticsBanner extends StatelessWidget {
                       ],
                     ),
                   ),
-                  _ChangeBadge(isDown: isDownFromLast, percent: changePct),
+
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                    child: Text(
+                      'View analytics',
+                      style: TextStyle(fontSize: 12, color: AppColors.accent),
+                    ),
+                  ),
+                  Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    size: 15,
+                    color: AppColors.accent,
+                  ),
+                  // _ChangeBadge(isDown: isDownFromLast, percent: changePct),
                 ],
               ),
               const SizedBox(height: AppSpacing.md),

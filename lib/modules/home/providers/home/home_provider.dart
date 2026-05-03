@@ -33,8 +33,10 @@ class HomeData {
 ///
 /// Budget spend is computed from the expense rows already in memory — no
 /// extra round-trip.
-final homeDataProvider =
-    FutureProvider.family<HomeData, HomeFilter>((ref, filter) async {
+final homeDataProvider = FutureProvider.family<HomeData, HomeFilter>((
+  ref,
+  filter,
+) async {
   final period = filter.period;
   final userId = supabase.auth.currentUser!.id;
   final (start, end) = filter.toDateRange();
@@ -71,7 +73,9 @@ final homeDataProvider =
     // 3. Active budgets for the matching period, with category color.
     supabase
         .from('budgets')
-        .select('id, limit_cents, category_id, category:categories(name, color)')
+        .select(
+          'id, limit_cents, category_id, category:categories(name, color)',
+        )
         .eq('user_id', userId)
         .eq('period', budgetPeriod)
         .isFilter('deleted_at', null),
@@ -98,7 +102,8 @@ final homeDataProvider =
 
       final catId = row['category_id'] as String? ?? '';
       final catName =
-          (row['category'] as Map<String, dynamic>?)?['name'] as String? ?? catId;
+          (row['category'] as Map<String, dynamic>?)?['name'] as String? ??
+          catId;
       final existing = spendByCategory[catId];
       spendByCategory[catId] = (
         cents: (existing?.cents ?? 0) + cents,
@@ -112,10 +117,12 @@ final homeDataProvider =
     (sum, r) => sum + ((r as Map)['home_amount_cents'] as int? ?? 0),
   );
   final changeVsLast = totalCents - prevTotalCents;
-  final changePercent =
-      prevTotalCents == 0 ? 0.0 : (changeVsLast / prevTotalCents) * 100.0;
+  // final changePercent = prevTotalCents == 0
+  //     ? 0.0
+  //     : (changeVsLast / prevTotalCents) * 100.0;
 
-  final topCategory = spendByCategory.entries
+  final topCategory =
+      spendByCategory.entries
           .fold<MapEntry<String, ({int cents, String name})>?>(
             null,
             (best, e) =>
@@ -131,7 +138,7 @@ final homeDataProvider =
 
   final analytics = AnalyticsSummary(
     totalSpentCents: totalCents,
-    changePercent: changePercent,
+    // changePercent: changePercent,
     avgPerDayCents: avgPerDayCents,
     topCategory: topCategory,
     changeVsLastMonthCents: changeVsLast,
@@ -139,31 +146,32 @@ final homeDataProvider =
 
   // ── Budgets ───────────────────────────────────────────────────────────────
 
-  final budgets = budgetRows.map((b) {
-    final row = b as Map<String, dynamic>;
-    final catId = row['category_id'] as String?;
-    final catMap = row['category'] as Map<String, dynamic>?;
-    final label = catMap?['name'] as String? ?? 'Overall';
-    final color =
-        _hexToColor(catMap?['color'] as String?) ?? const Color(0xFF888780);
-    final spentCents =
-        catId == null ? totalCents : (spendByCategory[catId]?.cents ?? 0);
+  final budgets =
+      budgetRows.map((b) {
+        final row = b as Map<String, dynamic>;
+        final catId = row['category_id'] as String?;
+        final catMap = row['category'] as Map<String, dynamic>?;
+        final label = catMap?['name'] as String? ?? 'Overall';
+        final color =
+            _hexToColor(catMap?['color'] as String?) ?? const Color(0xFF888780);
+        final spentCents = catId == null
+            ? totalCents
+            : (spendByCategory[catId]?.cents ?? 0);
 
-    return BudgetMini(
-      id: row['id'] as String,
-      label: label,
-      spentCents: spentCents,
-      limitCents: row['limit_cents'] as int,
-      barColor: color,
-      labelColor: _darken(color),
-      isOverall: catId == null,
-    );
-  }).toList()
-    ..sort((a, b) {
-      // Overall budget first, then by spend descending.
-      if (a.isOverall != b.isOverall) return a.isOverall ? -1 : 1;
-      return b.spentCents.compareTo(a.spentCents);
-    });
+        return BudgetMini(
+          id: row['id'] as String,
+          label: label,
+          spentCents: spentCents,
+          limitCents: row['limit_cents'] as int,
+          barColor: color,
+          labelColor: _darken(color),
+          isOverall: catId == null,
+        );
+      }).toList()..sort((a, b) {
+        // Overall budget first, then by spend descending.
+        if (a.isOverall != b.isOverall) return a.isOverall ? -1 : 1;
+        return b.spentCents.compareTo(a.spentCents);
+      });
 
   // ── Expense list ──────────────────────────────────────────────────────────
 
@@ -200,10 +208,10 @@ final homeDataProvider =
 /// Maps [TimePeriod] to the `budgets.period` value used in Supabase.
 /// 'today' has no daily budget type — falls back to monthly.
 String _budgetPeriodFor(TimePeriod period) => switch (period) {
-      TimePeriod.week => 'weekly',
-      TimePeriod.year => 'yearly',
-      _ => 'monthly',
-    };
+  TimePeriod.week => 'weekly',
+  TimePeriod.year => 'yearly',
+  _ => 'monthly',
+};
 
 /// Parses a CSS hex string (e.g. `#E85D24`) into a Flutter [Color].
 Color? _hexToColor(String? hex) {
@@ -216,5 +224,4 @@ Color? _hexToColor(String? hex) {
 Color _lighten(Color color) =>
     Color.lerp(color, const Color(0xFFFFFFFF), 0.82)!;
 
-Color _darken(Color color) =>
-    Color.lerp(color, const Color(0xFF000000), 0.35)!;
+Color _darken(Color color) => Color.lerp(color, const Color(0xFF000000), 0.35)!;
