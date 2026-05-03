@@ -37,6 +37,11 @@ migrate_working_dir/
 # Environment / secrets (envied)
 env/.env.*
 
+# Android signing
+android/key.properties
+*.jks
+*.keystore
+
 # Firebase secrets
 android/app/google-services.json
 ios/Runner/GoogleService-Info.plist

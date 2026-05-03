@@ -4,7 +4,7 @@ class ContactModel {
     required this.friendId,
     this.nickname,
     this.username,
-    this.displayName,
+    required this.displayName,
     this.avatarUrl,
   });
 
@@ -12,10 +12,8 @@ class ContactModel {
   final String friendId;
   final String? nickname;
   final String? username;
-  final String? displayName;
+  final String displayName;
   final String? avatarUrl;
-
-  String get displayLabel => nickname ?? username ?? friendId;
 
   factory ContactModel.fromJson(Map<String, dynamic> json) {
     final friend = json['friend'] as Map<String, dynamic>? ?? {};
@@ -24,7 +22,7 @@ class ContactModel {
       friendId: friend['id'] as String? ?? '',
       nickname: json['nickname'] as String?,
       username: friend['username'] as String?,
-      displayName: friend['display_name'] as String?,
+      displayName: friend['display_name'] as String? ?? '',
       avatarUrl: friend['avatar_url'] as String?,
     );
   }

@@ -11,12 +11,10 @@ class ProfileSummary {
   final String? displayName;
   final String? avatarUrl;
 
-  String get displayLabel => username ?? 'Unknown';
-
   factory ProfileSummary.fromJson(Map<String, dynamic> json) => ProfileSummary(
-        id: json['id'] as String,
-        username: json['username'] as String?,
-        displayName: json['display_name'] as String?,
-        avatarUrl: json['avatar_url'] as String?,
-      );
+    id: json['id'] as String,
+    username: json['username'] ?? '',
+    displayName: json['display_name'] ?? '',
+    avatarUrl: json['avatar_url'] as String?,
+  );
 }

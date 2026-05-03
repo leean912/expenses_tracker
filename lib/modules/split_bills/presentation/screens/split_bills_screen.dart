@@ -80,15 +80,17 @@ class _SplitBillsScreenState extends ConsumerState<SplitBillsScreen>
                     fontSize: 13,
                     fontWeight: FontWeight.w500,
                   ),
-                  tabs: const [Tab(text: 'I Paid'), Tab(text: 'I Owe')],
+                  tabs: const [
+                    Tab(text: 'I Paid'),
+                    Tab(text: 'I Owe'),
+                  ],
                 ),
               ),
             ),
             const SizedBox(height: AppSpacing.md),
             Expanded(
               child: async.when(
-                loading: () =>
-                    const Center(child: CircularProgressIndicator()),
+                loading: () => const Center(child: CircularProgressIndicator()),
                 error: (e, _) => Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -268,7 +270,11 @@ class _BillCard extends StatelessWidget {
                   ),
                 ),
                 const Spacer(),
-                _ProgressBadge(settled: settled, total: total, allSettled: allSettled),
+                _ProgressBadge(
+                  settled: settled,
+                  total: total,
+                  allSettled: allSettled,
+                ),
               ],
             ),
           ],
@@ -355,7 +361,7 @@ class _ShareCard extends StatelessWidget {
             Row(
               children: [
                 Text(
-                  '${item.payer?.displayLabel ?? 'Someone'} paid',
+                  '${item.payer?.displayName} paid',
                   style: const TextStyle(
                     fontSize: 12,
                     color: AppColors.textTertiary,

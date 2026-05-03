@@ -3,6 +3,56 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../providers/home/home_state.dart';
 
+String _fmtCents(int cents) {
+  final value = (cents / 100).abs();
+  final whole = value.toStringAsFixed(2);
+  final parts = whole.split('.');
+  final intPart = parts[0];
+  final formatted = StringBuffer();
+  for (int i = 0; i < intPart.length; i++) {
+    if (i > 0 && (intPart.length - i) % 3 == 0) formatted.write(',');
+    formatted.write(intPart[i]);
+  }
+  return 'RM $formatted.${parts[1]}';
+}
+
+/// Compact single-row banner pinned at top when the full banner scrolls away.
+class AnalyticsBannerCompact extends StatelessWidget {
+  const AnalyticsBannerCompact({super.key, required this.summary});
+
+  final AnalyticsSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: AppColors.background,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.xl,
+        vertical: AppSpacing.md,
+      ),
+      child: Row(
+        children: [
+          const Text(
+            'Total expenses',
+            style: TextStyle(fontSize: 12, color: AppColors.textTertiary),
+          ),
+          const Spacer(),
+          Text(
+            _fmtCents(summary.totalSpentCents),
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: summary.totalSpentCents < 0
+                  ? AppColors.incomeDark
+                  : AppColors.expenseLight,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Banner card showing total spent + 3-stat row.
 /// Tappable — navigates to analytics detail.
 class AnalyticsBanner extends StatelessWidget {
@@ -10,19 +60,6 @@ class AnalyticsBanner extends StatelessWidget {
 
   final AnalyticsSummary summary;
   final VoidCallback? onTap;
-
-  String _fmtCents(int cents) {
-    final value = (cents / 100).abs();
-    final whole = value.toStringAsFixed(2);
-    final parts = whole.split('.');
-    final intPart = parts[0];
-    final formatted = StringBuffer();
-    for (int i = 0; i < intPart.length; i++) {
-      if (i > 0 && (intPart.length - i) % 3 == 0) formatted.write(',');
-      formatted.write(intPart[i]);
-    }
-    return 'RM $formatted.${parts[1]}';
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -39,6 +76,13 @@ class AnalyticsBanner extends StatelessWidget {
             color: AppColors.surface,
             borderRadius: BorderRadius.circular(AppRadius.xl),
             border: Border.all(color: AppColors.border, width: 0.5),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.accent.withAlpha(5),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -51,7 +95,7 @@ class AnalyticsBanner extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          'Total expenses within selected period',
+                          'Total expenses',
                           style: TextStyle(
                             fontSize: 12,
                             color: AppColors.textTertiary,

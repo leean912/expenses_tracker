@@ -9,11 +9,13 @@ class GreetingHeader extends StatelessWidget {
   const GreetingHeader({
     super.key,
     this.userName = 'Alice',
+    this.displayName,
     this.onBellTap,
     this.onAvatarTap,
   });
 
   final String userName;
+  final String? displayName;
   final VoidCallback? onBellTap;
   final VoidCallback? onAvatarTap;
 
@@ -40,13 +42,21 @@ class GreetingHeader extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  userName,
+                  displayName ?? userName,
                   style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w500,
                     color: AppColors.textPrimary,
                   ),
                 ),
+                if (displayName != null)
+                  Text(
+                    '@$userName',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
               ],
             ),
           ),

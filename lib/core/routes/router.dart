@@ -2,6 +2,7 @@ import 'package:expenses_tracker_new/core/routes/routes.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../main.dart';
+import '../../modules/analysis/presentation/screens/analysis_screen.dart';
 import '../../modules/auth/presentation/screens/splash_screen.dart';
 import '../../modules/auth/presentation/screens/user_name_screen.dart';
 import '../../modules/contacts/presentation/screens/contacts_screen.dart';
@@ -19,6 +20,7 @@ final router = GoRouter(
     GoRoute(path: loginRoute, builder: (context, state) => TestingLogin()),
     GoRoute(path: userNameRoute, builder: (context, state) => UserNameScreen()),
     GoRoute(path: contactsRoute, builder: (context, state) => ContactsScreen()),
+    GoRoute(path: analysisRoute, builder: (context, state) => const AnalysisScreen()),
     StatefulShellRoute.indexedStack(
       builder: (context, state, navigationShell) =>
           AppShell(navigationShell: navigationShell),

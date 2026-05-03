@@ -177,7 +177,21 @@ class ExpenseListCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (expenses.isEmpty) return const SizedBox.shrink();
+    if (expenses.isEmpty) {
+      return Padding(
+        padding: EdgeInsets.all(AppSpacing.xl),
+        child: SizedBox(
+          height: 100,
+          child: Center(
+            child: Text(
+              'No expenses',
+              style: TextStyle(fontSize: 14, color: AppColors.textTertiary),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      );
+    }
 
     final groups = _group(expenses);
 

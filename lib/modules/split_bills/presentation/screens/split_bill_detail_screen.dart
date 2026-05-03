@@ -160,7 +160,7 @@ class _BillHeader extends StatelessWidget {
             value: _fmtAmount(bill.totalAmountCents, bill.currency),
           ),
           const SizedBox(height: AppSpacing.md),
-          _Row(label: 'Paid by', value: bill.payer?.displayLabel ?? 'Unknown'),
+          _Row(label: 'Paid by', value: bill.payer?.displayName ?? 'Unknown'),
           const SizedBox(height: AppSpacing.md),
           _Row(label: 'Date', value: _dateFmtFull.format(bill.expenseDate)),
         ],
@@ -213,7 +213,7 @@ class _ShareRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final name = isCurrentUser ? 'You' : share.user?.displayLabel ?? 'Unknown';
+    final name = isCurrentUser ? 'You' : share.user?.displayName ?? 'Unknown';
 
     return Padding(
       padding: const EdgeInsets.symmetric(
