@@ -107,115 +107,128 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
       backgroundColor: AppColors.background,
       body: SafeArea(
         bottom: false,
-        child: CustomScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          slivers: [
-            SliverAppBar(
-              backgroundColor: AppColors.background,
-              surfaceTintColor: Colors.transparent,
-              scrolledUnderElevation: 0,
-              flexibleSpace: const FlexibleSpaceBar(title: Text('Analysis')),
-              pinned: true,
-            ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.only(top: AppSpacing.xl),
-                child: AnalysisFilterChips(
-                  selected: _selectedPeriod,
-                  onSelected: _onPeriodSelected,
+        child: RefreshIndicator(
+          onRefresh: () => ref.refresh(analysisDataProvider(_filter).future),
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              SliverAppBar(
+                backgroundColor: AppColors.background,
+                surfaceTintColor: Colors.transparent,
+                scrolledUnderElevation: 0,
+                flexibleSpace: const FlexibleSpaceBar(
+                  title: Text(
+                    'Analysis',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  centerTitle: false,
                 ),
+                pinned: true,
               ),
-            ),
-
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.xl,
-                  AppSpacing.sm,
-                  AppSpacing.xl,
-                  0,
-                ),
-                child: Text(
-                  _dateRangeLabel,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textTertiary,
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: AppSpacing.xl),
+                  child: AnalysisFilterChips(
+                    selected: _selectedPeriod,
+                    onSelected: _onPeriodSelected,
                   ),
                 ),
               ),
-            ),
 
-            if (isLoading)
-              const SliverToBoxAdapter(
-                child: LinearProgressIndicator(
-                  minHeight: 2,
-                  backgroundColor: AppColors.surfaceMuted,
-                  color: AppColors.accent,
-                ),
-              ),
-
-            if (hasError)
-              SliverFillRemaining(
-                hasScrollBody: false,
-                child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text(
-                        'Failed to load data.',
-                        style: TextStyle(color: AppColors.textSecondary),
-                      ),
-                      const SizedBox(height: 12),
-                      TextButton(
-                        onPressed: () =>
-                            ref.invalidate(analysisDataProvider(_filter)),
-                        child: const Text('Retry'),
-                      ),
-                    ],
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.xl,
+                    AppSpacing.sm,
+                    AppSpacing.xl,
+                    0,
+                  ),
+                  child: Text(
+                    _dateRangeLabel,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textTertiary,
+                    ),
                   ),
                 ),
-              )
-            else if (data == null && isLoading)
-              const SliverFillRemaining(
-                hasScrollBody: false,
-                child: Center(child: CircularProgressIndicator()),
-              )
-            else if (data != null) ...[
-              _ChartSection(
-                title: 'Spending by Category',
-                description:
-                    'Where your money goes — tap a slice to see the exact amount and share for each category.',
-                child: CategoryPieChart(
-                  categories: data.categoryBreakdown,
-                  totalCents: data.totalSpentCents,
+              ),
+
+              if (isLoading)
+                const SliverToBoxAdapter(
+                  child: LinearProgressIndicator(
+                    minHeight: 2,
+                    backgroundColor: AppColors.surfaceMuted,
+                    color: AppColors.accent,
+                  ),
                 ),
-              ),
 
-              _ChartSection(
-                title: 'Spending Over Time',
-                description:
-                    'How much you spent per period bucket. Income bars appear in green when recorded.',
-                child: SpendingBarChart(buckets: data.periodBreakdown),
-              ),
-
-              if (data.budgetProgress.isNotEmpty)
+              if (hasError)
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          'Failed to load data.',
+                          style: TextStyle(color: AppColors.textSecondary),
+                        ),
+                        const SizedBox(height: 12),
+                        TextButton(
+                          onPressed: () =>
+                              ref.invalidate(analysisDataProvider(_filter)),
+                          child: const Text('Retry'),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else if (data == null && isLoading)
+                const SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (data != null) ...[
                 _ChartSection(
-                  title: 'Budget vs Actual',
+                  title: 'Spending by Category',
                   description:
-                      'Compare your set budget limits against real spending. Red means over budget.',
-                  child: BudgetVsActualCard(budgets: data.budgetProgress),
+                      'Where your money goes — tap a slice to see the exact amount and share for each category.',
+                  child: CategoryPieChart(
+                    categories: data.categoryBreakdown,
+                    totalCents: data.totalSpentCents,
+                  ),
                 ),
 
-              _ChartSection(
-                title: 'Cumulative Trend',
-                description:
-                    'Your running total spend growing day by day — useful for spotting heavy-spending stretches.',
-                child: CumulativeLineChart(points: data.cumulativeTrend),
-              ),
-            ],
+                _ChartSection(
+                  title: 'Spending Over Time',
+                  description:
+                      'How much you spent per period bucket. Income bars appear in green when recorded.',
+                  child: SpendingBarChart(buckets: data.periodBreakdown),
+                ),
 
-            const SliverToBoxAdapter(child: SizedBox(height: 32)),
-          ],
+                if (data.budgetProgress.isNotEmpty)
+                  _ChartSection(
+                    title: 'Budget vs Actual',
+                    description:
+                        'Compare your set budget limits against real spending. Red means over budget.',
+                    child: BudgetVsActualCard(budgets: data.budgetProgress),
+                  ),
+
+                _ChartSection(
+                  title: 'Cumulative Trend',
+                  description:
+                      'Your running total spend growing day by day — useful for spotting heavy-spending stretches.',
+                  child: CumulativeLineChart(points: data.cumulativeTrend),
+                ),
+              ],
+
+              const SliverToBoxAdapter(child: SizedBox(height: 32)),
+            ],
+          ),
         ),
       ),
     );

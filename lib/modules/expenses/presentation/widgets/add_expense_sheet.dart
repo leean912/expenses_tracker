@@ -341,172 +341,177 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
             top: Radius.circular(AppRadius.xxl),
           ),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // ── Header ─────────────────────────────────────────────────────
-            Padding(
-              padding: EdgeInsets.fromLTRB(
-                AppSpacing.xl,
-                AppSpacing.lg + MediaQuery.of(context).padding.top,
-                AppSpacing.md,
-                AppSpacing.md,
-              ),
-              child: Row(
-                children: [
-                  const Text(
-                    'Add Transaction',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(
-                      Icons.close,
-                      color: AppColors.textSecondary,
-                    ),
-                    style: IconButton.styleFrom(
-                      backgroundColor: AppColors.surfaceMuted,
-                      shape: const CircleBorder(),
-                      padding: const EdgeInsets.all(AppSpacing.sm),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // ── Tabs ───────────────────────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
-              child: _TabRow(
-                selectedIndex: _tabIndex,
-                onTap: (i) => setState(() => _tabIndex = i),
-              ),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            const Divider(height: 1, color: AppColors.border),
-
-            // ── Body ───────────────────────────────────────────────────────
-            Expanded(
-              child: _tabIndex == 0
-                  ? _ExpenseForm(
-                      amountController: _amountController,
-                      selectedCategoryId: _selectedCategoryId,
-                      selectedAccountId: _selectedAccountId,
-                      selectedDate: _selectedDate,
-                      formattedDate: _formattedDate,
-                      noteController: _noteController,
-                      errorMsg: errorMsg,
-                      onCategorySelect: (id) =>
-                          setState(() => _selectedCategoryId = id),
-                      onAccountSelect: (id) =>
-                          setState(() => _selectedAccountId = id),
-                      onDateTap: _pickDate,
-                    )
-                  : _SplitBillForm(
-                      amountController: _splitAmountController,
-                      noteController: _splitNoteController,
-                      selectedCategoryId: _splitCategoryId,
-                      selectedAccountId: _splitAccountId,
-                      formattedDate: _splitFormattedDate,
-                      participants: _splitParticipants,
-                      equalSplit: _equalSplit,
-                      remainingCents: _splitRemainingCents,
-                      splitError: _splitError,
-                      onCategorySelect: (id) =>
-                          setState(() => _splitCategoryId = id),
-                      onAccountSelect: (id) =>
-                          setState(() => _splitAccountId = id),
-                      onDateTap: _pickSplitDate,
-                      onEqualSplitToggle: (value) => setState(() {
-                        _equalSplit = value;
-                        if (value) _applyEqualSplit();
-                      }),
-                      onAddParticipant: _showContactPicker,
-                      onRemoveParticipant: _removeSplitParticipant,
-                    ),
-            ),
-
-            // ── Submit ─────────────────────────────────────────────────────
-            if (_tabIndex == 0)
+        child: Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.viewInsetsOf(context).bottom,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // ── Header ─────────────────────────────────────────────────────
               Padding(
-                padding: EdgeInsets.fromLTRB(
+                padding: const EdgeInsets.fromLTRB(
                   AppSpacing.xl,
+                  AppSpacing.lg,
                   AppSpacing.md,
-                  AppSpacing.xl,
-                  AppSpacing.xl + MediaQuery.of(context).padding.bottom,
-                ),
-                child: FilledButton(
-                  onPressed: isLoading ? null : _submit,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.accent,
-                    foregroundColor: AppColors.accentText,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppRadius.lg),
-                    ),
-                  ),
-                  child: isLoading
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: AppColors.accentText,
-                          ),
-                        )
-                      : const Text(
-                          'Add Expense',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                ),
-              )
-            else
-              Padding(
-                padding: EdgeInsets.fromLTRB(
-                  AppSpacing.xl,
                   AppSpacing.md,
-                  AppSpacing.xl,
-                  AppSpacing.xl + MediaQuery.of(context).padding.bottom,
                 ),
-                child: FilledButton(
-                  onPressed: _splitCanSubmit ? _submitSplitBill : null,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.accent,
-                    foregroundColor: AppColors.accentText,
-                    disabledBackgroundColor: AppColors.surfaceMuted,
-                    disabledForegroundColor: AppColors.textTertiary,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppRadius.lg),
+                child: Row(
+                  children: [
+                    const Text(
+                      'Add Transaction',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
                     ),
-                  ),
-                  child: _splitLoading
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: AppColors.accentText,
-                          ),
-                        )
-                      : const Text(
-                          'Create Split Bill',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+                    const Spacer(),
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(
+                        Icons.close,
+                        color: AppColors.textSecondary,
+                      ),
+                      style: IconButton.styleFrom(
+                        backgroundColor: AppColors.surfaceMuted,
+                        shape: const CircleBorder(),
+                        padding: const EdgeInsets.all(AppSpacing.sm),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-          ],
+
+              // ── Tabs ───────────────────────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+                child: _TabRow(
+                  selectedIndex: _tabIndex,
+                  onTap: (i) => setState(() => _tabIndex = i),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              const Divider(height: 1, color: AppColors.border),
+
+              // ── Body ───────────────────────────────────────────────────────
+              Expanded(
+                child: _tabIndex == 0
+                    ? _ExpenseForm(
+                        amountController: _amountController,
+                        selectedCategoryId: _selectedCategoryId,
+                        selectedAccountId: _selectedAccountId,
+                        selectedDate: _selectedDate,
+                        formattedDate: _formattedDate,
+                        noteController: _noteController,
+                        errorMsg: errorMsg,
+                        onCategorySelect: (id) =>
+                            setState(() => _selectedCategoryId = id),
+                        onAccountSelect: (id) =>
+                            setState(() => _selectedAccountId = id),
+                        onDateTap: _pickDate,
+                      )
+                    : _SplitBillForm(
+                        amountController: _splitAmountController,
+                        noteController: _splitNoteController,
+                        selectedCategoryId: _splitCategoryId,
+                        selectedAccountId: _splitAccountId,
+                        formattedDate: _splitFormattedDate,
+                        participants: _splitParticipants,
+                        equalSplit: _equalSplit,
+                        remainingCents: _splitRemainingCents,
+                        splitError: _splitError,
+                        onCategorySelect: (id) =>
+                            setState(() => _splitCategoryId = id),
+                        onAccountSelect: (id) =>
+                            setState(() => _splitAccountId = id),
+                        onDateTap: _pickSplitDate,
+                        onEqualSplitToggle: (value) => setState(() {
+                          _equalSplit = value;
+                          if (value) _applyEqualSplit();
+                        }),
+                        onAddParticipant: _showContactPicker,
+                        onRemoveParticipant: _removeSplitParticipant,
+                      ),
+              ),
+
+              // ── Submit ─────────────────────────────────────────────────────
+              if (_tabIndex == 0)
+                Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    AppSpacing.xl,
+                    AppSpacing.md,
+                    AppSpacing.xl,
+                    AppSpacing.xl + MediaQuery.of(context).padding.bottom,
+                  ),
+                  child: FilledButton(
+                    onPressed: isLoading ? null : _submit,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.accent,
+                      foregroundColor: AppColors.accentText,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppRadius.lg),
+                      ),
+                    ),
+                    child: isLoading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.accentText,
+                            ),
+                          )
+                        : const Text(
+                            'Add Expense',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                  ),
+                )
+              else
+                Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    AppSpacing.xl,
+                    AppSpacing.md,
+                    AppSpacing.xl,
+                    AppSpacing.xl + MediaQuery.of(context).padding.bottom,
+                  ),
+                  child: FilledButton(
+                    onPressed: _splitCanSubmit ? _submitSplitBill : null,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.accent,
+                      foregroundColor: AppColors.accentText,
+                      disabledBackgroundColor: AppColors.surfaceMuted,
+                      disabledForegroundColor: AppColors.textTertiary,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppRadius.lg),
+                      ),
+                    ),
+                    child: _splitLoading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.accentText,
+                            ),
+                          )
+                        : const Text(
+                            'Create Split Bill',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -1532,23 +1537,23 @@ class _ContactPickerSheet extends ConsumerWidget {
                       );
                     }
                     return ListTile(
-                      // leading: Container(
-                      //   width: 36,
-                      //   height: 36,
-                      //   decoration: const BoxDecoration(
-                      //     color: AppColors.surfaceMuted,
-                      //     shape: BoxShape.circle,
-                      //   ),
-                      //   alignment: Alignment.center,
-                      //   child: Text(
-                      //     initial,
-                      //     style: const TextStyle(
-                      //       fontSize: 14,
-                      //       fontWeight: FontWeight.w600,
-                      //       color: AppColors.textSecondary,
-                      //     ),
-                      //   ),
-                      // ),
+                      leading: Container(
+                        width: 36,
+                        height: 36,
+                        decoration: const BoxDecoration(
+                          color: AppColors.surfaceMuted,
+                          shape: BoxShape.circle,
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          contact.displayName[0].toUpperCase(),
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ),
                       title: RichText(
                         text: TextSpan(
                           children: [

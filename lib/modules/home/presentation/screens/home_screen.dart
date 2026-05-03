@@ -162,15 +162,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             child: CustomScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
               slivers: [
-                SliverToBoxAdapter(
-                  child: GreetingHeader(
-                    userName: userName,
-                    displayName: displayName,
-                    onBellTap: () => debugPrint('Bell tapped'),
-                    onAvatarTap: () => context.push(contactsRoute),
-                  ),
-                ),
-
                 // Thin loading bar shown while refetching (period switch).
                 if (isLoading)
                   const SliverToBoxAdapter(
@@ -204,27 +195,40 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   )
                 else ...[
                   if (homeData != null)
-                    PinnedHeaderSliver(
-                      child: Offstage(
-                        offstage: _compactOpacity == 0,
-                        child: AnimatedOpacity(
-                          opacity: _compactOpacity,
-                          duration: const Duration(milliseconds: 200),
-                          child: AnalyticsBannerCompact(
-                            key: _pinnedHeaderKey,
-                            summary: homeData.analytics,
-                          ),
+                    SliverAppBar(
+                      expandedHeight: 230,
+                      collapsedHeight: 60,
+                      backgroundColor: AppColors.background,
+                      surfaceTintColor: Colors.transparent,
+                      scrolledUnderElevation: 0,
+                      title: AnimatedOpacity(
+                        opacity: _compactOpacity,
+                        duration: const Duration(milliseconds: 200),
+                        child: AnalyticsBannerCompact(
+                          key: _pinnedHeaderKey,
+                          summary: homeData.analytics,
                         ),
                       ),
-                    ),
-
-                  if (homeData != null)
-                    SliverToBoxAdapter(
-                      child: AnalyticsBanner(
-                        key: _analyticsBannerKey,
-                        summary: homeData.analytics,
-                        onTap: () => context.push(analysisRoute),
+                      flexibleSpace: FlexibleSpaceBar(
+                        background: Column(
+                          children: [
+                            GreetingHeader(
+                              userName: userName,
+                              displayName: displayName,
+                              onBellTap: () => debugPrint('Bell tapped'),
+                              onAvatarTap: () => context.push(contactsRoute),
+                            ),
+                            AnalyticsBanner(
+                              key: _analyticsBannerKey,
+                              summary: homeData.analytics,
+                              onTap: () => context.push(analysisRoute),
+                            ),
+                          ],
+                        ),
+                        centerTitle: false,
+                        titlePadding: EdgeInsets.zero,
                       ),
+                      pinned: true,
                     ),
 
                   if (homeData != null)

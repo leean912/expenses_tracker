@@ -42,15 +42,21 @@ class BudgetGrid extends StatelessWidget {
                     color: AppColors.textPrimary,
                   ),
                 ),
-                GestureDetector(
-                  onTap: onManageTap,
-                  child: const Text(
-                    'Manage →',
+                TextButton.icon(
+                  onPressed: onManageTap,
+                  label: const Text(
+                    'Manage',
                     style: TextStyle(
                       fontSize: 11,
                       color: AppColors.textSecondary,
                     ),
                   ),
+                  icon: const Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    size: 12,
+                    color: AppColors.accent,
+                  ),
+                  iconAlignment: IconAlignment.end,
                 ),
               ],
             ),
