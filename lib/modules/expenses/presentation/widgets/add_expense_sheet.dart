@@ -18,6 +18,7 @@ import '../../data/models/category_model.dart';
 import '../../providers/accounts_provider.dart';
 import '../../providers/categories_provider.dart';
 import '../../providers/create_expense_provider.dart';
+import '../../utils/expense_ui_helpers.dart';
 
 class AddExpenseSheet extends ConsumerStatefulWidget {
   const AddExpenseSheet({super.key});
@@ -254,7 +255,7 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
 
     if (ok && mounted) {
       ref.invalidate(homeDataProvider);
-      Navigator.of(context).pop();
+      context.pop();
     }
   }
 
@@ -312,7 +313,7 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
       if (mounted) {
         ref.invalidate(splitBillsProvider);
         ref.invalidate(homeDataProvider);
-        Navigator.of(context).pop();
+        context.pop();
       }
     } catch (e) {
       if (mounted) {
@@ -410,6 +411,12 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
                         onAccountSelect: (id) =>
                             setState(() => _selectedAccountId = id),
                         onDateTap: _pickDate,
+                        onAddCategory: () {
+                          context.push(settingsCategoriesRoute);
+                        },
+                        onAddAccount: () {
+                          context.push(settingsAccountsRoute);
+                        },
                       )
                     : _SplitBillForm(
                         amountController: _splitAmountController,
@@ -432,6 +439,12 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
                         }),
                         onAddParticipant: _showContactPicker,
                         onRemoveParticipant: _removeSplitParticipant,
+                        onAddCategory: () {
+                          context.push(settingsCategoriesRoute);
+                        },
+                        onAddAccount: () {
+                          context.push(settingsAccountsRoute);
+                        },
                       ),
               ),
 
@@ -603,6 +616,8 @@ class _ExpenseForm extends ConsumerWidget {
     required this.onCategorySelect,
     required this.onAccountSelect,
     required this.onDateTap,
+    required this.onAddCategory,
+    required this.onAddAccount,
     this.errorMsg,
   });
 
@@ -615,6 +630,8 @@ class _ExpenseForm extends ConsumerWidget {
   final ValueChanged<String?> onCategorySelect;
   final ValueChanged<String?> onAccountSelect;
   final VoidCallback onDateTap;
+  final VoidCallback onAddCategory;
+  final VoidCallback onAddAccount;
   final String? errorMsg;
 
   @override
@@ -704,6 +721,7 @@ class _ExpenseForm extends ConsumerWidget {
               categories: cats,
               selectedId: selectedCategoryId,
               onSelect: onCategorySelect,
+              onAddTap: onAddCategory,
             ),
             loading: () => const SizedBox(
               height: 40,
@@ -734,6 +752,7 @@ class _ExpenseForm extends ConsumerWidget {
               accounts: accounts,
               selectedId: selectedAccountId,
               onSelect: onAccountSelect,
+              onAddTap: onAddAccount,
             ),
             loading: () => const SizedBox(
               height: 40,
@@ -864,6 +883,8 @@ class _SplitBillForm extends ConsumerWidget {
     required this.onEqualSplitToggle,
     required this.onAddParticipant,
     required this.onRemoveParticipant,
+    required this.onAddCategory,
+    required this.onAddAccount,
     this.splitError,
   });
 
@@ -882,6 +903,8 @@ class _SplitBillForm extends ConsumerWidget {
   final ValueChanged<bool> onEqualSplitToggle;
   final VoidCallback onAddParticipant;
   final ValueChanged<int> onRemoveParticipant;
+  final VoidCallback onAddCategory;
+  final VoidCallback onAddAccount;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -970,6 +993,7 @@ class _SplitBillForm extends ConsumerWidget {
               categories: cats,
               selectedId: selectedCategoryId,
               onSelect: onCategorySelect,
+              onAddTap: onAddCategory,
             ),
             loading: () => const SizedBox(
               height: 40,
@@ -1000,6 +1024,7 @@ class _SplitBillForm extends ConsumerWidget {
               accounts: accounts,
               selectedId: selectedAccountId,
               onSelect: onAccountSelect,
+              onAddTap: onAddAccount,
             ),
             loading: () => const SizedBox(
               height: 40,
@@ -1530,7 +1555,7 @@ class _ContactPickerSheet extends ConsumerWidget {
                                 ? null
                                 : () {
                                     onSelect(contact);
-                                    Navigator.of(context).pop();
+                                    context.pop();
                                   },
                           ),
                         ],
@@ -1591,7 +1616,7 @@ class _ContactPickerSheet extends ConsumerWidget {
                           ? null
                           : () {
                               onSelect(contact);
-                              Navigator.of(context).pop();
+                              context.pop();
                             },
                     );
                   },
@@ -1634,63 +1659,95 @@ class _CategoryPicker extends StatelessWidget {
     required this.categories,
     required this.selectedId,
     required this.onSelect,
+    required this.onAddTap,
   });
 
   final List<CategoryModel> categories;
   final String? selectedId;
   final ValueChanged<String?> onSelect;
+  final VoidCallback onAddTap;
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      clipBehavior: Clip.none,
-      child: Row(
-        children: categories.map((cat) {
+    return Wrap(
+      spacing: AppSpacing.sm,
+      runSpacing: AppSpacing.sm,
+      children: [
+        ...categories.map((cat) {
           final isSelected = cat.id == selectedId;
-          final color = _hexToColor(cat.color);
-          return Padding(
-            padding: const EdgeInsets.only(right: AppSpacing.sm),
-            child: GestureDetector(
-              onTap: () => onSelect(isSelected ? null : cat.id),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.lg,
-                  vertical: AppSpacing.md,
+          final color = hexToColor(cat.color);
+          return GestureDetector(
+            onTap: () => onSelect(isSelected ? null : cat.id),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.lg,
+                vertical: AppSpacing.md,
+              ),
+              decoration: BoxDecoration(
+                color: isSelected ? color : color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(AppRadius.pill),
+                border: Border.all(
+                  color: isSelected ? color : Colors.transparent,
+                  width: 1.5,
                 ),
-                decoration: BoxDecoration(
-                  color: isSelected ? color : color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(AppRadius.pill),
-                  border: Border.all(
-                    color: isSelected ? color : Colors.transparent,
-                    width: 1.5,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    iconForName(cat.icon),
+                    size: 14,
+                    color: isSelected ? Colors.white : color,
                   ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      _iconForName(cat.icon),
-                      size: 14,
+                  const SizedBox(width: 5),
+                  Text(
+                    cat.name,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
                       color: isSelected ? Colors.white : color,
                     ),
-                    const SizedBox(width: 5),
-                    Text(
-                      cat.name,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: isSelected ? Colors.white : color,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           );
-        }).toList(),
-      ),
+        }),
+        GestureDetector(
+          onTap: onAddTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.lg,
+              vertical: AppSpacing.md,
+            ),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(AppRadius.pill),
+              border: Border.all(color: AppColors.borderDashed, width: 1.5),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.add_rounded,
+                  size: 14,
+                  color: AppColors.textSecondary,
+                ),
+                SizedBox(width: 4),
+                Text(
+                  'Add',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1702,67 +1759,97 @@ class _AccountPicker extends StatelessWidget {
     required this.accounts,
     required this.selectedId,
     required this.onSelect,
+    required this.onAddTap,
   });
 
   final List<AccountModel> accounts;
   final String? selectedId;
   final ValueChanged<String?> onSelect;
+  final VoidCallback onAddTap;
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      clipBehavior: Clip.none,
-      child: Row(
-        children: accounts.map((acc) {
+    return Wrap(
+      spacing: AppSpacing.sm,
+      runSpacing: AppSpacing.sm,
+      children: [
+        ...accounts.map((acc) {
           final isSelected = acc.id == selectedId;
-          return Padding(
-            padding: const EdgeInsets.only(right: AppSpacing.sm),
-            child: GestureDetector(
-              onTap: () => onSelect(isSelected ? null : acc.id),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.lg,
-                  vertical: AppSpacing.md,
+          return GestureDetector(
+            onTap: () => onSelect(isSelected ? null : acc.id),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.lg,
+                vertical: AppSpacing.md,
+              ),
+              decoration: BoxDecoration(
+                color: isSelected ? AppColors.accent : AppColors.surface,
+                borderRadius: BorderRadius.circular(AppRadius.pill),
+                border: Border.all(
+                  color: isSelected ? AppColors.accent : AppColors.borderDashed,
                 ),
-                decoration: BoxDecoration(
-                  color: isSelected ? AppColors.accent : AppColors.surface,
-                  borderRadius: BorderRadius.circular(AppRadius.pill),
-                  border: Border.all(
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    iconForName(acc.icon),
+                    size: 14,
                     color: isSelected
-                        ? AppColors.accent
-                        : AppColors.borderDashed,
+                        ? AppColors.accentText
+                        : AppColors.textSecondary,
                   ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      _iconForName(acc.icon),
-                      size: 14,
+                  const SizedBox(width: 5),
+                  Text(
+                    acc.name,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
                       color: isSelected
                           ? AppColors.accentText
                           : AppColors.textSecondary,
                     ),
-                    const SizedBox(width: 5),
-                    Text(
-                      acc.name,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: isSelected
-                            ? AppColors.accentText
-                            : AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           );
-        }).toList(),
-      ),
+        }),
+        GestureDetector(
+          onTap: onAddTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.lg,
+              vertical: AppSpacing.md,
+            ),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(AppRadius.pill),
+              border: Border.all(color: AppColors.borderDashed, width: 1.5),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.add_rounded,
+                  size: 14,
+                  color: AppColors.textSecondary,
+                ),
+                SizedBox(width: 4),
+                Text(
+                  'Add',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1780,40 +1867,4 @@ class _SplitParticipant {
   final String displayName;
   final bool isCurrentUser;
   final TextEditingController controller = TextEditingController();
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-Color _hexToColor(String hex) {
-  final h = hex.replaceFirst('#', '');
-  return Color(int.parse('FF$h', radix: 16));
-}
-
-IconData _iconForName(String name) {
-  const map = <String, IconData>{
-    'restaurant': Icons.restaurant,
-    'directions_car': Icons.directions_car,
-    'shopping_bag': Icons.shopping_bag,
-    'receipt_long': Icons.receipt_long,
-    'movie': Icons.movie,
-    'favorite': Icons.favorite,
-    'flight': Icons.flight,
-    'school': Icons.school,
-    'redeem': Icons.redeem,
-    'category': Icons.category,
-    'luggage': Icons.luggage,
-    'payments': Icons.payments,
-    'account_balance': Icons.account_balance,
-    'account_balance_wallet': Icons.account_balance_wallet,
-    'local_cafe': Icons.local_cafe,
-    'sports': Icons.sports,
-    'home': Icons.home,
-    'work': Icons.work,
-    'pets': Icons.pets,
-    'fitness_center': Icons.fitness_center,
-    'local_hospital': Icons.local_hospital,
-    'computer': Icons.computer,
-    'music_note': Icons.music_note,
-  };
-  return map[name] ?? Icons.category;
 }

@@ -4,7 +4,6 @@ import '../../../../core/theme/app_colors.dart';
 
 /// Top header showing user's name + notification bell + profile avatar.
 ///
-/// TODO: pass real user data via constructor or watch from a profileProvider.
 class GreetingHeader extends StatelessWidget {
   const GreetingHeader({
     super.key,
@@ -34,20 +33,24 @@ class GreetingHeader extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Hello,',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                Text(
-                  displayName ?? userName,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.textPrimary,
-                  ),
+                Row(
+                  children: [
+                    Text(
+                      'Hello, ',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    Text(
+                      '$displayName',
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ],
                 ),
                 if (displayName != null)
                   Text(
