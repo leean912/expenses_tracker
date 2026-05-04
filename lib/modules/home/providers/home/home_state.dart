@@ -163,7 +163,7 @@ class BudgetMini {
   final bool isOverall;
 
   double get progress =>
-      limitCents == 0 ? 0 : (spentCents / limitCents).clamp(0, 1.5);
+      limitCents == 0 ? 0 : spentCents / limitCents;
 
   int get percentUsed => (progress * 100).round();
 }

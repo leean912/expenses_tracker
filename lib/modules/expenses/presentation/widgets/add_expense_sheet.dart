@@ -10,7 +10,9 @@ import '../../../../service_locator.dart';
 import '../../../auth/providers/auth_provider.dart';
 import '../../../auth/providers/states/auth_state.dart';
 import '../../../contacts/data/models/contact_model.dart';
+import '../../../contacts/data/models/group_model.dart';
 import '../../../contacts/providers/contacts_provider.dart';
+import '../../../contacts/providers/groups_provider.dart';
 import '../../../home/providers/home/home_provider.dart';
 import '../../../split_bills/providers/split_bills_provider.dart';
 import '../../data/models/account_model.dart';
@@ -27,8 +29,9 @@ class AddExpenseSheet extends ConsumerStatefulWidget {
   ConsumerState<AddExpenseSheet> createState() => _AddExpenseSheetState();
 }
 
-class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
-  int _tabIndex = 0;
+class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabController;
 
   // ── Expense tab state ──────────────────────────────────────────────────────
   final _amountController = TextEditingController();
@@ -51,6 +54,10 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() {
+      if (mounted) setState(() {});
+    });
     final userId = supabase.auth.currentUser?.id ?? '';
     final you = _SplitParticipant(
       userId: userId,
@@ -64,6 +71,7 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
 
   @override
   void dispose() {
+    _tabController.dispose();
     _amountController.dispose();
     _noteController.dispose();
     _splitAmountController.dispose();
@@ -229,6 +237,38 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
     );
   }
 
+  void _addParticipantsFromGroup(GroupModel group) {
+    final addedIds = _splitParticipants.map((p) => p.userId).toSet();
+    final newMembers = group.members.where((m) => !addedIds.contains(m.id));
+    if (newMembers.isEmpty) return;
+    setState(() {
+      for (final member in newMembers) {
+        final p = _SplitParticipant(
+          userId: member.id,
+          displayName: member.displayName,
+          isCurrentUser: false,
+        );
+        p.controller.addListener(_onParticipantChanged);
+        _splitParticipants.add(p);
+      }
+      if (_equalSplit) _applyEqualSplit();
+    });
+  }
+
+  void _showGroupPicker() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _GroupPickerSheet(
+        onSelect: (group) {
+          _addParticipantsFromGroup(group);
+          Navigator.of(context).pop();
+        },
+      ),
+    );
+  }
+
   Future<void> _submit() async {
     final text = _amountController.text.trim();
     if (text.isEmpty) return;
@@ -387,18 +427,35 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
               // ── Tabs ───────────────────────────────────────────────────────
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
-                child: _TabRow(
-                  selectedIndex: _tabIndex,
-                  onTap: (i) => setState(() => _tabIndex = i),
+                child: TabBar(
+                  controller: _tabController,
+                  labelColor: AppColors.textPrimary,
+                  unselectedLabelColor: AppColors.textTertiary,
+                  indicatorColor: AppColors.textPrimary,
+                  indicatorSize: TabBarIndicatorSize.label,
+                  dividerColor: Colors.transparent,
+                  labelStyle: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  unselectedLabelStyle: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w400,
+                  ),
+                  tabs: const [
+                    Tab(text: 'Expense'),
+                    Tab(text: 'Split Bill'),
+                  ],
                 ),
               ),
-              const SizedBox(height: AppSpacing.md),
               const Divider(height: 1, color: AppColors.border),
 
               // ── Body ───────────────────────────────────────────────────────
               Expanded(
-                child: _tabIndex == 0
-                    ? _ExpenseForm(
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _ExpenseForm(
                         amountController: _amountController,
                         selectedCategoryId: _selectedCategoryId,
                         selectedAccountId: _selectedAccountId,
@@ -417,8 +474,8 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
                         onAddAccount: () {
                           context.push(settingsAccountsRoute);
                         },
-                      )
-                    : _SplitBillForm(
+                      ),
+                    _SplitBillForm(
                         amountController: _splitAmountController,
                         noteController: _splitNoteController,
                         selectedCategoryId: _splitCategoryId,
@@ -438,6 +495,7 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
                           if (value) _applyEqualSplit();
                         }),
                         onAddParticipant: _showContactPicker,
+                        onAddGroup: _showGroupPicker,
                         onRemoveParticipant: _removeSplitParticipant,
                         onAddCategory: () {
                           context.push(settingsCategoriesRoute);
@@ -446,10 +504,12 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
                           context.push(settingsAccountsRoute);
                         },
                       ),
+                  ],
+                ),
               ),
 
               // ── Submit ─────────────────────────────────────────────────────
-              if (_tabIndex == 0)
+              if (_tabController.index == 0)
                 Padding(
                   padding: EdgeInsets.fromLTRB(
                     AppSpacing.xl,
@@ -526,78 +586,6 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet> {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-// ── Tab row ───────────────────────────────────────────────────────────────────
-
-class _TabRow extends StatelessWidget {
-  const _TabRow({required this.selectedIndex, required this.onTap});
-
-  final int selectedIndex;
-  final ValueChanged<int> onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        _Tab(
-          label: 'Expense',
-          isSelected: selectedIndex == 0,
-          onTap: () => onTap(0),
-        ),
-        const SizedBox(width: AppSpacing.xl),
-        _Tab(
-          label: 'Split Bill',
-          isSelected: selectedIndex == 1,
-          onTap: () => onTap(1),
-        ),
-      ],
-    );
-  }
-}
-
-class _Tab extends StatelessWidget {
-  const _Tab({
-    required this.label,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-              color: isSelected
-                  ? AppColors.textPrimary
-                  : AppColors.textTertiary,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Container(
-            height: 2,
-            width: 32,
-            decoration: BoxDecoration(
-              color: isSelected ? AppColors.accent : Colors.transparent,
-              borderRadius: BorderRadius.circular(AppRadius.pill),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -882,6 +870,7 @@ class _SplitBillForm extends ConsumerWidget {
     required this.onDateTap,
     required this.onEqualSplitToggle,
     required this.onAddParticipant,
+    required this.onAddGroup,
     required this.onRemoveParticipant,
     required this.onAddCategory,
     required this.onAddAccount,
@@ -902,6 +891,7 @@ class _SplitBillForm extends ConsumerWidget {
   final VoidCallback onDateTap;
   final ValueChanged<bool> onEqualSplitToggle;
   final VoidCallback onAddParticipant;
+  final VoidCallback onAddGroup;
   final ValueChanged<int> onRemoveParticipant;
   final VoidCallback onAddCategory;
   final VoidCallback onAddAccount;
@@ -1183,39 +1173,81 @@ class _SplitBillForm extends ConsumerWidget {
 
           const SizedBox(height: AppSpacing.md),
 
-          // ── Add person button ───────────────────────────────────────────
-          GestureDetector(
-            onTap: onAddParticipant,
-            child: Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.xl,
-                vertical: AppSpacing.lg,
-              ),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(AppRadius.xl),
-                border: Border.all(color: AppColors.borderDashed),
-              ),
-              child: const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.person_add_alt_1_rounded,
-                    size: 16,
-                    color: AppColors.textSecondary,
-                  ),
-                  SizedBox(width: AppSpacing.sm),
-                  Text(
-                    'Add person',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.textSecondary,
+          // ── Add person / Add group buttons ──────────────────────────────
+          Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: onAddParticipant,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.lg,
+                      vertical: AppSpacing.lg,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(AppRadius.xl),
+                      border: Border.all(color: AppColors.borderDashed),
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.person_add_alt_1_rounded,
+                          size: 16,
+                          color: AppColors.textSecondary,
+                        ),
+                        SizedBox(width: AppSpacing.sm),
+                        Text(
+                          'Add person',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ],
+                ),
               ),
-            ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: GestureDetector(
+                  onTap: onAddGroup,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.lg,
+                      vertical: AppSpacing.lg,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(AppRadius.xl),
+                      border: Border.all(color: AppColors.borderDashed),
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.group_add_rounded,
+                          size: 16,
+                          color: AppColors.textSecondary,
+                        ),
+                        SizedBox(width: AppSpacing.sm),
+                        Text(
+                          'Add group',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
 
           // ── Remaining indicator (manual mode only) ──────────────────────
@@ -1631,6 +1663,129 @@ class _ContactPickerSheet extends ConsumerWidget {
   }
 }
 
+// ── Group picker sheet ────────────────────────────────────────────────────────
+
+class _GroupPickerSheet extends ConsumerWidget {
+  const _GroupPickerSheet({required this.onSelect});
+
+  final ValueChanged<GroupModel> onSelect;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final groupsAsync = ref.watch(groupsProvider);
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(
+        AppSpacing.xl,
+        0,
+        AppSpacing.xl,
+        AppSpacing.xl,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.xxl),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(
+              AppSpacing.xxl,
+              AppSpacing.xxl,
+              AppSpacing.xxl,
+              AppSpacing.lg,
+            ),
+            child: Text(
+              'Add group',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ),
+          const Divider(height: 1, color: AppColors.border),
+          groupsAsync.when(
+            loading: () => const Padding(
+              padding: EdgeInsets.all(AppSpacing.xxl),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+            error: (_, _) => const Padding(
+              padding: EdgeInsets.all(AppSpacing.xxl),
+              child: Text(
+                'Failed to load groups',
+                style: TextStyle(color: AppColors.textSecondary),
+              ),
+            ),
+            data: (groups) {
+              if (groups.isEmpty) {
+                return const Padding(
+                  padding: EdgeInsets.all(AppSpacing.xxl),
+                  child: Text(
+                    'No groups yet. Create one in Contacts.',
+                    style: TextStyle(color: AppColors.textTertiary),
+                  ),
+                );
+              }
+              return LimitedBox(
+                maxHeight: 320,
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+                  itemCount: groups.length,
+                  itemBuilder: (context, i) {
+                    final group = groups[i];
+                    final color = _hexToColor(group.color);
+                    final memberCount = group.members.length;
+                    return ListTile(
+                      leading: Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: color.withValues(alpha: 0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.group_rounded,
+                          size: 18,
+                          color: color,
+                        ),
+                      ),
+                      title: Text(
+                        group.name,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      subtitle: Text(
+                        '$memberCount ${memberCount == 1 ? 'member' : 'members'}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textTertiary,
+                        ),
+                      ),
+                      onTap: () => onSelect(group),
+                    );
+                  },
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: AppSpacing.lg),
+        ],
+      ),
+    );
+  }
+
+  Color _hexToColor(String hex) {
+    final h = hex.replaceFirst('#', '');
+    return Color(int.parse('FF$h', radix: 16));
+  }
+}
+
 // ── Section label ─────────────────────────────────────────────────────────────
 
 class _SectionLabel extends StatelessWidget {
@@ -1775,6 +1930,7 @@ class _AccountPicker extends StatelessWidget {
       children: [
         ...accounts.map((acc) {
           final isSelected = acc.id == selectedId;
+          final color = hexToColor(acc.color);
           return GestureDetector(
             onTap: () => onSelect(isSelected ? null : acc.id),
             child: AnimatedContainer(
@@ -1784,10 +1940,11 @@ class _AccountPicker extends StatelessWidget {
                 vertical: AppSpacing.md,
               ),
               decoration: BoxDecoration(
-                color: isSelected ? AppColors.accent : AppColors.surface,
+                color: isSelected ? color : color.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(AppRadius.pill),
                 border: Border.all(
-                  color: isSelected ? AppColors.accent : AppColors.borderDashed,
+                  color: isSelected ? color : Colors.transparent,
+                  width: 1.5,
                 ),
               ),
               child: Row(
@@ -1796,9 +1953,7 @@ class _AccountPicker extends StatelessWidget {
                   Icon(
                     iconForName(acc.icon),
                     size: 14,
-                    color: isSelected
-                        ? AppColors.accentText
-                        : AppColors.textSecondary,
+                    color: isSelected ? Colors.white : color,
                   ),
                   const SizedBox(width: 5),
                   Text(
@@ -1806,9 +1961,7 @@ class _AccountPicker extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
-                      color: isSelected
-                          ? AppColors.accentText
-                          : AppColors.textSecondary,
+                      color: isSelected ? Colors.white : color,
                     ),
                   ),
                 ],

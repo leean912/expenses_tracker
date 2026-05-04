@@ -32,6 +32,13 @@ class BudgetCard extends StatelessWidget {
     return formatted.toString();
   }
 
+  Color get _progressColor {
+    final pct = budget.percentUsed;
+    if (pct >= 90) return const Color(0xFFE24B4A);
+    if (pct >= 75) return const Color(0xFFF59E0B);
+    return AppColors.positiveDark;
+  }
+
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -69,9 +76,9 @@ class BudgetCard extends StatelessWidget {
             ClipRRect(
               borderRadius: BorderRadius.circular(AppRadius.pill),
               child: LinearProgressIndicator(
-                value: budget.progress.clamp(0, 1).toDouble(),
+                value: budget.progress.clamp(0.0, 1.0),
                 backgroundColor: AppColors.surfaceMuted,
-                valueColor: AlwaysStoppedAnimation<Color>(budget.barColor),
+                valueColor: AlwaysStoppedAnimation<Color>(_progressColor),
                 minHeight: 4,
               ),
             ),

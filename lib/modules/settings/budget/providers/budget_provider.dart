@@ -26,7 +26,7 @@ class BudgetItem {
   final bool isOverall;
 
   double get progress =>
-      limitCents == 0 ? 0 : (spentCents / limitCents).clamp(0.0, 1.5);
+      limitCents == 0 ? 0 : spentCents / limitCents;
 
   int get percentUsed => (progress * 100).round();
 }
@@ -66,21 +66,25 @@ final budgetsProvider = FutureProvider.autoDispose<List<BudgetItem>>((
     final (start, end) = ranges[period]!;
     final expenses = await supabase
         .from('expenses')
-        .select('category_id, home_amount_cents')
-        .eq('user_id', userId)
-        .eq('type', 'expense')
+        .select('category_id, home_amount_cents, type')
         .isFilter('deleted_at', null)
         .isFilter('archived_at', null)
         .gte('expense_date', start)
-        .lte('expense_date', end);
+        .lte('expense_date', end)
+        .eq('user_id', userId);
 
     int total = 0;
     final Map<String, int> byCategory = {};
     for (final e in (expenses as List)) {
       final catId = e['category_id'] as String?;
       final cents = (e['home_amount_cents'] as num).toInt();
-      total += cents;
-      if (catId != null) byCategory[catId] = (byCategory[catId] ?? 0) + cents;
+      final isIncome = e['type'] == 'income';
+      if (isIncome) {
+        total -= cents;
+      } else {
+        total += cents;
+        if (catId != null) byCategory[catId] = (byCategory[catId] ?? 0) + cents;
+      }
     }
     spendByPeriod[period] = (total, byCategory);
   }

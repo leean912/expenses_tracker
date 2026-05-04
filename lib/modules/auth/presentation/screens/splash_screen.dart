@@ -16,7 +16,7 @@ class SplashScreen extends ConsumerWidget {
       if (prev != next) {
         next.whenOrNull(
           authenticated: (user) async {
-            await Future.delayed(const Duration(seconds: 3));
+            // await Future.delayed(const Duration(seconds: 3));
             if (!context.mounted) return;
             if (user.username == null) {
               context.pushReplacement(userNameRoute);
@@ -25,7 +25,7 @@ class SplashScreen extends ConsumerWidget {
             }
           },
           unauthenticated: () async {
-            await Future.delayed(const Duration(seconds: 3));
+            // await Future.delayed(const Duration(seconds: 3));
             if (context.mounted) context.pushReplacement(loginRoute);
           },
         );
