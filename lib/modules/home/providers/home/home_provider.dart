@@ -208,6 +208,7 @@ final homeDataProvider = FutureProvider.family<HomeData, HomeFilter>((
 /// Maps [TimePeriod] to the `budgets.period` value used in Supabase.
 /// 'today' has no daily budget type — falls back to monthly.
 String _budgetPeriodFor(TimePeriod period) => switch (period) {
+  TimePeriod.today => 'daily',
   TimePeriod.week => 'weekly',
   TimePeriod.year => 'yearly',
   _ => 'monthly',

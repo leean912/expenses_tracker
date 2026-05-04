@@ -15,7 +15,7 @@ create table budgets (
   category_id uuid references categories(id) on delete cascade,
   limit_cents bigint not null check (limit_cents > 0),
   period text not null default 'monthly'
-    check (period in ('weekly', 'monthly', 'yearly')),
+    check (period in ('daily', 'weekly', 'monthly', 'yearly')),
   currency text not null default 'MYR',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
@@ -31,15 +31,18 @@ create table budgets (
 | `user_id` | uuid | Owner |
 | `category_id` | uuid | Which category this budget targets. NULL = overall budget |
 | `limit_cents` | bigint | Spending limit in user's home currency |
-| `period` | text | 'weekly', 'monthly', or 'yearly' |
+| `period` | text | 'daily', 'weekly', 'monthly', or 'yearly' |
 | `currency` | text | Should match user's home currency |
 | `deleted_at` | timestamptz | Soft delete |
 
 ## Period meanings
 
-- `weekly`: Resets every Monday (or whichever start of week the UI defines)
-- `monthly`: Resets on the 1st of each month
-- `yearly`: Resets on January 1st
+- `daily`: Covers today only; shown when the home screen filter is set to "Today"
+- `weekly`: Resets every Monday; shown when filter is set to "Week"
+- `monthly`: Resets on the 1st of each month; shown when filter is set to "Month"
+- `yearly`: Resets on January 1st; shown when filter is set to "Year"
+
+The home screen hides the budget section entirely when the filter is set to "Custom".
 
 The DB doesn't enforce period boundaries — Flutter computes "spent this period" by summing expenses within the appropriate date range.
 

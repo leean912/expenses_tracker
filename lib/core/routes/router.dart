@@ -10,6 +10,7 @@ import '../../modules/home/presentation/screens/collabs_screen.dart';
 import '../../modules/home/presentation/screens/home_screen.dart';
 import '../../modules/home/presentation/screens/more_screen.dart';
 import '../../modules/settings/accounts/presentation/screens/accounts_screen.dart';
+import '../../modules/settings/budget/presentation/screens/budget_list_screen.dart';
 import '../../modules/settings/categories/presentation/screens/categories_screen.dart';
 import '../../modules/split_bills/presentation/screens/split_bill_detail_screen.dart';
 import '../../modules/split_bills/presentation/screens/split_bills_screen.dart';
@@ -22,9 +23,22 @@ final router = GoRouter(
     GoRoute(path: loginRoute, builder: (context, state) => TestingLogin()),
     GoRoute(path: userNameRoute, builder: (context, state) => UserNameScreen()),
     GoRoute(path: contactsRoute, builder: (context, state) => ContactsScreen()),
-    GoRoute(path: analysisRoute, builder: (context, state) => const AnalysisScreen()),
-    GoRoute(path: settingsCategoriesRoute, builder: (context, state) => const CategoriesScreen()),
-    GoRoute(path: settingsAccountsRoute, builder: (context, state) => const AccountsScreen()),
+    GoRoute(
+      path: analysisRoute,
+      builder: (context, state) => const AnalysisScreen(),
+    ),
+    GoRoute(
+      path: settingsCategoriesRoute,
+      builder: (context, state) => const CategoriesScreen(),
+    ),
+    GoRoute(
+      path: settingsAccountsRoute,
+      builder: (context, state) => const AccountsScreen(),
+    ),
+    GoRoute(
+      path: budgetsRoute,
+      builder: (context, state) => const BudgetListScreen(),
+    ),
     StatefulShellRoute.indexedStack(
       builder: (context, state, navigationShell) =>
           AppShell(navigationShell: navigationShell),

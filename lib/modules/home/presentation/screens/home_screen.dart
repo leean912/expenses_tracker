@@ -196,17 +196,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 else ...[
                   if (homeData != null)
                     SliverAppBar(
-                      expandedHeight: 230,
+                      expandedHeight: 200,
                       collapsedHeight: 60,
                       backgroundColor: AppColors.background,
                       surfaceTintColor: Colors.transparent,
                       scrolledUnderElevation: 0,
-                      title: AnimatedOpacity(
-                        opacity: _compactOpacity,
-                        duration: const Duration(milliseconds: 200),
-                        child: AnalyticsBannerCompact(
-                          key: _pinnedHeaderKey,
-                          summary: homeData.analytics,
+                      title: IgnorePointer(
+                        ignoring: _compactOpacity == 0,
+                        child: AnimatedOpacity(
+                          opacity: _compactOpacity,
+                          duration: const Duration(milliseconds: 200),
+                          child: AnalyticsBannerCompact(
+                            key: _pinnedHeaderKey,
+                            summary: homeData.analytics,
+                          ),
                         ),
                       ),
                       flexibleSpace: FlexibleSpaceBar(
@@ -231,14 +234,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       pinned: true,
                     ),
 
-                  if (homeData != null)
+                  if (homeData != null &&
+                      _selectedPeriod != TimePeriod.custom)
                     SliverToBoxAdapter(
                       child: BudgetGrid(
                         budgets: homeData.budgets,
-                        onManageTap: () => debugPrint('Manage budgets tapped'),
-                        onBudgetTap: (b) =>
-                            debugPrint('Budget tapped: ${b.label}'),
-                        onAddTap: () => debugPrint('Add budget tapped'),
+                        onManageTap: () async {
+                          await context.push(budgetsRoute);
+                          if (mounted) {
+                            ref.invalidate(homeDataProvider(_filter));
+                          }
+                        },
+                        onBudgetTap: (_) async {
+                          await context.push(budgetsRoute);
+                          if (mounted) {
+                            ref.invalidate(homeDataProvider(_filter));
+                          }
+                        },
                       ),
                     ),
 

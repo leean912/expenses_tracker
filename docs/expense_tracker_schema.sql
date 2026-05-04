@@ -276,7 +276,7 @@ create table budgets (
   user_id uuid not null references profiles(id) on delete cascade,
   category_id uuid references categories(id) on delete cascade,
   limit_cents bigint not null check (limit_cents > 0),
-  period text not null default 'monthly' check (period in ('weekly', 'monthly', 'yearly')),
+  period text not null default 'monthly' check (period in ('daily', 'weekly', 'monthly', 'yearly')),
   currency text not null default 'MYR',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
