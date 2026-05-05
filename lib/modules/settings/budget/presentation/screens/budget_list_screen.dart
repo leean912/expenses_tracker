@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../core/utils/amount_input_formatter.dart';
 import '../../../../../service_locator.dart';
 import '../../../../expenses/providers/categories_provider.dart';
 import '../../../../expenses/utils/expense_ui_helpers.dart';
@@ -119,17 +119,63 @@ class _BudgetListScreenState extends ConsumerState<BudgetListScreen> {
               ),
             );
           }
-          return ListView.separated(
+          const periodOrder = ['daily', 'weekly', 'monthly', 'yearly'];
+          const periodLabels = {
+            'daily': 'Daily',
+            'weekly': 'Weekly',
+            'monthly': 'Monthly',
+            'yearly': 'Yearly',
+          };
+
+          final grouped = <String, List<BudgetItem>>{};
+          for (final b in visibleBudgets) {
+            grouped.putIfAbsent(b.period, () => []).add(b);
+          }
+
+          final sections = periodOrder
+              .where((p) => grouped.containsKey(p))
+              .toList();
+
+          final items = <Object>[];
+          for (final period in sections) {
+            items.add(period);
+            items.addAll(grouped[period]!);
+          }
+
+          return ListView.builder(
             padding: const EdgeInsets.only(top: AppSpacing.sm, bottom: 100),
-            itemCount: visibleBudgets.length,
-            separatorBuilder: (_, _) =>
-                const Divider(height: 1, color: AppColors.border),
+            itemCount: items.length,
             itemBuilder: (context, i) {
-              final budget = visibleBudgets[i];
-              return _BudgetTile(
-                budget: budget,
-                onEdit: () => _openForm(existing: budget),
-                onDelete: () => _delete(budget.id),
+              final item = items[i];
+              if (item is String) {
+                return Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.xl, AppSpacing.xl, AppSpacing.xl, AppSpacing.sm,
+                  ),
+                  child: Text(
+                    periodLabels[item] ?? item,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textTertiary,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                );
+              }
+              final budget = item as BudgetItem;
+              final groupBudgets = grouped[budget.period]!;
+              final isLast = groupBudgets.last.id == budget.id;
+              return Column(
+                children: [
+                  _BudgetTile(
+                    budget: budget,
+                    onEdit: () => _openForm(existing: budget),
+                    onDelete: () => _delete(budget.id),
+                  ),
+                  if (!isLast)
+                    const Divider(height: 1, color: AppColors.border),
+                ],
               );
             },
           );
@@ -180,13 +226,17 @@ class _BudgetTile extends StatelessWidget {
   }
 
   String _fmtCents(int cents) {
-    final value = cents ~/ 100;
-    final str = value.toString();
+    final value = cents / 100;
+    final whole = value.truncate();
+    final frac = ((value - whole) * 100).round();
+    final str = whole.toString();
     final buf = StringBuffer('RM ');
     for (int i = 0; i < str.length; i++) {
       if (i > 0 && (str.length - i) % 3 == 0) buf.write(',');
       buf.write(str[i]);
     }
+    buf.write('.');
+    buf.write(frac.toString().padLeft(2, '0'));
     return buf.toString();
   }
 
@@ -377,7 +427,9 @@ class _BudgetFormSheetState extends ConsumerState<_BudgetFormSheet> {
       _categoryId = e.categoryId;
       _categoryLabel = e.isOverall ? 'Overall' : e.label;
       _period = e.period;
-      _limitController.text = (e.limitCents ~/ 100).toString();
+      final v = e.limitCents / 100;
+      _limitController.text =
+          v == v.truncateToDouble() ? v.truncate().toString() : v.toStringAsFixed(2);
     }
   }
 
@@ -474,11 +526,12 @@ class _BudgetFormSheetState extends ConsumerState<_BudgetFormSheet> {
 
   Future<void> _save() async {
     final limitStr = _limitController.text.trim();
-    final limitRm = int.tryParse(limitStr);
+    final limitRm = double.tryParse(limitStr);
     if (limitRm == null || limitRm <= 0) {
       setState(() => _error = 'Enter a valid amount greater than 0');
       return;
     }
+    final limitCents = (limitRm * 100).round();
     setState(() {
       _loading = true;
       _error = null;
@@ -489,7 +542,7 @@ class _BudgetFormSheetState extends ConsumerState<_BudgetFormSheet> {
             .from('budgets')
             .update({
               'category_id': _categoryId,
-              'limit_cents': limitRm * 100,
+              'limit_cents': limitCents,
               'period': _period,
               'updated_at': DateTime.now().toIso8601String(),
             })
@@ -498,7 +551,7 @@ class _BudgetFormSheetState extends ConsumerState<_BudgetFormSheet> {
         await supabase.from('budgets').insert({
           'user_id': supabase.auth.currentUser!.id,
           'category_id': _categoryId,
-          'limit_cents': limitRm * 100,
+          'limit_cents': limitCents,
           'period': _period,
           'currency': 'MYR',
         });
@@ -658,8 +711,10 @@ class _BudgetFormSheetState extends ConsumerState<_BudgetFormSheet> {
               const SizedBox(height: AppSpacing.md),
               TextField(
                 controller: _limitController,
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                inputFormatters: [
+                  AmountInputFormatter(),
+                ],
                 style: const TextStyle(
                   fontSize: 14,
                   color: AppColors.textPrimary,

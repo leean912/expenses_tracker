@@ -10,3 +10,4 @@ const String moreRoute = '/more';
 const String settingsCategoriesRoute = '/settings/categories';
 const String settingsAccountsRoute = '/settings/accounts';
 const String budgetsRoute = '/budgets';
+const String groupDetailRoute = '/contacts/groups';

@@ -25,7 +25,7 @@ class SplashScreen extends ConsumerWidget {
             }
           },
           unauthenticated: () async {
-            // await Future.delayed(const Duration(seconds: 3));
+            await Future.delayed(const Duration(seconds: 3));
             if (context.mounted) context.pushReplacement(loginRoute);
           },
         );

@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../../core/routes/routes.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/widgets/upgrade_sheet.dart';
 import '../../../../modules/expenses/utils/expense_ui_helpers.dart';
 import '../../data/models/contact_model.dart';
 import '../../data/models/group_model.dart';
@@ -477,8 +480,8 @@ class _GroupsTabState extends ConsumerState<_GroupsTab> {
                     final group = filtered[index];
                     return _GroupTile(
                       group: group,
-                      onDelete: () =>
-                          _handleDelete(group.id, group.name),
+                      onDelete: () => _handleDelete(group.id, group.name),
+                      onTap: () => context.push('$groupDetailRoute/${group.id}'),
                     );
                   },
                 );
@@ -563,10 +566,11 @@ class _ContactTile extends StatelessWidget {
 // ── Group tile ────────────────────────────────────────────────────────────────
 
 class _GroupTile extends StatelessWidget {
-  const _GroupTile({required this.group, required this.onDelete});
+  const _GroupTile({required this.group, required this.onDelete, required this.onTap});
 
   final GroupModel group;
   final VoidCallback onDelete;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -590,18 +594,20 @@ class _GroupTile extends StatelessWidget {
           size: 20,
         ),
       ),
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.xl,
-          vertical: AppSpacing.lg,
-        ),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          border: Border.all(color: AppColors.border),
-        ),
-        child: Row(
-          children: [
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.xl,
+            vertical: AppSpacing.lg,
+          ),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Row(
+            children: [
             Container(
               width: 38,
               height: 38,
@@ -646,14 +652,15 @@ class _GroupTile extends StatelessWidget {
               ),
             ),
             Text(
-              '${group.members.length}',
+              '${group.members.length + 1}',
               style: const TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
                 color: AppColors.textSecondary,
               ),
             ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -820,10 +827,11 @@ class _CreateGroupSheetState extends ConsumerState<_CreateGroupSheet> {
       widget.onCreated();
     } else if (result == 'upgrade_required') {
       Navigator.of(context).pop();
-      showModalBottomSheet(
-        context: context,
-        backgroundColor: Colors.transparent,
-        builder: (_) => const _UpgradeSheet(),
+      UpgradeSheet.show(
+        context,
+        title: "You've reached the group limit!",
+        description:
+            'Free accounts can create up to 2 groups. Upgrade to Premium for unlimited groups.',
       );
     } else {
       setState(() {
@@ -1125,81 +1133,6 @@ class _CreateGroupSheetState extends ConsumerState<_CreateGroupSheet> {
   }
 }
 
-// ── Upgrade sheet ─────────────────────────────────────────────────────────────
-
-class _UpgradeSheet extends StatelessWidget {
-  const _UpgradeSheet();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        0,
-        AppSpacing.xl,
-        AppSpacing.xl,
-      ),
-      padding: const EdgeInsets.all(AppSpacing.xxl),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.xxl),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(
-            Icons.workspace_premium_rounded,
-            size: 40,
-            color: AppColors.budgetOverallBar,
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          const Text(
-            "You've reached the group limit!",
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: AppSpacing.md),
-          const Text(
-            'Free accounts can create up to 2 groups. Upgrade to Premium for unlimited groups.',
-            style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: AppSpacing.xxl),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: () {},
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.budgetOverallBar,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppRadius.lg),
-                ),
-              ),
-              child: const Text(
-                'Upgrade to Premium',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-              ),
-            ),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text(
-              'Maybe later',
-              style: TextStyle(color: AppColors.textTertiary),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 // ── Sheet label ───────────────────────────────────────────────────────────────
 

@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/routes/routes.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/amount_input_formatter.dart';
 import '../../../../service_locator.dart';
 import '../../../auth/providers/auth_provider.dart';
 import '../../../auth/providers/states/auth_state.dart';
@@ -665,7 +665,7 @@ class _ExpenseForm extends ConsumerWidget {
                       decimal: true,
                     ),
                     inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'[\d.]')),
+                      AmountInputFormatter(),
                     ],
                     style: const TextStyle(
                       fontSize: 32,
@@ -939,7 +939,7 @@ class _SplitBillForm extends ConsumerWidget {
                       decimal: true,
                     ),
                     inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'[\d.]')),
+                      AmountInputFormatter(),
                     ],
                     style: const TextStyle(
                       fontSize: 32,
@@ -1349,7 +1349,7 @@ class _ParticipantRow extends StatelessWidget {
                 decimal: true,
               ),
               inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'[\d.]')),
+                AmountInputFormatter(),
               ],
               textAlign: TextAlign.right,
               style: TextStyle(

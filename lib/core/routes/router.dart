@@ -6,6 +6,7 @@ import '../../modules/analysis/presentation/screens/analysis_screen.dart';
 import '../../modules/auth/presentation/screens/splash_screen.dart';
 import '../../modules/auth/presentation/screens/user_name_screen.dart';
 import '../../modules/contacts/presentation/screens/contacts_screen.dart';
+import '../../modules/contacts/presentation/screens/group_detail_screen.dart';
 import '../../modules/home/presentation/screens/collabs_screen.dart';
 import '../../modules/home/presentation/screens/home_screen.dart';
 import '../../modules/home/presentation/screens/more_screen.dart';
@@ -22,7 +23,18 @@ final router = GoRouter(
     GoRoute(path: rootRoute, builder: (context, state) => SplashScreen()),
     GoRoute(path: loginRoute, builder: (context, state) => TestingLogin()),
     GoRoute(path: userNameRoute, builder: (context, state) => UserNameScreen()),
-    GoRoute(path: contactsRoute, builder: (context, state) => ContactsScreen()),
+    GoRoute(
+      path: contactsRoute,
+      builder: (context, state) => ContactsScreen(),
+      routes: [
+        GoRoute(
+          path: 'groups/:id',
+          builder: (context, state) => GroupDetailScreen(
+            groupId: state.pathParameters['id']!,
+          ),
+        ),
+      ],
+    ),
     GoRoute(
       path: analysisRoute,
       builder: (context, state) => const AnalysisScreen(),

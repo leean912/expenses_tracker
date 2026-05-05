@@ -10,27 +10,23 @@ class BudgetCard extends StatelessWidget {
   final BudgetMini budget;
   final VoidCallback? onTap;
 
-  String _fmtSpent(int cents) {
-    final value = cents ~/ 100;
-    final str = value.toString();
-    final formatted = StringBuffer();
+  String _fmtCents(int cents, {bool prefix = true}) {
+    final value = cents / 100;
+    final whole = value.truncate();
+    final frac = ((value - whole) * 100).round();
+    final str = whole.toString();
+    final buf = StringBuffer(prefix ? 'RM ' : '');
     for (int i = 0; i < str.length; i++) {
-      if (i > 0 && (str.length - i) % 3 == 0) formatted.write(',');
-      formatted.write(str[i]);
+      if (i > 0 && (str.length - i) % 3 == 0) buf.write(',');
+      buf.write(str[i]);
     }
-    return 'RM $formatted';
+    buf.write('.');
+    buf.write(frac.toString().padLeft(2, '0'));
+    return buf.toString();
   }
 
-  String _fmtLimit(int cents) {
-    final value = cents ~/ 100;
-    final str = value.toString();
-    final formatted = StringBuffer();
-    for (int i = 0; i < str.length; i++) {
-      if (i > 0 && (str.length - i) % 3 == 0) formatted.write(',');
-      formatted.write(str[i]);
-    }
-    return formatted.toString();
-  }
+  String _fmtSpent(int cents) => _fmtCents(cents);
+  String _fmtLimit(int cents) => _fmtCents(cents, prefix: false);
 
   Color get _progressColor {
     final pct = budget.percentUsed;
@@ -99,7 +95,7 @@ class BudgetCard extends StatelessWidget {
   }
 }
 
-/// Dashed "+ Add" tile that appears at the end of the budget grid.
+/// "+ Add" tile that appears at the end of the budget grid.
 class AddBudgetCard extends StatelessWidget {
   const AddBudgetCard({super.key, this.onTap});
 
@@ -117,9 +113,6 @@ class AddBudgetCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(AppRadius.lg),
-          // Note: Flutter doesn't natively support dashed borders without
-          // an extra package. Using solid muted border as visual approximation.
-          // For real dashed border, use the `dotted_border` package.
           border: Border.all(color: AppColors.borderDashed, width: 0.5),
         ),
         child: const Column(
