@@ -11,3 +11,5 @@ const String settingsCategoriesRoute = '/settings/categories';
 const String settingsAccountsRoute = '/settings/accounts';
 const String budgetsRoute = '/budgets';
 const String groupDetailRoute = '/contacts/groups';
+const String collabDetailRoute = '/collabs';
+const String collabMembersRoute = '/collabs/members';

@@ -13,7 +13,6 @@ class ContactsNotifier extends AsyncNotifier<List<ContactModel>> {
         .select(
           'id, nickname, friend:profiles!friend_id(id, username, display_name, avatar_url)',
         )
-        .isFilter('deleted_at', null)
         .order('created_at', ascending: false);
     return (rows as List)
         .map((r) => ContactModel.fromJson(r as Map<String, dynamic>))
@@ -42,10 +41,7 @@ class ContactsNotifier extends AsyncNotifier<List<ContactModel>> {
     if (current != null) {
       state = AsyncData(current.where((c) => c.id != contactId).toList());
     }
-    await supabase
-        .from('contacts')
-        .update({'deleted_at': DateTime.now().toIso8601String()})
-        .eq('id', contactId);
+    await supabase.from('contacts').delete().eq('id', contactId);
   }
 }
 

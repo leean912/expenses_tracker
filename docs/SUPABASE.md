@@ -90,8 +90,8 @@ All RPCs are `security definer`. They internally validate `auth.uid()` and rejec
 |---|---|
 | `create_group(p_name, p_member_user_ids, p_icon, p_color)` | Create a new group. Validates members are contacts. 2-group limit for free tier |
 | `add_group_member(p_group_id, p_user_id)` | Add member (creator only, must be contact) |
-| `remove_group_member(p_group_id, p_user_id)` | Soft-remove member from group (creator only) |
-| `delete_group(p_group_id)` | Soft-delete the group (creator only) |
+| `remove_group_member(p_group_id, p_user_id)` | Hard-delete member from group (creator only) |
+| `delete_group(p_group_id)` | Hard-delete the group and its members (creator only) |
 
 ### Contacts
 

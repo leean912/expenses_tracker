@@ -20,6 +20,7 @@ class AnalysisScreen extends ConsumerStatefulWidget {
 class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
   AnalysisPeriod _selectedPeriod = AnalysisPeriod.month;
   DateTimeRange? _customRange;
+  bool _includeCollabExpenses = true;
 
   String get _dateRangeLabel {
     final (start, end) = _filter.toDateRange();
@@ -48,6 +49,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
     period: _selectedPeriod,
     customStart: _customRange?.start,
     customEnd: _customRange?.end,
+    includeCollabExpenses: _includeCollabExpenses,
   );
 
   Future<void> _onPeriodSelected(AnalysisPeriod period) async {
@@ -147,12 +149,43 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                     AppSpacing.xl,
                     0,
                   ),
-                  child: Text(
-                    _dateRangeLabel,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textTertiary,
-                    ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          _dateRangeLabel,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textTertiary,
+                          ),
+                        ),
+                      ),
+                      GestureDetector(
+                        onTap: () => setState(() =>
+                            _includeCollabExpenses = !_includeCollabExpenses),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: _includeCollabExpenses
+                                ? AppColors.surfaceMuted
+                                : AppColors.accent,
+                            borderRadius: BorderRadius.circular(AppRadius.lg),
+                          ),
+                          child: Text(
+                            'Collabs',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: _includeCollabExpenses
+                                  ? AppColors.textTertiary
+                                  : AppColors.accentText,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),

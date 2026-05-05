@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/utils/amount_input_formatter.dart';
@@ -63,7 +64,7 @@ class _BudgetListScreenState extends ConsumerState<BudgetListScreen> {
             color: AppColors.textPrimary,
             size: 20,
           ),
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () => context.pop(),
         ),
       ),
       body: budgetsAsync.when(
@@ -150,7 +151,10 @@ class _BudgetListScreenState extends ConsumerState<BudgetListScreen> {
               if (item is String) {
                 return Padding(
                   padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.xl, AppSpacing.xl, AppSpacing.xl, AppSpacing.sm,
+                    AppSpacing.xl,
+                    AppSpacing.xl,
+                    AppSpacing.xl,
+                    AppSpacing.sm,
                   ),
                   child: Text(
                     periodLabels[item] ?? item,
@@ -217,11 +221,16 @@ class _BudgetTile extends StatelessWidget {
 
   String _periodLabel(String period) {
     switch (period) {
-      case 'daily': return 'Daily';
-      case 'weekly': return 'Weekly';
-      case 'monthly': return 'Monthly';
-      case 'yearly': return 'Yearly';
-      default: return period;
+      case 'daily':
+        return 'Daily';
+      case 'weekly':
+        return 'Weekly';
+      case 'monthly':
+        return 'Monthly';
+      case 'yearly':
+        return 'Yearly';
+      default:
+        return period;
     }
   }
 
@@ -428,8 +437,9 @@ class _BudgetFormSheetState extends ConsumerState<_BudgetFormSheet> {
       _categoryLabel = e.isOverall ? 'Overall' : e.label;
       _period = e.period;
       final v = e.limitCents / 100;
-      _limitController.text =
-          v == v.truncateToDouble() ? v.truncate().toString() : v.toStringAsFixed(2);
+      _limitController.text = v == v.truncateToDouble()
+          ? v.truncate().toString()
+          : v.toStringAsFixed(2);
     }
   }
 
@@ -557,7 +567,7 @@ class _BudgetFormSheetState extends ConsumerState<_BudgetFormSheet> {
         });
       }
       widget.onSaved();
-      if (mounted) Navigator.of(context).pop();
+      if (mounted) context.pop();
     } catch (_) {
       setState(() {
         _error = 'Something went wrong. Please try again.';
@@ -711,10 +721,10 @@ class _BudgetFormSheetState extends ConsumerState<_BudgetFormSheet> {
               const SizedBox(height: AppSpacing.md),
               TextField(
                 controller: _limitController,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                inputFormatters: [
-                  AmountInputFormatter(),
-                ],
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                inputFormatters: [AmountInputFormatter()],
                 style: const TextStyle(
                   fontSize: 14,
                   color: AppColors.textPrimary,

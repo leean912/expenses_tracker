@@ -7,6 +7,8 @@ import '../../modules/auth/presentation/screens/splash_screen.dart';
 import '../../modules/auth/presentation/screens/user_name_screen.dart';
 import '../../modules/contacts/presentation/screens/contacts_screen.dart';
 import '../../modules/contacts/presentation/screens/group_detail_screen.dart';
+import '../../modules/collabs/presentation/screens/collab_detail_screen.dart';
+import '../../modules/collabs/presentation/screens/collab_members_screen.dart';
 import '../../modules/home/presentation/screens/collabs_screen.dart';
 import '../../modules/home/presentation/screens/home_screen.dart';
 import '../../modules/home/presentation/screens/more_screen.dart';
@@ -84,6 +86,22 @@ final router = GoRouter(
             GoRoute(
               path: collabsRoute,
               builder: (context, state) => const CollabsScreen(),
+              routes: [
+                GoRoute(
+                  path: ':id',
+                  builder: (context, state) => CollabDetailScreen(
+                    collabId: state.pathParameters['id']!,
+                  ),
+                  routes: [
+                    GoRoute(
+                      path: 'members',
+                      builder: (context, state) => CollabMembersScreen(
+                        collabId: state.pathParameters['id']!,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ],
         ),

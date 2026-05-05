@@ -54,7 +54,7 @@ create table contacts (
   check (owner_id <> friend_id)
 );
 
-create index idx_contacts_owner_active on contacts(owner_id) where deleted_at is null;
+create index idx_contacts_owner on contacts(owner_id);
 
 
 -- ═══════════════════════════════════════════════════════════════════
@@ -1351,7 +1351,7 @@ begin
     raise exception 'Not authenticated';
   end if;
 
-  select * into v_group from groups where id = p_group_id and deleted_at is null;
+  select * into v_group from groups where id = p_group_id;
   if not found then raise exception 'Group not found'; end if;
   if v_group.created_by <> v_user_id then
     raise exception 'Only the group creator can add members';
@@ -1364,16 +1364,14 @@ begin
   -- Must be a contact
   if not exists (
     select 1 from contacts
-    where owner_id = v_user_id and friend_id = p_user_id and deleted_at is null
+    where owner_id = v_user_id and friend_id = p_user_id
   ) then
     raise exception 'User must be in your contacts';
   end if;
 
-  -- Insert or re-activate
   insert into group_members (group_id, user_id)
   values (p_group_id, p_user_id)
-  on conflict (group_id, user_id)
-  do update set removed_at = null, added_at = now()
+  on conflict (group_id, user_id) do nothing
   returning id into v_member_id;
 
   return jsonb_build_object('member_id', v_member_id);
@@ -1381,7 +1379,7 @@ end;
 $$;
 
 
--- 14k. Remove a member from a group (creator only, soft-delete)
+-- 14k. Remove a member from a group (creator only, hard-delete)
 create or replace function remove_group_member(
   p_group_id uuid,
   p_user_id uuid
@@ -1397,23 +1395,21 @@ begin
     raise exception 'Not authenticated';
   end if;
 
-  select * into v_group from groups where id = p_group_id and deleted_at is null;
+  select * into v_group from groups where id = p_group_id;
   if not found then raise exception 'Group not found'; end if;
   if v_group.created_by <> v_user_id then
     raise exception 'Only the group creator can remove members';
   end if;
 
-  update group_members
-  set removed_at = now()
+  delete from group_members
   where group_id = p_group_id
-    and user_id = p_user_id
-    and removed_at is null;
+    and user_id = p_user_id;
 end;
 $$;
 
 
--- 14l. Delete a group (creator only, soft-delete)
--- Past split bills keep their group_id reference; new splits just won't use this group.
+-- 14l. Delete a group (creator only, hard-delete)
+-- group_members cascade. split_bills.group_id is set null via FK ON DELETE SET NULL.
 create or replace function delete_group(p_group_id uuid)
 returns void
 language plpgsql
@@ -1427,13 +1423,13 @@ begin
     raise exception 'Not authenticated';
   end if;
 
-  select * into v_group from groups where id = p_group_id and deleted_at is null;
+  select * into v_group from groups where id = p_group_id;
   if not found then raise exception 'Group not found'; end if;
   if v_group.created_by <> v_user_id then
     raise exception 'Only the group creator can delete the group';
   end if;
 
-  update groups set deleted_at = now() where id = p_group_id;
+  delete from groups where id = p_group_id;
 end;
 $$;
 
@@ -1489,15 +1485,13 @@ begin
   insert into contacts (owner_id, friend_id, nickname)
   values (v_user_id, v_friend_id, p_nickname)
   on conflict (owner_id, friend_id)
-  do update set deleted_at = null,
-                nickname = coalesce(excluded.nickname, contacts.nickname)
+  do update set nickname = coalesce(excluded.nickname, contacts.nickname)
   returning id into v_my_contact_id;
 
   -- Create reverse contact (friend → me)
   insert into contacts (owner_id, friend_id)
   values (v_friend_id, v_user_id)
-  on conflict (owner_id, friend_id)
-  do update set deleted_at = null;
+  on conflict (owner_id, friend_id) do nothing;
 
   return jsonb_build_object(
     'contact_id', v_my_contact_id,
@@ -1846,7 +1840,7 @@ create policy profiles_select on profiles for select using (
   or id in (
     -- Anyone in your contacts
     select friend_id from contacts
-    where owner_id = auth.uid() and deleted_at is null
+    where owner_id = auth.uid()
   )
   or id in (
     -- Anyone you're in a split with
@@ -1873,6 +1867,9 @@ create policy contacts_insert on contacts
 
 create policy contacts_update on contacts
   for update using (owner_id = auth.uid()) with check (owner_id = auth.uid());
+
+create policy contacts_delete on contacts
+  for delete using (owner_id = auth.uid());
 
 
 -- 15c. CATEGORIES

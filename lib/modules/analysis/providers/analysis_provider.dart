@@ -13,18 +13,23 @@ final analysisDataProvider =
   final budgetPeriod = filter.period.budgetPeriod;
 
   final results = await Future.wait([
-    supabase
-        .from('expenses')
-        .select(
-          'home_amount_cents, type, expense_date, category_id, '
-          'category:categories(name, color)',
-        )
-        .eq('user_id', userId)
-        .gte('expense_date', start)
-        .lte('expense_date', end)
-        .isFilter('deleted_at', null)
-        .isFilter('archived_at', null)
-        .order('expense_date', ascending: true),
+    () {
+      var q = supabase
+          .from('expenses')
+          .select(
+            'home_amount_cents, type, expense_date, category_id, '
+            'category:categories(name, color)',
+          )
+          .eq('user_id', userId)
+          .gte('expense_date', start)
+          .lte('expense_date', end)
+          .isFilter('deleted_at', null)
+          .isFilter('archived_at', null);
+      if (!filter.includeCollabExpenses) {
+        q = q.isFilter('collab_id', null);
+      }
+      return q.order('expense_date', ascending: true);
+    }(),
     supabase
         .from('budgets')
         .select(

@@ -18,8 +18,7 @@ create table groups (
   icon text not null default 'group',
   color text not null default '#378ADD',
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  deleted_at timestamptz
+  updated_at timestamptz not null default now()
 );
 ```
 
@@ -32,7 +31,6 @@ create table groups (
 | `name` | text | Display name (e.g., "Roommates", "Office Lunch") |
 | `icon` | text | Material icon name |
 | `color` | text | Hex color |
-| `deleted_at` | timestamptz | Soft delete |
 
 ## The "creator-only" model
 
@@ -90,18 +88,15 @@ This means:
 // My groups
 final groups = await supabase.from('groups')
   .select()
-  .is_('deleted_at', null)
   .order('created_at', ascending: false);
 
 // My groups with member count
 final groups = await supabase.from('groups')
-  .select('*, members:group_members(count)')
-  .is_('deleted_at', null);
+  .select('*, members:group_members(count)');
 
 // My groups with member preview
 final groups = await supabase.from('groups')
-  .select('*, members:group_members(user:profiles(id, username, display_name))')
-  .is_('deleted_at', null);
+  .select('*, members:group_members(user:profiles(id, username, display_name))');
 ```
 
 ## RPCs
@@ -110,8 +105,8 @@ final groups = await supabase.from('groups')
 |---|---|
 | `create_group(p_name, p_member_user_ids, p_icon, p_color)` | Create group with initial members. Validates limit + members are contacts |
 | `add_group_member(p_group_id, p_user_id)` | Add a contact to existing group |
-| `remove_group_member(p_group_id, p_user_id)` | Soft-remove member |
-| `delete_group(p_group_id)` | Soft-delete group |
+| `remove_group_member(p_group_id, p_user_id)` | Hard-delete member row |
+| `delete_group(p_group_id)` | Hard-delete group (cascades to group_members, nullifies split_bills.group_id) |
 
 All RPCs validate creator ownership.
 
@@ -126,8 +121,7 @@ final group = await showGroupPicker();
 // Pre-fill participants from group_members
 final groupMembers = await supabase.from('group_members')
   .select('user_id')
-  .eq('group_id', group.id)
-  .is_('removed_at', null);
+  .eq('group_id', group.id);
 
 // Allow user to add/remove individuals from this list
 // Then call create_split_bill with p_group_id and p_shares

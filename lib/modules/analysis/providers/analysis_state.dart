@@ -7,11 +7,13 @@ class AnalysisFilter {
     required this.period,
     this.customStart,
     this.customEnd,
+    this.includeCollabExpenses = true,
   });
 
   final AnalysisPeriod period;
   final DateTime? customStart;
   final DateTime? customEnd;
+  final bool includeCollabExpenses;
 
   static String _iso(DateTime d) =>
       '${d.year.toString().padLeft(4, '0')}-'
@@ -32,10 +34,12 @@ class AnalysisFilter {
       other is AnalysisFilter &&
       other.period == period &&
       other.customStart == customStart &&
-      other.customEnd == customEnd;
+      other.customEnd == customEnd &&
+      other.includeCollabExpenses == includeCollabExpenses;
 
   @override
-  int get hashCode => Object.hash(period, customStart, customEnd);
+  int get hashCode =>
+      Object.hash(period, customStart, customEnd, includeCollabExpenses);
 }
 
 extension AnalysisPeriodLabel on AnalysisPeriod {

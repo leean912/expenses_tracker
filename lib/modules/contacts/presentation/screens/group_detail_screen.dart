@@ -27,7 +27,10 @@ class GroupDetailScreen extends ConsumerWidget {
         backgroundColor: AppColors.background,
         appBar: _buildAppBar(context, null),
         body: Center(
-          child: Text('Error: $e', style: const TextStyle(color: AppColors.textSecondary)),
+          child: Text(
+            'Error: $e',
+            style: const TextStyle(color: AppColors.textSecondary),
+          ),
         ),
       ),
       data: (groups) {
@@ -37,7 +40,10 @@ class GroupDetailScreen extends ConsumerWidget {
             backgroundColor: AppColors.background,
             appBar: _buildAppBar(context, null),
             body: const Center(
-              child: Text('Group not found', style: TextStyle(color: AppColors.textSecondary)),
+              child: Text(
+                'Group not found',
+                style: TextStyle(color: AppColors.textSecondary),
+              ),
             ),
           );
         }
@@ -51,7 +57,11 @@ class GroupDetailScreen extends ConsumerWidget {
       backgroundColor: AppColors.background,
       elevation: 0,
       leading: IconButton(
-        icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: AppColors.textPrimary),
+        icon: const Icon(
+          Icons.arrow_back_ios_new_rounded,
+          size: 18,
+          color: AppColors.textPrimary,
+        ),
         onPressed: () => context.pop(),
       ),
       title: title != null
@@ -84,7 +94,9 @@ class _GroupDetailBodyState extends ConsumerState<_GroupDetailBody> {
 
   Future<void> _removeMember(String userId) async {
     setState(() => _removingIds.add(userId));
-    await ref.read(groupsProvider.notifier).removeMember(widget.group.id, userId);
+    await ref
+        .read(groupsProvider.notifier)
+        .removeMember(widget.group.id, userId);
     if (mounted) setState(() => _removingIds.remove(userId));
   }
 
@@ -97,15 +109,14 @@ class _GroupDetailBodyState extends ConsumerState<_GroupDetailBody> {
       builder: (_) => _AddMemberSheet(
         excludedUserIds: currentMemberIds,
         onAdd: (contact) async {
-          Navigator.of(context).pop();
-          final error = await ref.read(groupsProvider.notifier).addMember(
-                widget.group.id,
-                contact.friendId,
-              );
+          context.pop();
+          final error = await ref
+              .read(groupsProvider.notifier)
+              .addMember(widget.group.id, contact.friendId);
           if (mounted && error != null) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(error)),
-            );
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text(error)));
           }
         },
       ),
@@ -212,7 +223,12 @@ class _GroupDetailBodyState extends ConsumerState<_GroupDetailBody> {
           ),
           // Members label
           Padding(
-            padding: const EdgeInsets.fromLTRB(AppSpacing.xl, 0, AppSpacing.xl, AppSpacing.sm),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.xl,
+              0,
+              AppSpacing.xl,
+              AppSpacing.sm,
+            ),
             child: Row(
               children: [
                 const Text(
@@ -228,11 +244,18 @@ class _GroupDetailBodyState extends ConsumerState<_GroupDetailBody> {
                   onTap: _showAddMemberSheet,
                   child: Row(
                     children: [
-                      const Icon(Icons.add_rounded, size: 14, color: AppColors.textSecondary),
+                      const Icon(
+                        Icons.add_rounded,
+                        size: 14,
+                        color: AppColors.textSecondary,
+                      ),
                       const SizedBox(width: 2),
                       const Text(
                         'Add',
-                        style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: AppColors.textSecondary,
+                        ),
                       ),
                     ],
                   ),
@@ -247,13 +270,19 @@ class _GroupDetailBodyState extends ConsumerState<_GroupDetailBody> {
                     child: Text(
                       'No members yet.\nTap + to add someone.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 14, color: AppColors.textTertiary),
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: AppColors.textTertiary,
+                      ),
                     ),
                   )
                 : ListView.separated(
-                    padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.xl,
+                    ),
                     itemCount: group.members.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
+                    separatorBuilder: (_, _) =>
+                        const SizedBox(height: AppSpacing.sm),
                     itemBuilder: (context, index) {
                       final member = group.members[index];
                       return _MemberTile(
@@ -322,7 +351,11 @@ class _MemberTile extends StatelessWidget {
           color: const Color(0xFFFFEBEB),
           borderRadius: BorderRadius.circular(AppRadius.md),
         ),
-        child: const Icon(Icons.delete_outline_rounded, color: Color(0xFF993C1D), size: 20),
+        child: const Icon(
+          Icons.delete_outline_rounded,
+          color: Color(0xFF993C1D),
+          size: 20,
+        ),
       ),
       child: Container(
         padding: const EdgeInsets.symmetric(
@@ -397,10 +430,7 @@ class _MemberTile extends StatelessWidget {
 // ── Add member sheet ──────────────────────────────────────────────────────────
 
 class _AddMemberSheet extends ConsumerWidget {
-  const _AddMemberSheet({
-    required this.excludedUserIds,
-    required this.onAdd,
-  });
+  const _AddMemberSheet({required this.excludedUserIds, required this.onAdd});
 
   final Set<String> excludedUserIds;
   final ValueChanged<ContactModel> onAdd;
@@ -410,7 +440,12 @@ class _AddMemberSheet extends ConsumerWidget {
     final contactsAsync = ref.watch(contactsProvider);
 
     return Container(
-      margin: const EdgeInsets.fromLTRB(AppSpacing.xl, 0, AppSpacing.xl, AppSpacing.xl),
+      margin: const EdgeInsets.fromLTRB(
+        AppSpacing.xl,
+        0,
+        AppSpacing.xl,
+        AppSpacing.xl,
+      ),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(AppRadius.xxl),
@@ -468,7 +503,8 @@ class _AddMemberSheet extends ConsumerWidget {
                 child: ListView.separated(
                   shrinkWrap: true,
                   itemCount: available.length,
-                  separatorBuilder: (_, _) => const Divider(height: 1, color: AppColors.border),
+                  separatorBuilder: (_, _) =>
+                      const Divider(height: 1, color: AppColors.border),
                   itemBuilder: (context, index) {
                     final contact = available[index];
                     return ListTile(

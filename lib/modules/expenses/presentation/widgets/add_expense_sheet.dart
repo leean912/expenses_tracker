@@ -263,7 +263,7 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet>
       builder: (_) => _GroupPickerSheet(
         onSelect: (group) {
           _addParticipantsFromGroup(group);
-          Navigator.of(context).pop();
+          context.pop();
         },
       ),
     );
@@ -409,7 +409,7 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet>
                     ),
                     const Spacer(),
                     IconButton(
-                      onPressed: () => Navigator.of(context).pop(),
+                      onPressed: () => context.pop(),
                       icon: const Icon(
                         Icons.close,
                         color: AppColors.textSecondary,
@@ -456,54 +456,54 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet>
                   controller: _tabController,
                   children: [
                     _ExpenseForm(
-                        amountController: _amountController,
-                        selectedCategoryId: _selectedCategoryId,
-                        selectedAccountId: _selectedAccountId,
-                        selectedDate: _selectedDate,
-                        formattedDate: _formattedDate,
-                        noteController: _noteController,
-                        errorMsg: errorMsg,
-                        onCategorySelect: (id) =>
-                            setState(() => _selectedCategoryId = id),
-                        onAccountSelect: (id) =>
-                            setState(() => _selectedAccountId = id),
-                        onDateTap: _pickDate,
-                        onAddCategory: () {
-                          context.push(settingsCategoriesRoute);
-                        },
-                        onAddAccount: () {
-                          context.push(settingsAccountsRoute);
-                        },
-                      ),
+                      amountController: _amountController,
+                      selectedCategoryId: _selectedCategoryId,
+                      selectedAccountId: _selectedAccountId,
+                      selectedDate: _selectedDate,
+                      formattedDate: _formattedDate,
+                      noteController: _noteController,
+                      errorMsg: errorMsg,
+                      onCategorySelect: (id) =>
+                          setState(() => _selectedCategoryId = id),
+                      onAccountSelect: (id) =>
+                          setState(() => _selectedAccountId = id),
+                      onDateTap: _pickDate,
+                      onAddCategory: () {
+                        context.push(settingsCategoriesRoute);
+                      },
+                      onAddAccount: () {
+                        context.push(settingsAccountsRoute);
+                      },
+                    ),
                     _SplitBillForm(
-                        amountController: _splitAmountController,
-                        noteController: _splitNoteController,
-                        selectedCategoryId: _splitCategoryId,
-                        selectedAccountId: _splitAccountId,
-                        formattedDate: _splitFormattedDate,
-                        participants: _splitParticipants,
-                        equalSplit: _equalSplit,
-                        remainingCents: _splitRemainingCents,
-                        splitError: _splitError,
-                        onCategorySelect: (id) =>
-                            setState(() => _splitCategoryId = id),
-                        onAccountSelect: (id) =>
-                            setState(() => _splitAccountId = id),
-                        onDateTap: _pickSplitDate,
-                        onEqualSplitToggle: (value) => setState(() {
-                          _equalSplit = value;
-                          if (value) _applyEqualSplit();
-                        }),
-                        onAddParticipant: _showContactPicker,
-                        onAddGroup: _showGroupPicker,
-                        onRemoveParticipant: _removeSplitParticipant,
-                        onAddCategory: () {
-                          context.push(settingsCategoriesRoute);
-                        },
-                        onAddAccount: () {
-                          context.push(settingsAccountsRoute);
-                        },
-                      ),
+                      amountController: _splitAmountController,
+                      noteController: _splitNoteController,
+                      selectedCategoryId: _splitCategoryId,
+                      selectedAccountId: _splitAccountId,
+                      formattedDate: _splitFormattedDate,
+                      participants: _splitParticipants,
+                      equalSplit: _equalSplit,
+                      remainingCents: _splitRemainingCents,
+                      splitError: _splitError,
+                      onCategorySelect: (id) =>
+                          setState(() => _splitCategoryId = id),
+                      onAccountSelect: (id) =>
+                          setState(() => _splitAccountId = id),
+                      onDateTap: _pickSplitDate,
+                      onEqualSplitToggle: (value) => setState(() {
+                        _equalSplit = value;
+                        if (value) _applyEqualSplit();
+                      }),
+                      onAddParticipant: _showContactPicker,
+                      onAddGroup: _showGroupPicker,
+                      onRemoveParticipant: _removeSplitParticipant,
+                      onAddCategory: () {
+                        context.push(settingsCategoriesRoute);
+                      },
+                      onAddAccount: () {
+                        context.push(settingsAccountsRoute);
+                      },
+                    ),
                   ],
                 ),
               ),
@@ -664,9 +664,7 @@ class _ExpenseForm extends ConsumerWidget {
                     keyboardType: const TextInputType.numberWithOptions(
                       decimal: true,
                     ),
-                    inputFormatters: [
-                      AmountInputFormatter(),
-                    ],
+                    inputFormatters: [AmountInputFormatter()],
                     style: const TextStyle(
                       fontSize: 32,
                       fontWeight: FontWeight.w600,
@@ -938,9 +936,7 @@ class _SplitBillForm extends ConsumerWidget {
                     keyboardType: const TextInputType.numberWithOptions(
                       decimal: true,
                     ),
-                    inputFormatters: [
-                      AmountInputFormatter(),
-                    ],
+                    inputFormatters: [AmountInputFormatter()],
                     style: const TextStyle(
                       fontSize: 32,
                       fontWeight: FontWeight.w600,
@@ -1348,9 +1344,7 @@ class _ParticipantRow extends StatelessWidget {
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
-              inputFormatters: [
-                AmountInputFormatter(),
-              ],
+              inputFormatters: [AmountInputFormatter()],
               textAlign: TextAlign.right,
               style: TextStyle(
                 fontSize: 14,

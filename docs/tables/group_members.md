@@ -14,7 +14,6 @@ create table group_members (
   group_id uuid not null references groups(id) on delete cascade,
   user_id uuid not null references profiles(id) on delete cascade,
   added_at timestamptz not null default now(),
-  removed_at timestamptz,
   unique (group_id, user_id)
 );
 ```
@@ -27,30 +26,15 @@ create table group_members (
 | `group_id` | uuid | Which group |
 | `user_id` | uuid | Which user (the member) |
 | `added_at` | timestamptz | When they were added |
-| `removed_at` | timestamptz | Soft remove timestamp |
 
 ## Constraints
 
 - `unique (group_id, user_id)` — a user can only be in a group once
 - Both FKs cascade on delete
 
-## Soft removal model
+## Removal model
 
-When a member is removed, `removed_at` is set rather than deleting the row:
-
-```sql
--- Remove
-update group_members
-  set removed_at = now()
-  where group_id = ? and user_id = ?;
-
--- Re-add (re-activates)
-insert into group_members (group_id, user_id) values (?, ?)
-  on conflict (group_id, user_id)
-  do update set removed_at = null, added_at = now();
-```
-
-This preserves history (you can see "Bob was in Roommates from Jan-March 2026") while allowing re-additions.
+Members are hard-deleted. The `unique` constraint means re-adding simply inserts a fresh row.
 
 ## RLS policies
 
@@ -77,7 +61,7 @@ await supabase.rpc('add_group_member', params: {
   'p_user_id': bobId,
 });
 
-// Remove member (creator only)
+// Remove member (creator only) — hard delete
 await supabase.rpc('remove_group_member', params: {
   'p_group_id': groupId,
   'p_user_id': bobId,
@@ -87,18 +71,16 @@ await supabase.rpc('remove_group_member', params: {
 ## Common queries
 
 ```dart
-// Get active members of a group (with their profile info)
+// Get members of a group (with their profile info)
 final members = await supabase.from('group_members')
   .select('id, added_at, user:profiles(id, username, display_name, avatar_url)')
   .eq('group_id', groupId)
-  .is_('removed_at', null)
   .order('added_at');
 
 // Pre-fill participants for a split bill from a group
 final memberIds = (await supabase.from('group_members')
   .select('user_id')
-  .eq('group_id', groupId)
-  .is_('removed_at', null))
+  .eq('group_id', groupId))
   .map((row) => row['user_id'] as String).toList();
 ```
 
@@ -109,7 +91,6 @@ When adding a member:
 1. RPC checks: `auth.uid() = groups.created_by` (only creator can add)
 2. RPC checks: `p_user_id` is in `contacts` of the creator (must be a contact)
 3. RPC checks: `p_user_id != auth.uid()` (can't add yourself)
-4. ON CONFLICT clause re-activates a previously removed member
 
 ## Common mistakes
 

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../../core/theme/app_colors.dart';
@@ -39,7 +40,7 @@ class AccountsScreen extends ConsumerWidget {
             color: AppColors.textPrimary,
             size: 20,
           ),
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () => context.pop(),
         ),
       ),
       body: accountsAsync.when(
@@ -281,7 +282,10 @@ class _UsageBanner extends StatelessWidget {
           const SizedBox(width: AppSpacing.sm),
           Text(
             '$used / $limit $label',
-            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppColors.textSecondary,
+            ),
           ),
           const Spacer(),
           if (remaining <= 2)
@@ -367,16 +371,15 @@ class _AddAccountSheetState extends ConsumerState<_AddAccountSheet> {
         'sort_order': widget.nextSortOrder,
       });
       widget.onCreated();
-      if (mounted) Navigator.of(context).pop();
+      if (mounted) context.pop();
     } on PostgrestException catch (e) {
       if (e.hint == 'upgrade_required') {
         if (mounted) {
-          Navigator.of(context).pop();
+          context.pop();
           showModalBottomSheet(
             context: context,
             backgroundColor: Colors.transparent,
-            builder: (_) =>
-                const _UpgradeSheet(feature: 'accounts', limit: 10),
+            builder: (_) => const _UpgradeSheet(feature: 'accounts', limit: 10),
           );
         }
       } else {
@@ -728,7 +731,7 @@ class _UpgradeSheet extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.md),
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () => context.pop(),
             child: const Text(
               'Maybe later',
               style: TextStyle(color: AppColors.textTertiary),

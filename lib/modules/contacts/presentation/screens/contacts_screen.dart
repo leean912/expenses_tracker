@@ -701,7 +701,7 @@ class _AddFriendDialogState extends ConsumerState<_AddFriendDialog> {
         .addContact(identifier);
     if (!mounted) return;
     if (error == null) {
-      Navigator.of(context).pop();
+      context.pop();
       widget.onAdded();
     } else {
       setState(() {
@@ -756,7 +756,7 @@ class _AddFriendDialogState extends ConsumerState<_AddFriendDialog> {
       ),
       actions: [
         TextButton(
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () => context.pop(),
           child: const Text(
             'Cancel',
             style: TextStyle(color: AppColors.textSecondary),
@@ -823,10 +823,10 @@ class _CreateGroupSheetState extends ConsumerState<_CreateGroupSheet> {
     );
     if (!mounted) return;
     if (result == null) {
-      Navigator.of(context).pop();
+      context.pop();
       widget.onCreated();
     } else if (result == 'upgrade_required') {
-      Navigator.of(context).pop();
+      context.pop();
       UpgradeSheet.show(
         context,
         title: "You've reached the group limit!",

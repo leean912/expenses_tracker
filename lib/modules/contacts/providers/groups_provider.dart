@@ -13,7 +13,6 @@ class GroupsNotifier extends AsyncNotifier<List<GroupModel>> {
         .select(
           '*, members:group_members(user:profiles(id, username, display_name))',
         )
-        .isFilter('deleted_at', null)
         .order('created_at', ascending: false);
     return (rows as List)
         .map((r) => GroupModel.fromJson(r as Map<String, dynamic>))

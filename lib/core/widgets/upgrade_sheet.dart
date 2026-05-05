@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../theme/app_colors.dart';
 
@@ -59,7 +60,10 @@ class UpgradeSheet extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
           Text(
             description,
-            style: const TextStyle(fontSize: 14, color: AppColors.textSecondary),
+            style: const TextStyle(
+              fontSize: 14,
+              color: AppColors.textSecondary,
+            ),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: AppSpacing.xxl),
@@ -83,7 +87,7 @@ class UpgradeSheet extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.md),
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () => context.pop(),
             child: const Text(
               'Maybe later',
               style: TextStyle(color: AppColors.textTertiary),

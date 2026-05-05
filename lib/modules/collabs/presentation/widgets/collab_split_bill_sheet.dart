@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -7,10 +8,6 @@ import '../../../../core/routes/routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/amount_input_formatter.dart';
 import '../../../../service_locator.dart';
-import '../../../auth/providers/auth_provider.dart';
-import '../../../auth/providers/states/auth_state.dart';
-import '../../../contacts/data/models/contact_model.dart';
-import '../../../contacts/providers/contacts_provider.dart';
 import '../../../expenses/data/models/account_model.dart';
 import '../../../expenses/data/models/category_model.dart';
 import '../../../expenses/providers/accounts_provider.dart';
@@ -18,45 +15,60 @@ import '../../../expenses/providers/categories_provider.dart';
 import '../../../expenses/utils/expense_ui_helpers.dart';
 import '../../../home/providers/home/home_provider.dart';
 import '../../../split_bills/providers/split_bills_provider.dart';
-import '../../data/models/group_model.dart';
+import '../../data/models/collab_model.dart';
+import '../../providers/collab_expenses_provider.dart';
 
-class GroupSplitBillSheet extends ConsumerStatefulWidget {
-  const GroupSplitBillSheet({super.key, required this.group});
+class CollabSplitBillSheet extends ConsumerStatefulWidget {
+  const CollabSplitBillSheet({super.key, required this.collab});
 
-  final GroupModel group;
+  final CollabModel collab;
 
   @override
-  ConsumerState<GroupSplitBillSheet> createState() =>
-      _GroupSplitBillSheetState();
+  ConsumerState<CollabSplitBillSheet> createState() =>
+      _CollabSplitBillSheetState();
 }
 
-class _GroupSplitBillSheetState extends ConsumerState<GroupSplitBillSheet> {
+class _CollabSplitBillSheetState extends ConsumerState<CollabSplitBillSheet> {
   final _amountController = TextEditingController();
   final _noteController = TextEditingController();
+  final _rateController = TextEditingController();
   String? _categoryId;
   String? _accountId;
   DateTime _date = DateTime.now();
   final List<_Participant> _participants = [];
-  bool _equalSplit = false;
+  bool _equalSplit = true;
   bool _loading = false;
   String? _error;
+
+  CollabModel get collab => widget.collab;
 
   @override
   void initState() {
     super.initState();
+
+    // Pre-populate with current user ("You") + all active collab members
     final userId = supabase.auth.currentUser?.id ?? '';
     final you = _Participant(userId: userId, displayName: 'You', isMe: true);
     you.controller.addListener(_onParticipantChanged);
     _participants.add(you);
 
-    for (final member in widget.group.members) {
+    for (final member in collab.members.where(
+      (m) => m.isActive && m.userId != userId,
+    )) {
       final p = _Participant(
-        userId: member.id,
+        userId: member.userId,
         displayName: member.displayName,
         isMe: false,
       );
       p.controller.addListener(_onParticipantChanged);
       _participants.add(p);
+    }
+
+    // Pre-fill exchange rate from collab
+    if (collab.isForeignCurrency && collab.exchangeRate != null) {
+      _rateController.text = collab.exchangeRate!.toStringAsFixed(
+        collab.exchangeRate! >= 10 ? 0 : 4,
+      );
     }
 
     _amountController.addListener(_onAmountChanged);
@@ -66,13 +78,14 @@ class _GroupSplitBillSheetState extends ConsumerState<GroupSplitBillSheet> {
   void dispose() {
     _amountController.dispose();
     _noteController.dispose();
+    _rateController.dispose();
     for (final p in _participants) {
       p.controller.dispose();
     }
     super.dispose();
   }
 
-  // ── Helpers ──────────────────────────────────────────────────────────────────
+  // ── Helpers ───────────────────────────────────────────────────────────────
 
   void _onParticipantChanged() {
     if (mounted) setState(() {});
@@ -100,10 +113,16 @@ class _GroupSplitBillSheetState extends ConsumerState<GroupSplitBillSheet> {
   }
 
   bool get _canSubmit {
-    if (_loading) return false;
-    if (_totalCents <= 0) return false;
-    if (_categoryId == null) return false;
-    if (_accountId == null) return false;
+    if (_loading ||
+        _totalCents <= 0 ||
+        _categoryId == null ||
+        _accountId == null) {
+      return false;
+    }
+    if (collab.isForeignCurrency) {
+      final rate = double.tryParse(_rateController.text.trim());
+      if (rate == null || rate <= 0) return false;
+    }
     return _participants.any(
       (p) => !p.isMe && (double.tryParse(p.controller.text.trim()) ?? 0) > 0,
     );
@@ -123,30 +142,13 @@ class _GroupSplitBillSheetState extends ConsumerState<GroupSplitBillSheet> {
 
   String _formatDate(DateTime date) {
     final now = DateTime.now();
-    final isToday =
-        date.year == now.year && date.month == now.month && date.day == now.day;
-    if (isToday) return 'Today';
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    final m = months[date.month - 1];
-    return date.year == now.year
-        ? '$m ${date.day}'
-        : '$m ${date.day}, ${date.year}';
+    if (date.year == now.year &&
+        date.month == now.month &&
+        date.day == now.day) {
+      return 'Today';
+    }
+    return DateFormat('d MMM yyyy').format(date);
   }
-
-  // ── Actions ──────────────────────────────────────────────────────────────────
 
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
@@ -167,19 +169,6 @@ class _GroupSplitBillSheetState extends ConsumerState<GroupSplitBillSheet> {
     if (picked != null) setState(() => _date = picked);
   }
 
-  void _addParticipant(ContactModel contact) {
-    final p = _Participant(
-      userId: contact.friendId,
-      displayName: contact.displayName,
-      isMe: false,
-    );
-    p.controller.addListener(_onParticipantChanged);
-    setState(() {
-      _participants.add(p);
-      if (_equalSplit) _applyEqualSplit();
-    });
-  }
-
   void _removeParticipant(int index) {
     setState(() {
       _participants[index].controller
@@ -190,27 +179,18 @@ class _GroupSplitBillSheetState extends ConsumerState<GroupSplitBillSheet> {
     });
   }
 
-  void _showContactPicker() {
-    final addedIds = _participants.map((p) => p.userId).toSet();
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (_) => _ContactPickerSheet(
-        addedUserIds: addedIds,
-        onSelect: _addParticipant,
-      ),
-    );
-  }
-
   Future<void> _submit() async {
     if (!_canSubmit) return;
 
-    final currency =
-        ref
-            .read(authProvider)
-            .whenOrNull(authenticated: (u) => u.defaultCurrency) ??
-        'MYR';
+    double? rate;
+    int homeAmountCents;
+
+    if (collab.isForeignCurrency) {
+      rate = double.tryParse(_rateController.text.trim())!;
+      homeAmountCents = (_totalCents / rate).round();
+    } else {
+      homeAmountCents = _totalCents;
+    }
 
     final shares = _participants
         .map((p) {
@@ -235,31 +215,37 @@ class _GroupSplitBillSheetState extends ConsumerState<GroupSplitBillSheet> {
         params: {
           'p_paid_by': supabase.auth.currentUser!.id,
           'p_total_amount_cents': _totalCents,
-          'p_currency': currency,
+          'p_currency': collab.currency,
           'p_note': _noteController.text.trim(),
           'p_expense_date': DateFormat('yyyy-MM-dd').format(_date),
           'p_category_id': _categoryId,
-          'p_collab_id': null,
-          'p_group_id': widget.group.id,
+          'p_collab_id': collab.id,
+          'p_group_id': null,
           'p_google_place_id': null,
           'p_place_name': null,
           'p_latitude': null,
           'p_longitude': null,
           'p_receipt_url': null,
           'p_shares': shares,
-          'p_home_amount_cents': _totalCents,
-          'p_home_currency': currency,
-          'p_conversion_rate': null,
+          'p_home_amount_cents': homeAmountCents,
+          'p_home_currency': collab.homeCurrency,
+          'p_conversion_rate': rate,
           'p_account_id': _accountId,
         },
       );
+
       if (mounted) {
         ref.invalidate(splitBillsProvider);
         ref.invalidate(homeDataProvider);
+        ref.read(collabExpensesProvider(collab.id).notifier).refresh();
         context.pop();
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Split bill created')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Split bill created.'),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: AppColors.textPrimary,
+          ),
+        );
       }
     } catch (_) {
       if (mounted) {
@@ -271,7 +257,7 @@ class _GroupSplitBillSheetState extends ConsumerState<GroupSplitBillSheet> {
     }
   }
 
-  // ── Build ─────────────────────────────────────────────────────────────────────
+  // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -281,7 +267,7 @@ class _GroupSplitBillSheetState extends ConsumerState<GroupSplitBillSheet> {
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
       child: Container(
-        height: MediaQuery.sizeOf(context).height * .9,
+        height: MediaQuery.sizeOf(context).height * 0.92,
         decoration: const BoxDecoration(
           color: AppColors.background,
           borderRadius: BorderRadius.vertical(
@@ -295,7 +281,7 @@ class _GroupSplitBillSheetState extends ConsumerState<GroupSplitBillSheet> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // ── Header ──────────────────────────────────────────────────────
+              // ── Header ───────────────────────────────────────────────────
               Padding(
                 padding: const EdgeInsets.fromLTRB(
                   AppSpacing.xl,
@@ -305,15 +291,28 @@ class _GroupSplitBillSheetState extends ConsumerState<GroupSplitBillSheet> {
                 ),
                 child: Row(
                   children: [
-                    const Text(
-                      'Create Split Bill',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Create Split Bill',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          Text(
+                            collab.name,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textTertiary,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const Spacer(),
                     IconButton(
                       onPressed: () => context.pop(),
                       icon: const Icon(
@@ -329,8 +328,9 @@ class _GroupSplitBillSheetState extends ConsumerState<GroupSplitBillSheet> {
                   ],
                 ),
               ),
+              const Divider(height: 1, color: AppColors.border),
 
-              // ── Body ────────────────────────────────────────────────────────
+              // ── Body ─────────────────────────────────────────────────────
               Expanded(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.symmetric(
@@ -340,7 +340,7 @@ class _GroupSplitBillSheetState extends ConsumerState<GroupSplitBillSheet> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Amount
+                      // Amount in collab currency
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: AppSpacing.lg,
@@ -354,10 +354,10 @@ class _GroupSplitBillSheetState extends ConsumerState<GroupSplitBillSheet> {
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
-                            const Text(
-                              'RM',
-                              style: TextStyle(
-                                fontSize: 28,
+                            Text(
+                              collab.currency,
+                              style: const TextStyle(
+                                fontSize: 22,
                                 fontWeight: FontWeight.w500,
                                 color: AppColors.textTertiary,
                               ),
@@ -387,7 +387,6 @@ class _GroupSplitBillSheetState extends ConsumerState<GroupSplitBillSheet> {
                                   ),
                                   border: InputBorder.none,
                                   isDense: true,
-
                                   contentPadding: EdgeInsets.zero,
                                 ),
                               ),
@@ -407,6 +406,88 @@ class _GroupSplitBillSheetState extends ConsumerState<GroupSplitBillSheet> {
                         ),
                       ],
 
+                      // Exchange rate (foreign currency only)
+                      if (collab.isForeignCurrency) ...[
+                        const SizedBox(height: AppSpacing.xxl),
+                        _SectionLabel(
+                          '1 ${collab.homeCurrency} = ? ${collab.currency}',
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                        TextField(
+                          controller: _rateController,
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          inputFormatters: [
+                            FilteringTextInputFormatter.allow(
+                              RegExp(r'^\d*\.?\d*'),
+                            ),
+                          ],
+                          onChanged: (_) {
+                            if (_equalSplit) _applyEqualSplit();
+                            setState(() {});
+                          },
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: AppColors.textPrimary,
+                          ),
+                          decoration: InputDecoration(
+                            hintText: 'e.g. 30',
+                            hintStyle: const TextStyle(
+                              color: AppColors.textTertiary,
+                              fontSize: 14,
+                            ),
+                            filled: true,
+                            fillColor: AppColors.surface,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(AppRadius.lg),
+                              borderSide: const BorderSide(
+                                color: AppColors.border,
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(AppRadius.lg),
+                              borderSide: const BorderSide(
+                                color: AppColors.border,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(AppRadius.lg),
+                              borderSide: const BorderSide(
+                                color: AppColors.accent,
+                                width: 1.5,
+                              ),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.lg,
+                              vertical: AppSpacing.lg,
+                            ),
+                          ),
+                        ),
+                        // Live home-currency equivalent
+                        if (_totalCents > 0) ...[
+                          const SizedBox(height: AppSpacing.sm),
+                          Builder(
+                            builder: (_) {
+                              final rate = double.tryParse(
+                                _rateController.text.trim(),
+                              );
+                              if (rate == null || rate <= 0) {
+                                return const SizedBox.shrink();
+                              }
+                              final home = (_totalCents / rate / 100);
+                              return Text(
+                                '≈ ${collab.homeCurrency} ${home.toStringAsFixed(2)}',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textTertiary,
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ],
+
                       const SizedBox(height: AppSpacing.xxl),
 
                       // Category
@@ -419,19 +500,7 @@ class _GroupSplitBillSheetState extends ConsumerState<GroupSplitBillSheet> {
                           onSelect: (id) => setState(() => _categoryId = id),
                           onAddTap: () => context.push(settingsCategoriesRoute),
                         ),
-                        loading: () => const SizedBox(
-                          height: 40,
-                          child: Center(
-                            child: SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: AppColors.textTertiary,
-                              ),
-                            ),
-                          ),
-                        ),
+                        loading: () => const _LoadingPicker(),
                         error: (_, _) => const Text(
                           'Failed to load categories',
                           style: TextStyle(
@@ -453,19 +522,7 @@ class _GroupSplitBillSheetState extends ConsumerState<GroupSplitBillSheet> {
                           onSelect: (id) => setState(() => _accountId = id),
                           onAddTap: () => context.push(settingsAccountsRoute),
                         ),
-                        loading: () => const SizedBox(
-                          height: 40,
-                          child: Center(
-                            child: SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: AppColors.textTertiary,
-                              ),
-                            ),
-                          ),
-                        ),
+                        loading: () => const _LoadingPicker(),
                         error: (_, _) => const Text(
                           'Failed to load accounts',
                           style: TextStyle(
@@ -569,7 +626,7 @@ class _GroupSplitBillSheetState extends ConsumerState<GroupSplitBillSheet> {
 
                       const SizedBox(height: AppSpacing.xxl),
 
-                      // Split with header
+                      // Split with
                       Row(
                         children: [
                           const _SectionLabel('Split with'),
@@ -597,7 +654,7 @@ class _GroupSplitBillSheetState extends ConsumerState<GroupSplitBillSheet> {
                       ),
                       const SizedBox(height: AppSpacing.md),
 
-                      // Participants list
+                      // Participants
                       Container(
                         decoration: BoxDecoration(
                           color: AppColors.surface,
@@ -615,6 +672,7 @@ class _GroupSplitBillSheetState extends ConsumerState<GroupSplitBillSheet> {
                                 ),
                               _ParticipantRow(
                                 participant: _participants[i],
+                                currency: collab.currency,
                                 readOnly: _equalSplit,
                                 onRemove: _participants[i].isMe
                                     ? null
@@ -625,44 +683,7 @@ class _GroupSplitBillSheetState extends ConsumerState<GroupSplitBillSheet> {
                         ),
                       ),
 
-                      const SizedBox(height: AppSpacing.md),
-
-                      // Add person button
-                      GestureDetector(
-                        onTap: _showContactPicker,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: AppSpacing.lg,
-                            vertical: AppSpacing.lg,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.surface,
-                            borderRadius: BorderRadius.circular(AppRadius.xl),
-                            border: Border.all(color: AppColors.borderDashed),
-                          ),
-                          child: const Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.person_add_alt_1_rounded,
-                                size: 16,
-                                color: AppColors.textSecondary,
-                              ),
-                              SizedBox(width: AppSpacing.sm),
-                              Text(
-                                'Add person',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
-                                  color: AppColors.textSecondary,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-
-                      // Remaining indicator
+                      // Remaining indicator (manual mode)
                       if (!_equalSplit && _remainingCents != 0) ...[
                         const SizedBox(height: AppSpacing.md),
                         Row(
@@ -677,8 +698,8 @@ class _GroupSplitBillSheetState extends ConsumerState<GroupSplitBillSheet> {
                             ),
                             Text(
                               _remainingCents < 0
-                                  ? 'RM ${(_remainingCents.abs() / 100).toStringAsFixed(2)} over'
-                                  : 'RM ${(_remainingCents / 100).toStringAsFixed(2)}',
+                                  ? '${collab.currency} ${(_remainingCents.abs() / 100).toStringAsFixed(2)} over'
+                                  : '${collab.currency} ${(_remainingCents / 100).toStringAsFixed(2)}',
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w500,
@@ -697,7 +718,7 @@ class _GroupSplitBillSheetState extends ConsumerState<GroupSplitBillSheet> {
                 ),
               ),
 
-              // ── Submit ───────────────────────────────────────────────────────
+              // ── Submit ────────────────────────────────────────────────────
               Padding(
                 padding: EdgeInsets.fromLTRB(
                   AppSpacing.xl,
@@ -763,11 +784,13 @@ class _Participant {
 class _ParticipantRow extends StatelessWidget {
   const _ParticipantRow({
     required this.participant,
+    required this.currency,
     required this.readOnly,
     this.onRemove,
   });
 
   final _Participant participant;
+  final String currency;
   final bool readOnly;
   final VoidCallback? onRemove;
 
@@ -800,14 +823,26 @@ class _ParticipantRow extends StatelessWidget {
           ),
           const SizedBox(width: AppSpacing.md),
           Expanded(
-            child: Text(
-              participant.displayName,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: AppColors.textPrimary,
-              ),
-              overflow: TextOverflow.ellipsis,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  participant.displayName,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.textPrimary,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  currency,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textTertiary,
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(width: AppSpacing.md),
@@ -882,145 +917,7 @@ class _ParticipantRow extends StatelessWidget {
   }
 }
 
-// ── Contact picker sheet ──────────────────────────────────────────────────────
-
-class _ContactPickerSheet extends ConsumerWidget {
-  const _ContactPickerSheet({
-    required this.addedUserIds,
-    required this.onSelect,
-  });
-
-  final Set<String> addedUserIds;
-  final ValueChanged<ContactModel> onSelect;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final contactsAsync = ref.watch(contactsProvider);
-
-    return Container(
-      margin: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        0,
-        AppSpacing.xl,
-        AppSpacing.xl,
-      ),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.xxl),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.xxl,
-              AppSpacing.xxl,
-              AppSpacing.xxl,
-              AppSpacing.lg,
-            ),
-            child: const Text(
-              'Add person',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
-              ),
-            ),
-          ),
-          const Divider(height: 1, color: AppColors.border),
-          contactsAsync.when(
-            loading: () => const Padding(
-              padding: EdgeInsets.all(AppSpacing.xxl),
-              child: Center(child: CircularProgressIndicator()),
-            ),
-            error: (_, _) => const Padding(
-              padding: EdgeInsets.all(AppSpacing.xxl),
-              child: Text(
-                'Failed to load contacts',
-                style: TextStyle(color: AppColors.textSecondary),
-              ),
-            ),
-            data: (contacts) {
-              final available = contacts
-                  .where((c) => !addedUserIds.contains(c.friendId))
-                  .toList();
-              if (available.isEmpty) {
-                return const Padding(
-                  padding: EdgeInsets.all(AppSpacing.xxl),
-                  child: Text(
-                    'All contacts already added',
-                    style: TextStyle(color: AppColors.textSecondary),
-                  ),
-                );
-              }
-              return LimitedBox(
-                maxHeight: 320,
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-                  itemCount: available.length,
-                  itemBuilder: (context, index) {
-                    final contact = available[index];
-                    return ListTile(
-                      leading: Container(
-                        width: 36,
-                        height: 36,
-                        decoration: const BoxDecoration(
-                          color: AppColors.surfaceMuted,
-                          shape: BoxShape.circle,
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          contact.displayName[0].toUpperCase(),
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      ),
-                      title: RichText(
-                        text: TextSpan(
-                          children: [
-                            TextSpan(
-                              text: contact.displayName,
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
-                                color: AppColors.textPrimary,
-                              ),
-                            ),
-                            if (contact.username != null)
-                              TextSpan(
-                                text: ' @${contact.username}',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w300,
-                                  color: AppColors.textTertiary,
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                      onTap: () {
-                        onSelect(contact);
-                        context.pop();
-                      },
-                    );
-                  },
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: AppSpacing.lg),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Section label ─────────────────────────────────────────────────────────────
+// ── Small shared widgets ──────────────────────────────────────────────────────
 
 class _SectionLabel extends StatelessWidget {
   const _SectionLabel(this.text);
@@ -1041,7 +938,26 @@ class _SectionLabel extends StatelessWidget {
   }
 }
 
-// ── Category picker ───────────────────────────────────────────────────────────
+class _LoadingPicker extends StatelessWidget {
+  const _LoadingPicker();
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox(
+      height: 40,
+      child: Center(
+        child: SizedBox(
+          width: 18,
+          height: 18,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: AppColors.textTertiary,
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class _CategoryPicker extends StatelessWidget {
   const _CategoryPicker({
@@ -1140,8 +1056,6 @@ class _CategoryPicker extends StatelessWidget {
     );
   }
 }
-
-// ── Account picker ────────────────────────────────────────────────────────────
 
 class _AccountPicker extends StatelessWidget {
   const _AccountPicker({
