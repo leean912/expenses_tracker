@@ -59,33 +59,25 @@ class _SplitBillsScreenState extends ConsumerState<SplitBillsScreen>
                 ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceMuted,
-                  borderRadius: BorderRadius.circular(AppRadius.pill),
-                ),
-                child: TabBar(
-                  controller: _tabs,
-                  indicator: BoxDecoration(
-                    color: AppColors.accent,
-                    borderRadius: BorderRadius.circular(AppRadius.pill),
-                  ),
-                  indicatorSize: TabBarIndicatorSize.tab,
-                  dividerColor: Colors.transparent,
-                  labelColor: AppColors.accentText,
-                  unselectedLabelColor: AppColors.textSecondary,
-                  labelStyle: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                  ),
-                  tabs: const [
-                    Tab(text: 'I Paid'),
-                    Tab(text: 'I Owe'),
-                  ],
-                ),
+            TabBar(
+              controller: _tabs,
+              labelColor: AppColors.textPrimary,
+              unselectedLabelColor: AppColors.textTertiary,
+              indicatorColor: AppColors.textPrimary,
+              indicatorSize: TabBarIndicatorSize.label,
+              dividerColor: AppColors.border,
+              labelStyle: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
               ),
+              unselectedLabelStyle: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w400,
+              ),
+              tabs: const [
+                Tab(text: 'I Paid'),
+                Tab(text: 'I Owe'),
+              ],
             ),
             const SizedBox(height: AppSpacing.md),
             Expanded(

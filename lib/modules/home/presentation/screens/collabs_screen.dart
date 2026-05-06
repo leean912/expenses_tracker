@@ -5,17 +5,27 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/routes/routes.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/currencies.dart';
 import '../../../../service_locator.dart';
 import '../../../auth/providers/auth_provider.dart';
 import '../../../auth/providers/states/auth_state.dart';
 import '../../../collabs/data/models/collab_model.dart';
 import '../../../collabs/providers/collabs_provider.dart';
 
-class CollabsScreen extends ConsumerWidget {
+enum _CollabFilter { all, ongoing, closed }
+
+class CollabsScreen extends ConsumerStatefulWidget {
   const CollabsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CollabsScreen> createState() => _CollabsScreenState();
+}
+
+class _CollabsScreenState extends ConsumerState<CollabsScreen> {
+  _CollabFilter _filter = _CollabFilter.all;
+
+  @override
+  Widget build(BuildContext context) {
     final collabsAsync = ref.watch(collabsProvider);
 
     return Scaffold(
@@ -33,11 +43,16 @@ class CollabsScreen extends ConsumerWidget {
           ),
         ),
         actions: [
-          _CreateButton(collabsAsync: collabsAsync),
+          _FilterMenuButton(
+            current: _filter,
+            onSelected: (f) => setState(() => _filter = f),
+          ),
           const SizedBox(width: AppSpacing.sm),
         ],
       ),
+      floatingActionButton: _CreateButton(collabsAsync: collabsAsync),
       body: collabsAsync.when(
+        skipLoadingOnRefresh: true,
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(
           child: Column(
@@ -56,90 +71,189 @@ class CollabsScreen extends ConsumerWidget {
           ),
         ),
         data: (collabs) {
-          final active = collabs.where((c) => c.isActive).toList();
-          final closed = collabs.where((c) => c.isClosed).toList();
-
-          if (collabs.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 64,
-                    height: 64,
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceMuted,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.group_work_outlined,
-                      size: 28,
-                      color: AppColors.textTertiary,
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.xl),
-                  const Text(
-                    'No collabs yet.',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  const Text(
-                    'Create one to share expenses\nwith friends on a trip or event.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: AppColors.textTertiary,
-                    ),
-                  ),
-                ],
-              ),
-            );
+          final List<CollabModel> visible;
+          if (_filter == _CollabFilter.ongoing) {
+            visible = collabs.where((c) => c.isActive).toList();
+          } else if (_filter == _CollabFilter.closed) {
+            visible = collabs.where((c) => c.isClosed).toList();
+          } else {
+            visible = collabs;
           }
 
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.xl,
-              AppSpacing.md,
-              AppSpacing.xl,
-              AppSpacing.xxl,
-            ),
-            children: [
-              if (active.isNotEmpty) ...[
-                ...active.map(
-                  (c) => Padding(
-                    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                    child: _CollabTile(collab: c),
-                  ),
-                ),
-              ],
-              if (closed.isNotEmpty) ...[
-                if (active.isNotEmpty) const SizedBox(height: AppSpacing.lg),
-                const Padding(
-                  padding: EdgeInsets.only(bottom: AppSpacing.md),
-                  child: Text(
-                    'CLOSED',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textTertiary,
-                      letterSpacing: 0.8,
+          return RefreshIndicator(
+            onRefresh: () => ref.refresh(collabsProvider.future),
+            color: AppColors.accent,
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.xl,
+                AppSpacing.md,
+                AppSpacing.xl,
+                AppSpacing.xxl,
+              ),
+              children: [
+                if (visible.isEmpty)
+                  SizedBox(
+                    height: MediaQuery.of(context).size.height * 0.65,
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 64,
+                            height: 64,
+                            decoration: BoxDecoration(
+                              color: AppColors.surfaceMuted,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.group_work_outlined,
+                              size: 28,
+                              color: AppColors.textTertiary,
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.xl),
+                          Text(
+                            _filter == _CollabFilter.closed
+                                ? 'No closed collabs.'
+                                : _filter == _CollabFilter.ongoing
+                                ? 'No ongoing collabs.'
+                                : 'No collabs yet.',
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          if (_filter != _CollabFilter.closed) ...[
+                            const SizedBox(height: AppSpacing.sm),
+                            const Text(
+                              'Create one to share expenses\nwith friends on a trip or event.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: AppColors.textTertiary,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  )
+                else
+                  ...visible.map(
+                    (c) => Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                      child: _CollabTile(collab: c),
                     ),
                   ),
-                ),
-                ...closed.map(
-                  (c) => Padding(
-                    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                    child: _CollabTile(collab: c),
-                  ),
-                ),
               ],
-            ],
+            ),
           );
         },
+      ),
+    );
+  }
+}
+
+// ── Filter menu button ─────────────────────────────────────────────────────────
+
+class _FilterMenuButton extends StatelessWidget {
+  const _FilterMenuButton({required this.current, required this.onSelected});
+
+  final _CollabFilter current;
+  final ValueChanged<_CollabFilter> onSelected;
+
+  String get _label => switch (current) {
+    _CollabFilter.all => 'All',
+    _CollabFilter.ongoing => 'Ongoing',
+    _CollabFilter.closed => 'Closed',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<_CollabFilter>(
+      onSelected: onSelected,
+      color: AppColors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        side: const BorderSide(color: AppColors.border),
+      ),
+      offset: const Offset(0, 40),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: 6,
+        ),
+        decoration: BoxDecoration(
+          color: current != _CollabFilter.all
+              ? AppColors.accent
+              : AppColors.surface,
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          border: Border.all(
+            color: current != _CollabFilter.all
+                ? AppColors.accent
+                : AppColors.border,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              _label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: current != _CollabFilter.all
+                    ? AppColors.accentText
+                    : AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(width: 2),
+            Icon(
+              Icons.keyboard_arrow_down_rounded,
+              size: 16,
+              color: current != _CollabFilter.all
+                  ? AppColors.accentText
+                  : AppColors.textTertiary,
+            ),
+          ],
+        ),
+      ),
+      itemBuilder: (_) => [
+        _menuItem(_CollabFilter.all, 'All', current),
+        _menuItem(_CollabFilter.ongoing, 'Ongoing', current),
+        _menuItem(_CollabFilter.closed, 'Closed', current),
+      ],
+    );
+  }
+
+  PopupMenuItem<_CollabFilter> _menuItem(
+    _CollabFilter value,
+    String label,
+    _CollabFilter current,
+  ) {
+    final isSelected = value == current;
+    return PopupMenuItem(
+      value: value,
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ),
+          if (isSelected)
+            const Icon(
+              Icons.check_rounded,
+              size: 16,
+              color: AppColors.textPrimary,
+            ),
+        ],
       ),
     );
   }
@@ -154,8 +268,8 @@ class _CreateButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return GestureDetector(
-      onTap: () async {
+    return FloatingActionButton.extended(
+      onPressed: () async {
         final authState = ref.read(authProvider);
         final homeCurrency =
             authState.whenOrNull(
@@ -169,18 +283,12 @@ class _CreateButton extends ConsumerWidget {
           builder: (_) => _CreateCollabSheet(homeCurrency: homeCurrency),
         );
       },
-      child: Container(
-        width: 36,
-        height: 36,
-        decoration: BoxDecoration(
-          color: AppColors.accent,
-          borderRadius: BorderRadius.circular(AppRadius.md),
-        ),
-        child: const Icon(
-          Icons.add_rounded,
-          color: AppColors.accentText,
-          size: 20,
-        ),
+      backgroundColor: AppColors.accent,
+      foregroundColor: AppColors.accentText,
+      icon: const Icon(Icons.add_rounded),
+      label: const Text(
+        'Create Collab',
+        style: TextStyle(fontWeight: FontWeight.w600),
       ),
     );
   }
@@ -244,14 +352,14 @@ class _CollabTile extends ConsumerWidget {
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
+                onPressed: () => context.pop(false),
                 child: const Text(
                   'Cancel',
                   style: TextStyle(color: AppColors.textSecondary),
                 ),
               ),
               TextButton(
-                onPressed: () => Navigator.of(context).pop(true),
+                onPressed: () => context.pop(true),
                 child: Text(
                   isOwner ? 'Delete' : 'Leave',
                   style: const TextStyle(color: Color(0xFF993C1D)),
@@ -328,27 +436,29 @@ class _CollabTile extends ConsumerWidget {
                       ),
                     ),
                   ],
-                  if (collab.isClosed) ...[
-                    const SizedBox(width: AppSpacing.sm),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.md,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceMuted,
-                        borderRadius: BorderRadius.circular(AppRadius.pill),
-                      ),
-                      child: const Text(
-                        'Closed',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                          color: AppColors.textTertiary,
-                        ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.md,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: collab.isClosed
+                          ? const Color(0xFFFFEBEB)
+                          : const Color(0xFFE6F9F0),
+                      borderRadius: BorderRadius.circular(AppRadius.pill),
+                    ),
+                    child: Text(
+                      collab.isClosed ? 'Closed' : 'Ongoing',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: collab.isClosed
+                            ? const Color(0xFF993C1D)
+                            : const Color(0xFF1A7A4A),
                       ),
                     ),
-                  ],
+                  ),
                 ],
               ),
               const SizedBox(height: AppSpacing.sm),
@@ -671,7 +781,7 @@ class _CreateCollabSheetState extends ConsumerState<_CreateCollabSheet> {
                     children: [
                       Expanded(
                         child: Text(
-                          '$_currency — ${_currencyName(_currency)}',
+                          '$_currency — ${AppCurrency.nameFor(_currency)}',
                           style: const TextStyle(
                             fontSize: 14,
                             color: AppColors.textPrimary,
@@ -776,39 +886,6 @@ class _CreateCollabSheetState extends ConsumerState<_CreateCollabSheet> {
 
 // ── Currency picker sheet ──────────────────────────────────────────────────────
 
-const _kCurrencies = [
-  ('MYR', 'Malaysian Ringgit'),
-  ('USD', 'US Dollar'),
-  ('EUR', 'Euro'),
-  ('GBP', 'British Pound'),
-  ('JPY', 'Japanese Yen'),
-  ('SGD', 'Singapore Dollar'),
-  ('THB', 'Thai Baht'),
-  ('AUD', 'Australian Dollar'),
-  ('CAD', 'Canadian Dollar'),
-  ('HKD', 'Hong Kong Dollar'),
-  ('CNY', 'Chinese Yuan'),
-  ('KRW', 'South Korean Won'),
-  ('TWD', 'Taiwan Dollar'),
-  ('IDR', 'Indonesian Rupiah'),
-  ('PHP', 'Philippine Peso'),
-  ('VND', 'Vietnamese Dong'),
-  ('INR', 'Indian Rupee'),
-  ('AED', 'UAE Dirham'),
-  ('SAR', 'Saudi Riyal'),
-  ('TRY', 'Turkish Lira'),
-  ('BRL', 'Brazilian Real'),
-  ('MXN', 'Mexican Peso'),
-  ('ZAR', 'South African Rand'),
-];
-
-String _currencyName(String code) {
-  for (final pair in _kCurrencies) {
-    if (pair.$1 == code) return pair.$2;
-  }
-  return code;
-}
-
 class _CurrencyPickerSheet extends StatelessWidget {
   const _CurrencyPickerSheet({required this.selected});
 
@@ -867,16 +944,16 @@ class _CurrencyPickerSheet extends StatelessWidget {
             ),
             child: ListView.separated(
               shrinkWrap: true,
-              itemCount: _kCurrencies.length,
+              itemCount: AppCurrency.all.length,
               separatorBuilder: (_, _) =>
                   const Divider(height: 1, color: AppColors.border),
               itemBuilder: (context, index) {
-                final (code, name) = _kCurrencies[index];
-                final isSelected = code == selected;
+                final currency = AppCurrency.all[index];
+                final isSelected = currency.code == selected;
                 return ListTile(
-                  onTap: () => Navigator.of(context).pop(code),
+                  onTap: () => context.pop(currency.code),
                   title: Text(
-                    '$code — $name',
+                    '${currency.code} — ${currency.name}',
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: isSelected

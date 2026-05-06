@@ -73,7 +73,7 @@ class GreetingHeader extends StatelessWidget {
           _CircleIconButton(
             background: AppColors.foodLight,
             iconColor: AppColors.foodDark,
-            icon: Icons.person_rounded,
+            icon: Icons.group_add,
             onTap: onAvatarTap,
           ),
         ],

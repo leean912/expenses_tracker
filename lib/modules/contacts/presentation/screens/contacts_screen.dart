@@ -67,17 +67,14 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen>
             fontWeight: FontWeight.w400,
           ),
           tabs: const [
-            Tab(text: 'People'),
+            Tab(text: 'Friends'),
             Tab(text: 'Groups'),
           ],
         ),
       ),
       body: TabBarView(
         controller: _tabController,
-        children: const [
-          _ContactsTab(),
-          _GroupsTab(),
-        ],
+        children: const [_ContactsTab(), _GroupsTab()],
       ),
     );
   }
@@ -212,8 +209,7 @@ class _ContactsTabState extends ConsumerState<_ContactsTab> {
           ),
           Expanded(
             child: contactsAsync.when(
-              loading: () =>
-                  const Center(child: CircularProgressIndicator()),
+              loading: () => const Center(child: CircularProgressIndicator()),
               error: (e, _) => Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -425,8 +421,7 @@ class _GroupsTabState extends ConsumerState<_GroupsTab> {
           ),
           Expanded(
             child: groupsAsync.when(
-              loading: () =>
-                  const Center(child: CircularProgressIndicator()),
+              loading: () => const Center(child: CircularProgressIndicator()),
               error: (e, _) => Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -481,7 +476,8 @@ class _GroupsTabState extends ConsumerState<_GroupsTab> {
                     return _GroupTile(
                       group: group,
                       onDelete: () => _handleDelete(group.id, group.name),
-                      onTap: () => context.push('$groupDetailRoute/${group.id}'),
+                      onTap: () =>
+                          context.push('$groupDetailRoute/${group.id}'),
                     );
                   },
                 );
@@ -566,7 +562,11 @@ class _ContactTile extends StatelessWidget {
 // ── Group tile ────────────────────────────────────────────────────────────────
 
 class _GroupTile extends StatelessWidget {
-  const _GroupTile({required this.group, required this.onDelete, required this.onTap});
+  const _GroupTile({
+    required this.group,
+    required this.onDelete,
+    required this.onTap,
+  });
 
   final GroupModel group;
   final VoidCallback onDelete;
@@ -608,57 +608,57 @@ class _GroupTile extends StatelessWidget {
           ),
           child: Row(
             children: [
-            Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.15),
-                shape: BoxShape.circle,
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.group_rounded, size: 18, color: color),
               ),
-              child: Icon(Icons.group_rounded, size: 18, color: color),
-            ),
-            const SizedBox(width: AppSpacing.lg),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    group.name,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  if (memberNames.isNotEmpty)
+              const SizedBox(width: AppSpacing.lg),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Text(
-                      memberNames,
+                      group.name,
                       style: const TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textTertiary,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    )
-                  else
-                    const Text(
-                      'No members',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textTertiary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.textPrimary,
                       ),
                     ),
-                ],
+                    if (memberNames.isNotEmpty)
+                      Text(
+                        memberNames,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textTertiary,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      )
+                    else
+                      const Text(
+                        'No members',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textTertiary,
+                        ),
+                      ),
+                  ],
+                ),
               ),
-            ),
-            Text(
-              '${group.members.length + 1}',
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textSecondary,
+              Text(
+                '${group.members.length + 1}',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textSecondary,
+                ),
               ),
-            ),
             ],
           ),
         ),
@@ -730,10 +730,7 @@ class _AddFriendDialogState extends ConsumerState<_AddFriendDialog> {
           TextField(
             controller: _controller,
             autofocus: true,
-            style: const TextStyle(
-              fontSize: 14,
-              color: AppColors.textPrimary,
-            ),
+            style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
             decoration: const InputDecoration(
               hintText: 'Enter username…',
               hintStyle: TextStyle(color: AppColors.textTertiary),
@@ -746,10 +743,7 @@ class _AddFriendDialogState extends ConsumerState<_AddFriendDialog> {
             const SizedBox(height: 8),
             Text(
               _error!,
-              style: const TextStyle(
-                fontSize: 12,
-                color: Color(0xFF993C1D),
-              ),
+              style: const TextStyle(fontSize: 12, color: Color(0xFF993C1D)),
             ),
           ],
         ],
@@ -816,11 +810,13 @@ class _CreateGroupSheetState extends ConsumerState<_CreateGroupSheet> {
       _loading = true;
       _error = null;
     });
-    final result = await ref.read(groupsProvider.notifier).createGroup(
-      name: name,
-      memberUserIds: _selectedFriendIds.toList(),
-      color: _selectedColor,
-    );
+    final result = await ref
+        .read(groupsProvider.notifier)
+        .createGroup(
+          name: name,
+          memberUserIds: _selectedFriendIds.toList(),
+          color: _selectedColor,
+        );
     if (!mounted) return;
     if (result == null) {
       context.pop();
@@ -990,8 +986,9 @@ class _CreateGroupSheetState extends ConsumerState<_CreateGroupSheet> {
                   children: widget.contacts.asMap().entries.map((entry) {
                     final i = entry.key;
                     final contact = entry.value;
-                    final isSelected =
-                        _selectedFriendIds.contains(contact.friendId);
+                    final isSelected = _selectedFriendIds.contains(
+                      contact.friendId,
+                    );
                     final isLast = i == widget.contacts.length - 1;
                     return Column(
                       children: [
@@ -1132,7 +1129,6 @@ class _CreateGroupSheetState extends ConsumerState<_CreateGroupSheet> {
     );
   }
 }
-
 
 // ── Sheet label ───────────────────────────────────────────────────────────────
 

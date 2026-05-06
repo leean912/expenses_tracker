@@ -253,14 +253,14 @@ class _MembersBodyState extends ConsumerState<_MembersBody> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
+            onPressed: () => context.pop(false),
             child: const Text(
               'Cancel',
               style: TextStyle(color: AppColors.textSecondary),
             ),
           ),
           TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
+            onPressed: () => context.pop(true),
             child: const Text(
               'Leave',
               style: TextStyle(color: Color(0xFF993C1D)),
@@ -670,14 +670,14 @@ class _MemberTile extends StatelessWidget {
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
+                onPressed: () => context.pop(false),
                 child: const Text(
                   'Cancel',
                   style: TextStyle(color: AppColors.textSecondary),
                 ),
               ),
               TextButton(
-                onPressed: () => Navigator.of(context).pop(true),
+                onPressed: () => context.pop(true),
                 child: const Text(
                   'Remove',
                   style: TextStyle(color: Color(0xFF993C1D)),

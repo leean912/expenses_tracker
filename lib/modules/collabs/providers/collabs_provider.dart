@@ -64,18 +64,23 @@ class CollabsNotifier extends AsyncNotifier<List<CollabModel>> {
 
   Future<String?> updateCollab({
     required String collabId,
-    String? name,
+    required String name,
     String? description,
     DateTime? startDate,
     DateTime? endDate,
-    int? budgetCents,
+    required int? budgetCents,
+    required String currency,
+    double? exchangeRate,
   }) async {
     try {
       final payload = <String, dynamic>{
         'updated_at': DateTime.now().toIso8601String(),
+        'name': name,
+        'description': description,
+        'currency': currency,
+        'budget_cents': budgetCents,
+        'exchange_rate': exchangeRate,
       };
-      if (name != null) payload['name'] = name;
-      if (description != null) payload['description'] = description;
       if (startDate != null) {
         payload['start_date'] =
             '${startDate.year}-${startDate.month.toString().padLeft(2, '0')}-${startDate.day.toString().padLeft(2, '0')}';
@@ -84,7 +89,6 @@ class CollabsNotifier extends AsyncNotifier<List<CollabModel>> {
         payload['end_date'] =
             '${endDate.year}-${endDate.month.toString().padLeft(2, '0')}-${endDate.day.toString().padLeft(2, '0')}';
       }
-      if (budgetCents != null) payload['budget_cents'] = budgetCents;
 
       await supabase.from('collabs').update(payload).eq('id', collabId);
       state = AsyncData(await _fetch());

@@ -6,12 +6,8 @@ import 'package:intl/intl.dart';
 
 import '../../../../core/routes/routes.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/utils/amount_input_formatter.dart';
+import '../../../../core/utils/currencies.dart';
 import '../../../../service_locator.dart';
-import '../../../expenses/data/models/account_model.dart';
-import '../../../expenses/data/models/category_model.dart';
-import '../../../expenses/providers/accounts_provider.dart';
-import '../../../expenses/providers/categories_provider.dart';
 import '../../../expenses/utils/expense_ui_helpers.dart';
 import '../../data/models/collab_model.dart';
 import '../../providers/collab_expenses_provider.dart';
@@ -115,9 +111,7 @@ class _CollabDetailBodyState extends ConsumerState<_CollabDetailBody> {
       isScrollControlled: true,
       enableDrag: false,
       backgroundColor: Colors.transparent,
-      builder: (_) => _AddCollabExpenseSheet(collab: collab),
-    ).then(
-      (_) => ref.read(collabExpensesProvider(collab.id).notifier).refresh(),
+      builder: (_) => CollabExpenseSheet(collab: collab),
     );
   }
 
@@ -128,15 +122,6 @@ class _CollabDetailBodyState extends ConsumerState<_CollabDetailBody> {
       builder: (_) => _CollabMenuSheet(
         collab: collab,
         isOwner: _isOwner,
-        onSplitBill: () {
-          context.pop();
-          showModalBottomSheet<void>(
-            context: context,
-            isScrollControlled: true,
-            backgroundColor: Colors.transparent,
-            builder: (_) => CollabSplitBillSheet(collab: collab),
-          );
-        },
         onEdit: () {
           context.pop();
           showModalBottomSheet<void>(
@@ -217,6 +202,7 @@ class _CollabDetailBodyState extends ConsumerState<_CollabDetailBody> {
         ],
       ),
       body: expensesAsync.when(
+        skipLoadingOnRefresh: true,
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(
           child: Column(
@@ -238,81 +224,89 @@ class _CollabDetailBodyState extends ConsumerState<_CollabDetailBody> {
         ),
         data: (state) {
           final grouped = _groupByDate(state.expenses);
-          return CustomScrollView(
-            slivers: [
-              // ── Header ───────────────────────────────────────────────────
-              SliverToBoxAdapter(
-                child: _CollabHeader(
-                  collab: collab,
-                  members: activeMembers,
-                  spentCents: state.totalHomeAmountCents,
-                  onMembersTap: () =>
-                      context.push('$collabDetailRoute/${collab.id}/members'),
-                ),
-              ),
-
-              // ── Empty state ───────────────────────────────────────────────
-              if (state.expenses.isEmpty)
-                const SliverFillRemaining(
-                  child: Center(
-                    child: Text(
-                      'No expenses yet.\nTap + to add the first one.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: AppColors.textTertiary,
-                      ),
-                    ),
+          return RefreshIndicator(
+            color: AppColors.accent,
+            onRefresh: () => Future.wait([
+              ref.refresh(collabsProvider.future),
+              ref.refresh(collabExpensesProvider(collab.id).future),
+            ]),
+            child: CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                // ── Header ───────────────────────────────────────────────────
+                SliverToBoxAdapter(
+                  child: _CollabHeader(
+                    collab: collab,
+                    members: activeMembers,
+                    spentCents: state.totalHomeAmountCents,
+                    onMembersTap: () =>
+                        context.push('$collabDetailRoute/${collab.id}/members'),
                   ),
-                )
-              else ...[
-                for (final entry in grouped.entries) ...[
-                  // Date header
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(
-                        AppSpacing.xl,
-                        AppSpacing.xl,
-                        AppSpacing.xl,
-                        AppSpacing.sm,
-                      ),
+                ),
+
+                // ── Empty state ───────────────────────────────────────────────
+                if (state.expenses.isEmpty)
+                  const SliverFillRemaining(
+                    child: Center(
                       child: Text(
-                        entry.key,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
+                        'No expenses yet.\nTap + to add the first one.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 14,
                           color: AppColors.textTertiary,
-                          letterSpacing: 0.4,
                         ),
                       ),
                     ),
-                  ),
-                  // Expense rows
-                  SliverPadding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.xl,
+                  )
+                else ...[
+                  for (final entry in grouped.entries) ...[
+                    // Date header
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                          AppSpacing.xl,
+                          AppSpacing.xl,
+                          AppSpacing.xl,
+                          AppSpacing.sm,
+                        ),
+                        child: Text(
+                          entry.key,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textTertiary,
+                            letterSpacing: 0.4,
+                          ),
+                        ),
+                      ),
                     ),
-                    sliver: SliverList.separated(
-                      itemCount: entry.value.length,
-                      separatorBuilder: (_, _) =>
-                          const SizedBox(height: AppSpacing.sm),
-                      itemBuilder: (context, i) {
-                        final expense = entry.value[i];
-                        final isOwn = expense.userId == _currentUserId;
-                        return _ExpenseTile(
-                          expense: expense,
-                          collab: collab,
-                          isOwn: isOwn,
-                        );
-                      },
+                    // Expense rows
+                    SliverPadding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.xl,
+                      ),
+                      sliver: SliverList.separated(
+                        itemCount: entry.value.length,
+                        separatorBuilder: (_, _) =>
+                            const SizedBox(height: AppSpacing.sm),
+                        itemBuilder: (context, i) {
+                          final expense = entry.value[i];
+                          final isOwn = expense.userId == _currentUserId;
+                          return _ExpenseTile(
+                            expense: expense,
+                            collab: collab,
+                            isOwn: isOwn,
+                          );
+                        },
+                      ),
                     ),
+                  ],
+                  const SliverToBoxAdapter(
+                    child: SizedBox(height: AppSpacing.xxl * 4),
                   ),
                 ],
-                const SliverToBoxAdapter(
-                  child: SizedBox(height: AppSpacing.xxl * 4),
-                ),
               ],
-            ],
+            ),
           );
         },
       ),
@@ -323,7 +317,7 @@ class _CollabDetailBodyState extends ConsumerState<_CollabDetailBody> {
               foregroundColor: AppColors.accentText,
               icon: const Icon(Icons.add_rounded, size: 20),
               label: const Text(
-                'Add Expense',
+                'Collab Expense',
                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
               ),
             )
@@ -415,25 +409,28 @@ class _CollabHeader extends StatelessWidget {
                   ),
                   const SizedBox(width: AppSpacing.sm),
                 ],
-                if (collab.isClosed)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.md,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceMuted,
-                      borderRadius: BorderRadius.circular(AppRadius.pill),
-                    ),
-                    child: const Text(
-                      'Closed',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.textTertiary,
-                      ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: collab.isClosed
+                        ? const Color(0xFFFFEBEB)
+                        : const Color(0xFFE6F9F0),
+                    borderRadius: BorderRadius.circular(AppRadius.pill),
+                  ),
+                  child: Text(
+                    collab.isClosed ? 'Closed' : 'Ongoing',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: collab.isClosed
+                          ? const Color(0xFF993C1D)
+                          : const Color(0xFF1A7A4A),
                     ),
                   ),
+                ),
                 const Spacer(),
                 const Icon(
                   Icons.people_outline_rounded,
@@ -533,12 +530,20 @@ class _CollabHeader extends StatelessWidget {
               const SizedBox(height: AppSpacing.xl),
               GestureDetector(
                 onTap: onMembersTap,
+                behavior: HitTestBehavior.opaque,
                 child: Row(
                   children: [
                     Expanded(child: _MemberStrip(members: members)),
+                    Text(
+                      'View all',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textTertiary,
+                      ),
+                    ),
                     const Icon(
                       Icons.chevron_right_rounded,
-                      size: 18,
+                      size: 25,
                       color: AppColors.textTertiary,
                     ),
                   ],
@@ -792,7 +797,6 @@ class _CollabMenuSheet extends StatelessWidget {
     required this.isOwner,
     required this.onClose,
     required this.onLeave,
-    required this.onSplitBill,
     required this.onEdit,
   });
 
@@ -800,7 +804,6 @@ class _CollabMenuSheet extends StatelessWidget {
   final bool isOwner;
   final VoidCallback onClose;
   final VoidCallback onLeave;
-  final VoidCallback onSplitBill;
   final VoidCallback onEdit;
 
   @override
@@ -819,23 +822,6 @@ class _CollabMenuSheet extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (collab.isActive) ...[
-            ListTile(
-              leading: const Icon(
-                Icons.receipt_long_rounded,
-                color: AppColors.textSecondary,
-              ),
-              title: const Text(
-                'Create Split Bill',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              onTap: onSplitBill,
-            ),
-          ],
           if (isOwner) ...[
             ListTile(
               leading: const Icon(
@@ -894,14 +880,14 @@ class _CollabMenuSheet extends StatelessWidget {
                     ),
                     actions: [
                       TextButton(
-                        onPressed: () => Navigator.of(context).pop(false),
+                        onPressed: () => context.pop(false),
                         child: const Text(
                           'Cancel',
                           style: TextStyle(color: AppColors.textSecondary),
                         ),
                       ),
                       TextButton(
-                        onPressed: () => Navigator.of(context).pop(true),
+                        onPressed: () => context.pop(true),
                         child: const Text('Close Collab'),
                       ),
                     ],
@@ -948,14 +934,14 @@ class _CollabMenuSheet extends StatelessWidget {
                     ),
                     actions: [
                       TextButton(
-                        onPressed: () => Navigator.of(context).pop(false),
+                        onPressed: () => context.pop(false),
                         child: const Text(
                           'Cancel',
                           style: TextStyle(color: AppColors.textSecondary),
                         ),
                       ),
                       TextButton(
-                        onPressed: () => Navigator.of(context).pop(true),
+                        onPressed: () => context.pop(true),
                         child: const Text(
                           'Leave',
                           style: TextStyle(color: Color(0xFF993C1D)),
@@ -989,7 +975,10 @@ class _EditCollabSheet extends ConsumerStatefulWidget {
 class _EditCollabSheetState extends ConsumerState<_EditCollabSheet> {
   late final TextEditingController _nameController;
   late final TextEditingController _descController;
+  late final TextEditingController _budgetController;
+  late final TextEditingController _exchangeRateController;
 
+  late String _currency;
   DateTime? _startDate;
   DateTime? _endDate;
   bool _loading = false;
@@ -997,19 +986,36 @@ class _EditCollabSheetState extends ConsumerState<_EditCollabSheet> {
 
   CollabModel get collab => widget.collab;
 
+  bool get _isForeign => _currency != collab.homeCurrency;
+
   @override
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: collab.name);
     _descController = TextEditingController(text: collab.description ?? '');
+    _currency = collab.currency;
     _startDate = collab.startDate;
     _endDate = collab.endDate;
+    _budgetController = TextEditingController(
+      text: collab.budgetCents != null && collab.budgetCents! > 0
+          ? (collab.budgetCents! / 100).toStringAsFixed(2)
+          : '',
+    );
+    _exchangeRateController = TextEditingController(
+      text: collab.exchangeRate != null
+          ? collab.exchangeRate!.toStringAsFixed(
+              collab.exchangeRate! >= 10 ? 0 : 2,
+            )
+          : '',
+    );
   }
 
   @override
   void dispose() {
     _nameController.dispose();
     _descController.dispose();
+    _budgetController.dispose();
+    _exchangeRateController.dispose();
     super.dispose();
   }
 
@@ -1048,16 +1054,52 @@ class _EditCollabSheetState extends ConsumerState<_EditCollabSheet> {
     });
   }
 
+  void _pickCurrency() {
+    showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _EditCurrencyPickerSheet(selected: _currency),
+    ).then((picked) {
+      if (picked != null && picked != _currency) {
+        setState(() {
+          _currency = picked;
+          if (!_isForeign) _exchangeRateController.clear();
+        });
+      }
+    });
+  }
+
   Future<void> _submit() async {
     final name = _nameController.text.trim();
     if (name.isEmpty) {
       setState(() => _error = 'Name is required.');
       return;
     }
+    if (_isForeign) {
+      final rateText = _exchangeRateController.text.trim();
+      if (rateText.isEmpty || double.tryParse(rateText) == null) {
+        setState(() => _error = 'Please enter a valid exchange rate.');
+        return;
+      }
+    }
     setState(() {
       _loading = true;
       _error = null;
     });
+
+    int? budgetCents;
+    final budgetText = _budgetController.text.trim();
+    if (budgetText.isNotEmpty) {
+      final amount = double.tryParse(budgetText);
+      if (amount != null) budgetCents = (amount * 100).round();
+    }
+
+    double? exchangeRate;
+    if (_isForeign) {
+      exchangeRate = double.tryParse(_exchangeRateController.text.trim());
+    }
+
     final error = await ref
         .read(collabsProvider.notifier)
         .updateCollab(
@@ -1068,6 +1110,9 @@ class _EditCollabSheetState extends ConsumerState<_EditCollabSheet> {
               : _descController.text.trim(),
           startDate: _startDate,
           endDate: _endDate,
+          budgetCents: budgetCents,
+          currency: _currency,
+          exchangeRate: exchangeRate,
         );
     if (!mounted) return;
     setState(() => _loading = false);
@@ -1077,6 +1122,17 @@ class _EditCollabSheetState extends ConsumerState<_EditCollabSheet> {
       context.pop();
     }
   }
+
+  InputDecoration _fieldDecoration(String label) => InputDecoration(
+    labelText: label,
+    labelStyle: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+    filled: true,
+    fillColor: AppColors.background,
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(AppRadius.lg),
+      borderSide: BorderSide.none,
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -1108,27 +1164,20 @@ class _EditCollabSheetState extends ConsumerState<_EditCollabSheet> {
               ),
             ),
             const SizedBox(height: AppSpacing.lg),
+
+            // Name
             TextField(
               controller: _nameController,
+              textCapitalization: TextCapitalization.words,
               style: const TextStyle(
                 fontSize: 14,
                 color: AppColors.textPrimary,
               ),
-              decoration: InputDecoration(
-                labelText: 'Name',
-                labelStyle: const TextStyle(
-                  fontSize: 13,
-                  color: AppColors.textSecondary,
-                ),
-                filled: true,
-                fillColor: AppColors.background,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppRadius.lg),
-                  borderSide: BorderSide.none,
-                ),
-              ),
+              decoration: _fieldDecoration('Name'),
             ),
             const SizedBox(height: AppSpacing.md),
+
+            // Description
             TextField(
               controller: _descController,
               maxLines: 3,
@@ -1136,21 +1185,11 @@ class _EditCollabSheetState extends ConsumerState<_EditCollabSheet> {
                 fontSize: 14,
                 color: AppColors.textPrimary,
               ),
-              decoration: InputDecoration(
-                labelText: 'Description (optional)',
-                labelStyle: const TextStyle(
-                  fontSize: 13,
-                  color: AppColors.textSecondary,
-                ),
-                filled: true,
-                fillColor: AppColors.background,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppRadius.lg),
-                  borderSide: BorderSide.none,
-                ),
-              ),
+              decoration: _fieldDecoration('Description (optional)'),
             ),
             const SizedBox(height: AppSpacing.md),
+
+            // Dates
             Row(
               children: [
                 Expanded(
@@ -1230,6 +1269,94 @@ class _EditCollabSheetState extends ConsumerState<_EditCollabSheet> {
                 ),
               ],
             ),
+            const SizedBox(height: AppSpacing.md),
+
+            // Currency
+            GestureDetector(
+              onTap: _pickCurrency,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md,
+                  vertical: AppSpacing.md,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.background,
+                  borderRadius: BorderRadius.circular(AppRadius.lg),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Currency',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: AppColors.textTertiary,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '$_currency — ${AppCurrency.nameFor(_currency)}',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      size: 18,
+                      color: AppColors.textTertiary,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // Exchange rate (foreign currency only)
+            if (_isForeign) ...[
+              const SizedBox(height: AppSpacing.md),
+              TextField(
+                controller: _exchangeRateController,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                ],
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: AppColors.textPrimary,
+                ),
+                decoration: _fieldDecoration(
+                  'Exchange Rate (1 ${collab.homeCurrency} = ? $_currency)',
+                ),
+              ),
+            ],
+            const SizedBox(height: AppSpacing.md),
+
+            // Budget
+            TextField(
+              controller: _budgetController,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+              ],
+              style: const TextStyle(
+                fontSize: 14,
+                color: AppColors.textPrimary,
+              ),
+              decoration: _fieldDecoration(
+                'Budget in ${collab.homeCurrency} (optional)',
+              ),
+            ),
+
             if (_error != null) ...[
               const SizedBox(height: AppSpacing.md),
               Text(
@@ -1271,702 +1398,99 @@ class _EditCollabSheetState extends ConsumerState<_EditCollabSheet> {
   }
 }
 
-// ── Add collab expense sheet ───────────────────────────────────────────────────
+// ── Currency picker sheet (for edit) ─────────────────────────────────────────
 
-class _AddCollabExpenseSheet extends ConsumerStatefulWidget {
-  const _AddCollabExpenseSheet({required this.collab});
+class _EditCurrencyPickerSheet extends StatelessWidget {
+  const _EditCurrencyPickerSheet({required this.selected});
 
-  final CollabModel collab;
-
-  @override
-  ConsumerState<_AddCollabExpenseSheet> createState() =>
-      _AddCollabExpenseSheetState();
-}
-
-class _AddCollabExpenseSheetState
-    extends ConsumerState<_AddCollabExpenseSheet> {
-  final _amountController = TextEditingController();
-  final _noteController = TextEditingController();
-  final _rateController = TextEditingController();
-
-  String? _selectedCategoryId;
-  String? _selectedAccountId;
-  DateTime _selectedDate = DateTime.now();
-  bool _loading = false;
-  String? _error;
-
-  CollabModel get collab => widget.collab;
-
-  @override
-  void initState() {
-    super.initState();
-    if (collab.isForeignCurrency && collab.exchangeRate != null) {
-      _rateController.text = collab.exchangeRate!.toStringAsFixed(
-        collab.exchangeRate! >= 10 ? 0 : 4,
-      );
-    }
-  }
-
-  @override
-  void dispose() {
-    _amountController.dispose();
-    _noteController.dispose();
-    _rateController.dispose();
-    super.dispose();
-  }
-
-  String _formatDate(DateTime d) {
-    final now = DateTime.now();
-    if (d.year == now.year && d.month == now.month && d.day == now.day) {
-      return 'Today';
-    }
-    return DateFormat('d MMM yyyy').format(d);
-  }
-
-  Future<void> _pickDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _selectedDate,
-      firstDate: DateTime(2020),
-      lastDate: DateTime.now(),
-      builder: (context, child) => Theme(
-        data: Theme.of(context).copyWith(
-          colorScheme: const ColorScheme.light(
-            primary: AppColors.accent,
-            onPrimary: AppColors.accentText,
-          ),
-        ),
-        child: child!,
-      ),
-    );
-    if (picked != null) setState(() => _selectedDate = picked);
-  }
-
-  Future<void> _submit() async {
-    final amountText = _amountController.text.trim();
-    if (amountText.isEmpty) {
-      setState(() => _error = 'Please enter an amount.');
-      return;
-    }
-    final amount = double.tryParse(amountText);
-    if (amount == null || amount <= 0) {
-      setState(() => _error = 'Invalid amount.');
-      return;
-    }
-
-    double? rate;
-    if (collab.isForeignCurrency) {
-      rate = double.tryParse(_rateController.text.trim());
-      if (rate == null || rate <= 0) {
-        setState(() => _error = 'Please enter a valid exchange rate.');
-        return;
-      }
-    }
-
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-
-    try {
-      final amountCents = (amount * 100).round();
-      final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
-      final userId = supabase.auth.currentUser!.id;
-
-      int homeAmountCents;
-      if (collab.isForeignCurrency && rate != null) {
-        homeAmountCents = (amountCents / rate).round();
-      } else {
-        homeAmountCents = amountCents;
-      }
-
-      final payload = <String, dynamic>{
-        'user_id': userId,
-        'type': 'expense',
-        'source': 'manual',
-        'collab_id': collab.id,
-        'amount_cents': amountCents,
-        'currency': collab.currency,
-        'home_amount_cents': homeAmountCents,
-        'home_currency': collab.homeCurrency,
-        'expense_date': dateStr,
-      };
-
-      if (collab.isForeignCurrency && rate != null) {
-        payload['conversion_rate'] = rate;
-      }
-      if (_selectedCategoryId != null) {
-        payload['category_id'] = _selectedCategoryId;
-      }
-      if (_selectedAccountId != null) {
-        payload['account_id'] = _selectedAccountId;
-      }
-      final note = _noteController.text.trim();
-      if (note.isNotEmpty) payload['note'] = note;
-
-      await supabase.from('expenses').insert(payload);
-
-      if (mounted) context.pop();
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = 'Failed to add expense. Please try again.';
-          _loading = false;
-        });
-      }
-    }
-  }
+  final String selected;
 
   @override
   Widget build(BuildContext context) {
-    final categoriesAsync = ref.watch(categoriesProvider);
-    final accountsAsync = ref.watch(accountsProvider);
-
-    return GestureDetector(
-      onTap: () => FocusScope.of(context).unfocus(),
-      child: Container(
-        height: MediaQuery.sizeOf(context).height * 0.9,
-        decoration: const BoxDecoration(
-          color: AppColors.background,
-          borderRadius: BorderRadius.vertical(
-            top: Radius.circular(AppRadius.xxl),
-          ),
-        ),
-        child: Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.viewInsetsOf(context).bottom,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Header
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.xl,
-                  AppSpacing.lg,
-                  AppSpacing.md,
-                  AppSpacing.md,
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Add Expense',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                          Text(
-                            collab.name,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: AppColors.textTertiary,
-                            ),
-                          ),
-                        ],
-                      ),
+    return Container(
+      margin: const EdgeInsets.fromLTRB(
+        AppSpacing.xl,
+        0,
+        AppSpacing.xl,
+        AppSpacing.xl,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.xxl),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.xxl,
+              AppSpacing.xxl,
+              AppSpacing.xxl,
+              AppSpacing.lg,
+            ),
+            child: Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Select Currency',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
                     ),
-                    IconButton(
-                      onPressed: () => context.pop(),
-                      icon: const Icon(
-                        Icons.close,
-                        color: AppColors.textSecondary,
-                      ),
-                      style: IconButton.styleFrom(
-                        backgroundColor: AppColors.surfaceMuted,
-                        shape: const CircleBorder(),
-                        padding: const EdgeInsets.all(AppSpacing.sm),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const Divider(height: 1, color: AppColors.border),
-
-              // Form
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.xl,
-                    vertical: AppSpacing.lg,
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Amount
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.lg,
-                          vertical: AppSpacing.sm,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.surface,
-                          borderRadius: BorderRadius.circular(AppRadius.lg),
-                          border: Border.all(color: AppColors.border),
-                        ),
-                        child: Row(
-                          children: [
-                            Text(
-                              collab.currency,
-                              style: const TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.w500,
-                                color: AppColors.textTertiary,
-                              ),
-                            ),
-                            const SizedBox(width: AppSpacing.md),
-                            Expanded(
-                              child: TextField(
-                                controller: _amountController,
-                                keyboardType:
-                                    const TextInputType.numberWithOptions(
-                                      decimal: true,
-                                    ),
-                                inputFormatters: [AmountInputFormatter()],
-                                style: const TextStyle(
-                                  fontSize: 32,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.textPrimary,
-                                  letterSpacing: -0.5,
-                                ),
-                                textAlign: TextAlign.right,
-                                decoration: const InputDecoration(
-                                  hintText: '0.00',
-                                  hintStyle: TextStyle(
-                                    color: AppColors.textTertiary,
-                                    fontSize: 32,
-                                    fontWeight: FontWeight.w400,
-                                  ),
-                                  border: InputBorder.none,
-                                  isDense: true,
-                                  contentPadding: EdgeInsets.zero,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      if (_error != null) ...[
-                        const SizedBox(height: AppSpacing.sm),
-                        Text(
-                          _error!,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Color(0xFFE24B4A),
-                          ),
-                        ),
-                      ],
-
-                      // Exchange rate (foreign currency only)
-                      if (collab.isForeignCurrency) ...[
-                        const SizedBox(height: AppSpacing.xxl),
-                        _Label(
-                          '1 ${collab.homeCurrency} = ? ${collab.currency}',
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-                        TextField(
-                          controller: _rateController,
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                          ),
-                          inputFormatters: [
-                            FilteringTextInputFormatter.allow(
-                              RegExp(r'^\d*\.?\d*'),
-                            ),
-                          ],
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: AppColors.textPrimary,
-                          ),
-                          decoration: InputDecoration(
-                            hintText: 'e.g. 30',
-                            hintStyle: const TextStyle(
-                              color: AppColors.textTertiary,
-                              fontSize: 14,
-                            ),
-                            filled: true,
-                            fillColor: AppColors.surface,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(AppRadius.lg),
-                              borderSide: const BorderSide(
-                                color: AppColors.border,
-                              ),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(AppRadius.lg),
-                              borderSide: const BorderSide(
-                                color: AppColors.border,
-                              ),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(AppRadius.lg),
-                              borderSide: const BorderSide(
-                                color: AppColors.accent,
-                                width: 1.5,
-                              ),
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: AppSpacing.lg,
-                              vertical: AppSpacing.lg,
-                            ),
-                          ),
-                        ),
-                      ],
-
-                      const SizedBox(height: AppSpacing.xxl),
-
-                      // Category
-                      const _Label('Category'),
-                      const SizedBox(height: AppSpacing.md),
-                      categoriesAsync.when(
-                        data: (cats) => _CategoryPicker(
-                          categories: cats,
-                          selectedId: _selectedCategoryId,
-                          onSelect: (id) =>
-                              setState(() => _selectedCategoryId = id),
-                        ),
-                        loading: () => const SizedBox(
-                          height: 40,
-                          child: Center(
-                            child: SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: AppColors.textTertiary,
-                              ),
-                            ),
-                          ),
-                        ),
-                        error: (_, _) => const Text(
-                          'Failed to load categories',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textTertiary,
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: AppSpacing.xxl),
-
-                      // Account
-                      const _Label('Account'),
-                      const SizedBox(height: AppSpacing.md),
-                      accountsAsync.when(
-                        data: (accounts) => _AccountPicker(
-                          accounts: accounts,
-                          selectedId: _selectedAccountId,
-                          onSelect: (id) =>
-                              setState(() => _selectedAccountId = id),
-                        ),
-                        loading: () => const SizedBox(
-                          height: 40,
-                          child: Center(
-                            child: SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: AppColors.textTertiary,
-                              ),
-                            ),
-                          ),
-                        ),
-                        error: (_, _) => const Text(
-                          'Failed to load accounts',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textTertiary,
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: AppSpacing.xxl),
-
-                      // Date
-                      const _Label('Date'),
-                      const SizedBox(height: AppSpacing.md),
-                      GestureDetector(
-                        onTap: _pickDate,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: AppSpacing.lg,
-                            vertical: AppSpacing.lg,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.surface,
-                            borderRadius: BorderRadius.circular(AppRadius.lg),
-                            border: Border.all(color: AppColors.border),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(
-                                Icons.calendar_today_rounded,
-                                size: 16,
-                                color: AppColors.textSecondary,
-                              ),
-                              const SizedBox(width: AppSpacing.md),
-                              Text(
-                                _formatDate(_selectedDate),
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
-                                  color: AppColors.textPrimary,
-                                ),
-                              ),
-                              const Spacer(),
-                              const Icon(
-                                Icons.chevron_right_rounded,
-                                size: 18,
-                                color: AppColors.textTertiary,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: AppSpacing.xxl),
-
-                      // Note
-                      const _Label('Note (optional)'),
-                      const SizedBox(height: AppSpacing.md),
-                      TextField(
-                        controller: _noteController,
-                        maxLines: 2,
-                        minLines: 1,
-                        textCapitalization: TextCapitalization.sentences,
-                        style: const TextStyle(
-                          fontSize: 14,
+                ),
+                GestureDetector(
+                  onTap: () => context.pop(),
+                  child: const Icon(
+                    Icons.close_rounded,
+                    size: 18,
+                    color: AppColors.textTertiary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: AppColors.border),
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.5,
+            ),
+            child: ListView.separated(
+              shrinkWrap: true,
+              itemCount: AppCurrency.all.length,
+              separatorBuilder: (_, _) =>
+                  const Divider(height: 1, color: AppColors.border),
+              itemBuilder: (context, index) {
+                final currency = AppCurrency.all[index];
+                final isSelected = currency.code == selected;
+                return ListTile(
+                  onTap: () => context.pop(currency.code),
+                  title: Text(
+                    '${currency.code} — ${currency.name}',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: isSelected
+                          ? FontWeight.w600
+                          : FontWeight.w400,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  trailing: isSelected
+                      ? const Icon(
+                          Icons.check_rounded,
+                          size: 18,
                           color: AppColors.textPrimary,
-                        ),
-                        decoration: InputDecoration(
-                          hintText: 'What was this for?',
-                          hintStyle: const TextStyle(
-                            color: AppColors.textTertiary,
-                            fontSize: 14,
-                          ),
-                          filled: true,
-                          fillColor: AppColors.surface,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(AppRadius.lg),
-                            borderSide: const BorderSide(
-                              color: AppColors.border,
-                            ),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(AppRadius.lg),
-                            borderSide: const BorderSide(
-                              color: AppColors.border,
-                            ),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(AppRadius.lg),
-                            borderSide: const BorderSide(
-                              color: AppColors.accent,
-                              width: 1.5,
-                            ),
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: AppSpacing.lg,
-                            vertical: AppSpacing.lg,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: AppSpacing.xxl),
-                    ],
-                  ),
-                ),
-              ),
-
-              // Submit
-              Padding(
-                padding: EdgeInsets.fromLTRB(
-                  AppSpacing.xl,
-                  AppSpacing.md,
-                  AppSpacing.xl,
-                  AppSpacing.xl + MediaQuery.of(context).padding.bottom,
-                ),
-                child: FilledButton(
-                  onPressed: _loading ? null : _submit,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.accent,
-                    foregroundColor: AppColors.accentText,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppRadius.lg),
-                    ),
-                  ),
-                  child: _loading
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: AppColors.accentText,
-                          ),
                         )
-                      : const Text(
-                          'Add Expense',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                ),
-              ),
-            ],
+                      : null,
+                  dense: true,
+                );
+              },
+            ),
           ),
-        ),
+          SizedBox(height: MediaQuery.of(context).padding.bottom),
+        ],
       ),
-    );
-  }
-}
-
-// ── Small shared widgets ───────────────────────────────────────────────────────
-
-class _Label extends StatelessWidget {
-  const _Label(this.text);
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      text,
-      style: const TextStyle(
-        fontSize: 12,
-        fontWeight: FontWeight.w600,
-        color: AppColors.textTertiary,
-        letterSpacing: 0.5,
-      ),
-    );
-  }
-}
-
-class _CategoryPicker extends StatelessWidget {
-  const _CategoryPicker({
-    required this.categories,
-    required this.selectedId,
-    required this.onSelect,
-  });
-
-  final List<CategoryModel> categories;
-  final String? selectedId;
-  final ValueChanged<String?> onSelect;
-
-  @override
-  Widget build(BuildContext context) {
-    return Wrap(
-      spacing: AppSpacing.sm,
-      runSpacing: AppSpacing.sm,
-      children: categories.map((cat) {
-        final isSelected = cat.id == selectedId;
-        final color = hexToColor(cat.color);
-        return GestureDetector(
-          onTap: () => onSelect(isSelected ? null : cat.id),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.lg,
-              vertical: AppSpacing.md,
-            ),
-            decoration: BoxDecoration(
-              color: isSelected ? color : color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(AppRadius.pill),
-              border: Border.all(
-                color: isSelected ? color : Colors.transparent,
-                width: 1.5,
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  iconForName(cat.icon),
-                  size: 14,
-                  color: isSelected ? Colors.white : color,
-                ),
-                const SizedBox(width: 5),
-                Text(
-                  cat.name,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: isSelected ? Colors.white : color,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
-}
-
-class _AccountPicker extends StatelessWidget {
-  const _AccountPicker({
-    required this.accounts,
-    required this.selectedId,
-    required this.onSelect,
-  });
-
-  final List<AccountModel> accounts;
-  final String? selectedId;
-  final ValueChanged<String?> onSelect;
-
-  @override
-  Widget build(BuildContext context) {
-    return Wrap(
-      spacing: AppSpacing.sm,
-      runSpacing: AppSpacing.sm,
-      children: accounts.map((acc) {
-        final isSelected = acc.id == selectedId;
-        final color = hexToColor(acc.color);
-        return GestureDetector(
-          onTap: () => onSelect(isSelected ? null : acc.id),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.lg,
-              vertical: AppSpacing.md,
-            ),
-            decoration: BoxDecoration(
-              color: isSelected ? color : color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(AppRadius.pill),
-              border: Border.all(
-                color: isSelected ? color : Colors.transparent,
-                width: 1.5,
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  iconForName(acc.icon),
-                  size: 14,
-                  color: isSelected ? Colors.white : color,
-                ),
-                const SizedBox(width: 5),
-                Text(
-                  acc.name,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: isSelected ? Colors.white : color,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      }).toList(),
     );
   }
 }
