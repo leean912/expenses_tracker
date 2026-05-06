@@ -14,7 +14,7 @@
 | Resource | Free Limit | Premium |
 |---|---|---|
 | Categories | 11 default + 5 custom = **16 total** | Unlimited |
-| Accounts | 2 default + **10 custom** = 12 total | Unlimited |
+| Accounts | 2 default + **5 custom** = 7 total | Unlimited |
 | Groups | **2** | Unlimited |
 | Collabs | Unlimited | Unlimited |
 | Contacts | Unlimited | Unlimited |
@@ -39,19 +39,18 @@ The 11 defaults cover most spending: Food, Transport, Shopping, Bills, Entertain
 
 Power users who categorize obsessively (10+ custom) hit the limit and consider upgrading. Casual users never feel restricted.
 
-### Accounts — 10 custom (12 total active)
+### Accounts — 5 custom (7 total active)
 
 A typical Malaysian payment-method setup:
 - Cash (default — auto-seeded)
 - Bank (default — auto-seeded)
-- Maybank Savings (custom)
 - Touch'nGo eWallet (custom)
-- GrabPay (custom)
-- Boost / ShopeePay (custom)
-- 1-2 credit cards: CIMB, Maybank (custom)
+- Maybank Savings (custom)
+- GrabPay or Boost (custom)
+- 1 credit card (custom)
 - Investment account (custom)
 
-The 2 defaults plus ~7-9 custom accounts cover the vast majority of users. Power users with multiple cards from multiple banks (or business + personal accounts) exceed 10 customs and upgrade.
+The 2 defaults plus 5 custom slots cover the vast majority of users. Power users with multiple banks and cards exceed 5 customs and upgrade.
 
 Mirrors the categories pattern: defaults don't count toward the limit.
 
@@ -125,21 +124,21 @@ if (tier == 'premium' && expiresAt != null && DateTime.parse(expiresAt).isBefore
 
 When users hit a limit, show a compelling upgrade screen, not an error.
 
-### Trigger: Try to create 11th custom account
+### Trigger: Try to create 6th custom account
 
 ```
-┌────────────────────────────────────┐
-│  You've added 10 custom accounts!  │
-│                                    │
-│  Power user? Premium gives you:    │
-│  • Unlimited accounts              │
-│  • Unlimited categories            │
-│  • Unlimited groups                │
-│                                    │
-│  RM 12/month  or  RM 99/year       │
-│                                    │
-│  [ Upgrade ]    [ Maybe later ]    │
-└────────────────────────────────────┘
+┌───────────────────────────────────┐
+│  You've added 5 custom accounts!  │
+│                                   │
+│  Power user? Premium gives you:   │
+│  • Unlimited accounts             │
+│  • Unlimited categories           │
+│  • Unlimited groups               │
+│                                   │
+│  RM 12/month  or  RM 99/year      │
+│                                   │
+│  [ Upgrade ]    [ Maybe later ]   │
+└───────────────────────────────────┘
 ```
 
 ### Trigger: Try to add 6th custom category

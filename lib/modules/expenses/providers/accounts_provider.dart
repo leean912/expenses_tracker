@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../service_locator.dart';
+import '../../subscription/providers/subscription_provider.dart';
 import '../data/models/account_model.dart';
 
 final accountsProvider =
@@ -15,4 +16,14 @@ final accountsProvider =
   return (data as List<dynamic>)
       .map((e) => AccountModel.fromJson(e as Map<String, dynamic>))
       .toList();
+});
+
+/// Accounts available for selection in expense/split bill pickers.
+/// Excludes premium-flagged accounts when the user is on the free tier.
+final pickerAccountsProvider = Provider.autoDispose<AsyncValue<List<AccountModel>>>((ref) {
+  final accountsAsync = ref.watch(accountsProvider);
+  final isPremium = ref.watch(isPremiumProvider);
+  return accountsAsync.whenData(
+    (accs) => isPremium ? accs : accs.where((a) => !a.requiresPremium).toList(),
+  );
 });

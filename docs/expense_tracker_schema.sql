@@ -68,6 +68,7 @@ create table categories (
   icon text not null default 'receipt',
   color text not null default '#888888',
   is_default boolean not null default false,
+  requires_premium boolean not null default false,
   sort_order integer not null default 0,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
@@ -75,13 +76,14 @@ create table categories (
 );
 
 create index idx_categories_user_active on categories(user_id, sort_order) where deleted_at is null;
+create unique index idx_categories_user_name_unique on categories(user_id, lower(name)) where deleted_at is null;
 
 
 -- ═══════════════════════════════════════════════════════════════════
 -- 4. ACCOUNTS — user's payment methods / money sources (tag only, no balance)
 -- Tracks WHERE money was spent from (Maybank, Cash, CIMB Credit, etc.)
 -- Auto-seeded with Cash + Bank on profile creation.
--- Free tier: 10 active accounts; Premium: unlimited.
+-- Free tier: 5 custom accounts; Premium: unlimited.
 -- ═══════════════════════════════════════════════════════════════════
 create table accounts (
   id uuid primary key default gen_random_uuid(),
@@ -93,6 +95,7 @@ create table accounts (
   color text not null default '#378ADD',
   currency text not null default 'MYR',
   is_archived boolean not null default false,
+  requires_premium boolean not null default false,
   sort_order integer not null default 0,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
@@ -104,6 +107,8 @@ create index idx_accounts_user_active on accounts(user_id, sort_order)
 
 create index idx_accounts_user_all on accounts(user_id, sort_order)
   where deleted_at is null;
+
+create unique index idx_accounts_user_name_unique on accounts(user_id, lower(name)) where deleted_at is null;
 
 
 -- ═══════════════════════════════════════════════════════════════════
@@ -1065,6 +1070,8 @@ $$;
 
 
 -- 14f. Create a custom category (enforces free-tier limit of 5 custom categories)
+-- Recycles soft-deleted records with the same name instead of inserting a new row.
+-- requires_premium is recalculated at creation time based on current tier + free slot count.
 create or replace function create_custom_category(
   p_name text,
   p_icon text,
@@ -1076,7 +1083,9 @@ as $$
 declare
   v_user_id uuid := auth.uid();
   v_tier text;
-  v_custom_count integer;
+  v_free_count integer;
+  v_requires_premium boolean;
+  v_recycled_id uuid;
   v_new_id uuid;
   v_max_sort integer;
 begin
@@ -1084,7 +1093,6 @@ begin
     raise exception 'Not authenticated';
   end if;
 
-  -- Validate inputs
   if p_name is null or length(trim(p_name)) = 0 then
     raise exception 'Category name is required';
   end if;
@@ -1093,40 +1101,82 @@ begin
   select subscription_tier into v_tier
   from profiles where id = v_user_id;
 
-  -- Count non-default (custom) categories
-  select count(*) into v_custom_count
+  -- Check for active duplicate name (case-insensitive)
+  if exists (
+    select 1 from categories
+    where user_id = v_user_id
+      and lower(name) = lower(trim(p_name))
+      and deleted_at is null
+  ) then
+    raise exception 'A category with this name already exists.'
+      using errcode = 'P0001', hint = 'duplicate_name';
+  end if;
+
+  -- Count free-tier custom categories (premium-flagged ones don't consume free slots)
+  select count(*) into v_free_count
   from categories
   where user_id = v_user_id
     and is_default = false
-    and deleted_at is null;
+    and deleted_at is null
+    and requires_premium = false;
 
-  -- Enforce limit for free users (5 custom categories max)
-  if v_tier = 'free' and v_custom_count >= 5 then
+  -- Block free users who have hit the limit
+  if v_tier = 'free' and v_free_count >= 5 then
     raise exception 'Free tier limit reached (5 custom categories). Upgrade to Premium for unlimited.'
-      using errcode = 'P0001',
-            hint = 'upgrade_required';
+      using errcode = 'P0001', hint = 'upgrade_required';
   end if;
 
-  -- Get next sort_order
+  -- Premium users creating beyond the free limit get the record flagged
+  v_requires_premium := (v_tier <> 'free') and (v_free_count >= 5);
+
+  -- Recycle soft-deleted record with same name if one exists
+  select id into v_recycled_id
+  from categories
+  where user_id = v_user_id
+    and lower(name) = lower(trim(p_name))
+    and deleted_at is not null
+  limit 1;
+
+  if v_recycled_id is not null then
+    update categories
+    set deleted_at = null,
+        icon = coalesce(p_icon, 'category'),
+        color = coalesce(p_color, '#888888'),
+        requires_premium = v_requires_premium,
+        updated_at = now()
+    where id = v_recycled_id;
+
+    return jsonb_build_object(
+      'category_id', v_recycled_id,
+      'recycled', true,
+      'requires_premium', v_requires_premium,
+      'tier', v_tier
+    );
+  end if;
+
+  -- Insert new record
   select coalesce(max(sort_order), 0) + 1 into v_max_sort
   from categories
   where user_id = v_user_id and deleted_at is null;
 
-  insert into categories (user_id, name, icon, color, is_default, sort_order)
-  values (v_user_id, trim(p_name), coalesce(p_icon, 'category'), coalesce(p_color, '#888888'), false, v_max_sort)
+  insert into categories (user_id, name, icon, color, is_default, requires_premium, sort_order)
+  values (v_user_id, trim(p_name), coalesce(p_icon, 'category'), coalesce(p_color, '#888888'), false, v_requires_premium, v_max_sort)
   returning id into v_new_id;
 
   return jsonb_build_object(
     'category_id', v_new_id,
-    'custom_count', v_custom_count + 1,
+    'recycled', false,
+    'requires_premium', v_requires_premium,
     'tier', v_tier
   );
 end;
 $$;
 
 
--- 14g. Create an account (bank/cash/credit/etc) — enforces 10-account limit for free tier
+-- 14g. Create an account (bank/cash/credit/etc) — enforces 5-account limit for free tier
 -- Accounts are tags for "how/where money was spent" — no balance tracking.
+-- Recycles soft-deleted records with the same name instead of inserting a new row.
+-- requires_premium is recalculated at creation time based on current tier + free slot count.
 create or replace function create_account(
   p_name text,
   p_account_type text,
@@ -1140,7 +1190,9 @@ as $$
 declare
   v_user_id uuid := auth.uid();
   v_tier text;
-  v_count integer;
+  v_free_count integer;
+  v_requires_premium boolean;
+  v_recycled_id uuid;
   v_new_id uuid;
   v_max_sort integer;
   v_currency text;
@@ -1157,18 +1209,34 @@ begin
   select subscription_tier into v_tier
   from profiles where id = v_user_id;
 
-  -- Count active (non-archived, non-deleted) accounts
-  select count(*) into v_count
+  -- Check for active duplicate name (case-insensitive)
+  if exists (
+    select 1 from accounts
+    where user_id = v_user_id
+      and lower(name) = lower(trim(p_name))
+      and deleted_at is null
+  ) then
+    raise exception 'An account with this name already exists.'
+      using errcode = 'P0001', hint = 'duplicate_name';
+  end if;
+
+  -- Count free-tier custom accounts (premium-flagged ones don't consume free slots)
+  select count(*) into v_free_count
   from accounts
   where user_id = v_user_id
+    and is_default = false
     and is_archived = false
-    and deleted_at is null;
+    and deleted_at is null
+    and requires_premium = false;
 
-  -- Enforce 10-account limit for free users
-  if v_tier = 'free' and v_count >= 10 then
-    raise exception 'Free tier limit reached (10 accounts). Upgrade to Premium for unlimited.'
+  -- Block free users who have hit the limit
+  if v_tier = 'free' and v_free_count >= 5 then
+    raise exception 'Free tier limit reached (5 custom accounts). Upgrade to Premium for unlimited.'
       using errcode = 'P0001', hint = 'upgrade_required';
   end if;
+
+  -- Premium users creating beyond the free limit get the record flagged
+  v_requires_premium := (v_tier <> 'free') and (v_free_count >= 5);
 
   -- Default currency to user's home currency
   if p_currency is null then
@@ -1177,23 +1245,53 @@ begin
     v_currency := p_currency;
   end if;
 
-  -- Get next sort_order
+  -- Recycle soft-deleted record with same name if one exists
+  select id into v_recycled_id
+  from accounts
+  where user_id = v_user_id
+    and lower(name) = lower(trim(p_name))
+    and deleted_at is not null
+  limit 1;
+
+  if v_recycled_id is not null then
+    update accounts
+    set deleted_at = null,
+        account_type = p_account_type,
+        icon = coalesce(p_icon, 'account_balance_wallet'),
+        color = coalesce(p_color, '#378ADD'),
+        currency = v_currency,
+        requires_premium = v_requires_premium,
+        is_archived = false,
+        updated_at = now()
+    where id = v_recycled_id;
+
+    return jsonb_build_object(
+      'account_id', v_recycled_id,
+      'recycled', true,
+      'requires_premium', v_requires_premium,
+      'tier', v_tier
+    );
+  end if;
+
+  -- Insert new record
   select coalesce(max(sort_order), 0) + 1 into v_max_sort
   from accounts where user_id = v_user_id and deleted_at is null;
 
   insert into accounts (
-    user_id, name, account_type, icon, color, currency, sort_order
+    user_id, name, account_type, icon, color, currency, requires_premium, sort_order
   ) values (
     v_user_id, trim(p_name), p_account_type,
     coalesce(p_icon, 'account_balance_wallet'),
     coalesce(p_color, '#378ADD'),
     v_currency,
+    v_requires_premium,
     v_max_sort
   ) returning id into v_new_id;
 
   return jsonb_build_object(
     'account_id', v_new_id,
-    'account_count', v_count + 1,
+    'recycled', false,
+    'requires_premium', v_requires_premium,
     'tier', v_tier
   );
 end;

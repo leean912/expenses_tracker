@@ -624,8 +624,8 @@ class _ExpenseForm extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final categoriesAsync = ref.watch(categoriesProvider);
-    final accountsAsync = ref.watch(accountsProvider);
+    final categoriesAsync = ref.watch(pickerCategoriesProvider);
+    final accountsAsync = ref.watch(pickerAccountsProvider);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(
@@ -896,8 +896,8 @@ class _SplitBillForm extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final categoriesAsync = ref.watch(categoriesProvider);
-    final accountsAsync = ref.watch(accountsProvider);
+    final categoriesAsync = ref.watch(pickerCategoriesProvider);
+    final accountsAsync = ref.watch(pickerAccountsProvider);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(

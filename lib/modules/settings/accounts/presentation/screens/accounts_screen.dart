@@ -52,13 +52,13 @@ class AccountsScreen extends ConsumerWidget {
           ),
         ),
         data: (accounts) {
-          final customCount = accounts.where((a) => !a.isDefault).length;
+          final freeCustomCount = accounts.where((a) => !a.isDefault && !a.requiresPremium).length;
           return Column(
             children: [
               if (!isPremium) ...[
                 _UsageBanner(
-                  used: customCount,
-                  limit: 10,
+                  used: freeCustomCount,
+                  limit: 5,
                   label: 'custom accounts',
                 ),
                 const SizedBox(height: AppSpacing.sm),
@@ -71,8 +71,10 @@ class AccountsScreen extends ConsumerWidget {
                       const Divider(height: 1, color: AppColors.border),
                   itemBuilder: (context, i) {
                     final acc = accounts[i];
+                    final isGreyed = !isPremium && acc.requiresPremium;
                     return _AccountTile(
                       account: acc,
+                      isGreyed: isGreyed,
                       onDelete: acc.isDefault
                           ? null
                           : () => _confirmDelete(context, ref, acc.id),
@@ -87,13 +89,13 @@ class AccountsScreen extends ConsumerWidget {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
           final accounts = ref.read(accountsProvider).valueOrNull ?? [];
-          final customCount = accounts.where((a) => !a.isDefault).length;
+          final freeCustomCount = accounts.where((a) => !a.isDefault && !a.requiresPremium).length;
           final isPremiumNow = ref.read(isPremiumProvider);
           final defaultCurrency =
               ref.read(authProvider).whenOrNull(authenticated: (u) => u)?.defaultCurrency ?? 'MYR';
 
-          if (!isPremiumNow && customCount >= 10) {
-            _showUpgradeSheet(context, 10);
+          if (!isPremiumNow && freeCustomCount >= 5) {
+            _showUpgradeSheet(context, 5);
             return;
           }
 
@@ -171,63 +173,83 @@ class AccountsScreen extends ConsumerWidget {
 // ── Account tile ──────────────────────────────────────────────────────────────
 
 class _AccountTile extends StatelessWidget {
-  const _AccountTile({required this.account, this.onDelete});
+  const _AccountTile({required this.account, this.isGreyed = false, this.onDelete});
 
   final AccountModel account;
+  final bool isGreyed;
   final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
     final color = hexToColor(account.color);
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.xl,
-        vertical: AppSpacing.xs,
-      ),
-      leading: Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.15),
-          shape: BoxShape.circle,
+    final effectiveColor = isGreyed ? color.withValues(alpha: 0.35) : color;
+    return Opacity(
+      opacity: isGreyed ? 0.5 : 1.0,
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.xl,
+          vertical: AppSpacing.xs,
         ),
-        child: Icon(iconForName(account.icon), size: 18, color: color),
-      ),
-      title: Text(
-        account.name,
-        style: const TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w500,
-          color: AppColors.textPrimary,
+        leading: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: effectiveColor.withValues(alpha: 0.15),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(iconForName(account.icon), size: 18, color: effectiveColor),
         ),
+        title: Text(
+          account.name,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: AppColors.textPrimary,
+          ),
+        ),
+        subtitle: Text(
+          account.currency,
+          style: const TextStyle(fontSize: 12, color: AppColors.textTertiary),
+        ),
+        trailing: account.isDefault
+            ? Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md,
+                  vertical: AppSpacing.xs,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceMuted,
+                  borderRadius: BorderRadius.circular(AppRadius.pill),
+                ),
+                child: const Text(
+                  'Default',
+                  style: TextStyle(fontSize: 11, color: AppColors.textTertiary),
+                ),
+              )
+            : isGreyed
+                ? Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.md,
+                      vertical: AppSpacing.xs,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceMuted,
+                      borderRadius: BorderRadius.circular(AppRadius.pill),
+                    ),
+                    child: const Text(
+                      'Premium',
+                      style: TextStyle(fontSize: 11, color: AppColors.textTertiary),
+                    ),
+                  )
+                : IconButton(
+                    icon: const Icon(
+                      Icons.delete_outline_rounded,
+                      size: 18,
+                      color: AppColors.textTertiary,
+                    ),
+                    onPressed: onDelete,
+                  ),
       ),
-      subtitle: Text(
-        account.currency,
-        style: const TextStyle(fontSize: 12, color: AppColors.textTertiary),
-      ),
-      trailing: account.isDefault
-          ? Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.md,
-                vertical: AppSpacing.xs,
-              ),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceMuted,
-                borderRadius: BorderRadius.circular(AppRadius.pill),
-              ),
-              child: const Text(
-                'Default',
-                style: TextStyle(fontSize: 11, color: AppColors.textTertiary),
-              ),
-            )
-          : IconButton(
-              icon: const Icon(
-                Icons.delete_outline_rounded,
-                size: 18,
-                color: AppColors.textTertiary,
-              ),
-              onPressed: onDelete,
-            ),
     );
   }
 }
@@ -350,16 +372,12 @@ class _AddAccountSheetState extends ConsumerState<_AddAccountSheet> {
       _error = null;
     });
     try {
-      await supabase.from('accounts').insert({
-        'user_id': supabase.auth.currentUser!.id,
-        'name': name,
-        'account_type': _selectedType,
-        'icon': _selectedIcon,
-        'color': _selectedColor,
-        'currency': widget.defaultCurrency,
-        'is_default': false,
-        'is_archived': false,
-        'sort_order': widget.nextSortOrder,
+      await supabase.rpc('create_account', params: {
+        'p_name': name,
+        'p_account_type': _selectedType,
+        'p_icon': _selectedIcon,
+        'p_color': _selectedColor,
+        'p_currency': widget.defaultCurrency,
       });
       widget.onCreated();
       if (mounted) context.pop();
@@ -370,9 +388,14 @@ class _AddAccountSheetState extends ConsumerState<_AddAccountSheet> {
           showModalBottomSheet(
             context: context,
             backgroundColor: Colors.transparent,
-            builder: (_) => const _UpgradeSheet(feature: 'accounts', limit: 10),
+            builder: (_) => const _UpgradeSheet(feature: 'accounts', limit: 5),
           );
         }
+      } else if (e.hint == 'duplicate_name') {
+        setState(() {
+          _error = 'An account with this name already exists.';
+          _loading = false;
+        });
       } else {
         setState(() {
           _error = e.message;

@@ -5,6 +5,7 @@ class CategoryModel {
     required this.icon,
     required this.color,
     required this.isDefault,
+    required this.requiresPremium,
     required this.sortOrder,
   });
 
@@ -13,6 +14,7 @@ class CategoryModel {
   final String icon;
   final String color;
   final bool isDefault;
+  final bool requiresPremium;
   final int sortOrder;
 
   factory CategoryModel.fromJson(Map<String, dynamic> json) => CategoryModel(
@@ -21,6 +23,7 @@ class CategoryModel {
         icon: json['icon'] as String,
         color: json['color'] as String,
         isDefault: json['is_default'] as bool,
+        requiresPremium: json['requires_premium'] as bool? ?? false,
         sortOrder: json['sort_order'] as int,
       );
 }

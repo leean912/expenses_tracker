@@ -6,6 +6,7 @@ class AccountModel {
     required this.color,
     required this.currency,
     required this.isDefault,
+    required this.requiresPremium,
     required this.sortOrder,
   });
 
@@ -15,6 +16,7 @@ class AccountModel {
   final String color;
   final String currency;
   final bool isDefault;
+  final bool requiresPremium;
   final int sortOrder;
 
   factory AccountModel.fromJson(Map<String, dynamic> json) => AccountModel(
@@ -24,6 +26,7 @@ class AccountModel {
         color: json['color'] as String,
         currency: json['currency'] as String,
         isDefault: json['is_default'] as bool,
+        requiresPremium: json['requires_premium'] as bool? ?? false,
         sortOrder: json['sort_order'] as int,
       );
 }

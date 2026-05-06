@@ -50,12 +50,12 @@ class CategoriesScreen extends ConsumerWidget {
           ),
         ),
         data: (categories) {
-          final customCount = categories.where((c) => !c.isDefault).length;
+          final freeCustomCount = categories.where((c) => !c.isDefault && !c.requiresPremium).length;
           return Column(
             children: [
               if (!isPremium) ...[
                 _UsageBanner(
-                  used: customCount,
+                  used: freeCustomCount,
                   limit: 5,
                   label: 'custom categories',
                 ),
@@ -69,8 +69,10 @@ class CategoriesScreen extends ConsumerWidget {
                       const Divider(height: 1, color: AppColors.border),
                   itemBuilder: (context, i) {
                     final cat = categories[i];
+                    final isGreyed = !isPremium && cat.requiresPremium;
                     return _CategoryTile(
                       category: cat,
+                      isGreyed: isGreyed,
                       onDelete: cat.isDefault
                           ? null
                           : () => _confirmDelete(context, ref, cat.id),
@@ -85,10 +87,10 @@ class CategoriesScreen extends ConsumerWidget {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
           final categories = ref.read(categoriesProvider).valueOrNull ?? [];
-          final customCount = categories.where((c) => !c.isDefault).length;
+          final freeCustomCount = categories.where((c) => !c.isDefault && !c.requiresPremium).length;
           final isPremiumNow = ref.read(isPremiumProvider);
 
-          if (!isPremiumNow && customCount >= 5) {
+          if (!isPremiumNow && freeCustomCount >= 5) {
             _showUpgradeSheet(context, 5);
             return;
           }
@@ -166,59 +168,79 @@ class CategoriesScreen extends ConsumerWidget {
 // ── Category tile ─────────────────────────────────────────────────────────────
 
 class _CategoryTile extends StatelessWidget {
-  const _CategoryTile({required this.category, this.onDelete});
+  const _CategoryTile({required this.category, this.isGreyed = false, this.onDelete});
 
   final CategoryModel category;
+  final bool isGreyed;
   final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
     final color = hexToColor(category.color);
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.xl,
-        vertical: AppSpacing.xs,
-      ),
-      leading: Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.15),
-          shape: BoxShape.circle,
+    final effectiveColor = isGreyed ? color.withValues(alpha: 0.35) : color;
+    return Opacity(
+      opacity: isGreyed ? 0.5 : 1.0,
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.xl,
+          vertical: AppSpacing.xs,
         ),
-        child: Icon(iconForName(category.icon), size: 18, color: color),
-      ),
-      title: Text(
-        category.name,
-        style: const TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w500,
-          color: AppColors.textPrimary,
+        leading: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: effectiveColor.withValues(alpha: 0.15),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(iconForName(category.icon), size: 18, color: effectiveColor),
         ),
+        title: Text(
+          category.name,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: AppColors.textPrimary,
+          ),
+        ),
+        trailing: category.isDefault
+            ? Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md,
+                  vertical: AppSpacing.xs,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceMuted,
+                  borderRadius: BorderRadius.circular(AppRadius.pill),
+                ),
+                child: const Text(
+                  'Default',
+                  style: TextStyle(fontSize: 11, color: AppColors.textTertiary),
+                ),
+              )
+            : isGreyed
+                ? Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.md,
+                      vertical: AppSpacing.xs,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceMuted,
+                      borderRadius: BorderRadius.circular(AppRadius.pill),
+                    ),
+                    child: const Text(
+                      'Premium',
+                      style: TextStyle(fontSize: 11, color: AppColors.textTertiary),
+                    ),
+                  )
+                : IconButton(
+                    icon: const Icon(
+                      Icons.delete_outline_rounded,
+                      size: 18,
+                      color: AppColors.textTertiary,
+                    ),
+                    onPressed: onDelete,
+                  ),
       ),
-      trailing: category.isDefault
-          ? Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.md,
-                vertical: AppSpacing.xs,
-              ),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceMuted,
-                borderRadius: BorderRadius.circular(AppRadius.pill),
-              ),
-              child: const Text(
-                'Default',
-                style: TextStyle(fontSize: 11, color: AppColors.textTertiary),
-              ),
-            )
-          : IconButton(
-              icon: const Icon(
-                Icons.delete_outline_rounded,
-                size: 18,
-                color: AppColors.textTertiary,
-              ),
-              onPressed: onDelete,
-            ),
     );
   }
 }
@@ -326,13 +348,10 @@ class _AddCategorySheetState extends ConsumerState<_AddCategorySheet> {
       _error = null;
     });
     try {
-      await supabase.from('categories').insert({
-        'user_id': supabase.auth.currentUser!.id,
-        'name': name,
-        'icon': _selectedIcon,
-        'color': _selectedColor,
-        'is_default': false,
-        'sort_order': widget.nextSortOrder,
+      await supabase.rpc('create_custom_category', params: {
+        'p_name': name,
+        'p_icon': _selectedIcon,
+        'p_color': _selectedColor,
       });
       widget.onCreated();
       if (mounted) context.pop();
@@ -347,6 +366,11 @@ class _AddCategorySheetState extends ConsumerState<_AddCategorySheet> {
                 const _UpgradeSheet(feature: 'categories', limit: 5),
           );
         }
+      } else if (e.hint == 'duplicate_name') {
+        setState(() {
+          _error = 'A category with this name already exists.';
+          _loading = false;
+        });
       } else {
         setState(() {
           _error = e.message;
