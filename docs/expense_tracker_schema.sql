@@ -123,9 +123,9 @@ create table groups (
   name text not null check (length(trim(name)) > 0),
   icon text not null default 'group',
   color text not null default '#378ADD',
+  requires_premium boolean not null default false,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  deleted_at timestamptz
+  updated_at timestamptz not null default now()
 );
 
 create index idx_groups_creator on groups(created_by) where deleted_at is null;
@@ -1352,6 +1352,7 @@ $$;
 
 -- 14i. Create a group (personal shortcut list) — enforces 2-group limit for free tier
 -- Auto-adds all p_member_user_ids; each must be in creator's contacts.
+-- requires_premium is recalculated at creation time based on current tier + free group count.
 create or replace function create_group(
   p_name text,
   p_member_user_ids uuid[] default array[]::uuid[],
@@ -1364,7 +1365,8 @@ as $$
 declare
   v_user_id uuid := auth.uid();
   v_tier text;
-  v_count integer;
+  v_free_count integer;
+  v_requires_premium boolean;
   v_new_id uuid;
   v_member_id uuid;
 begin
@@ -1379,16 +1381,21 @@ begin
   -- Get user's subscription tier
   select subscription_tier into v_tier from profiles where id = v_user_id;
 
-  -- Count active groups
-  select count(*) into v_count
+  -- Count free-tier groups (premium-flagged ones don't consume free slots)
+  -- groups has no deleted_at — they are hard-deleted
+  select count(*) into v_free_count
   from groups
-  where created_by = v_user_id and deleted_at is null;
+  where created_by = v_user_id
+    and requires_premium = false;
 
   -- Enforce 2-group limit for free users
-  if v_tier = 'free' and v_count >= 2 then
+  if v_tier = 'free' and v_free_count >= 2 then
     raise exception 'Free tier limit reached (2 groups). Upgrade to Premium for unlimited.'
       using errcode = 'P0001', hint = 'upgrade_required';
   end if;
+
+  -- Premium users creating beyond the free limit get the record flagged
+  v_requires_premium := (v_tier <> 'free') and (v_free_count >= 2);
 
   -- Validate all members are in creator's contacts
   foreach v_member_id in array p_member_user_ids loop
@@ -1399,18 +1406,18 @@ begin
       select 1 from contacts
       where owner_id = v_user_id
         and friend_id = v_member_id
-        and deleted_at is null
     ) then
       raise exception 'Member is not in your contacts: %', v_member_id;
     end if;
   end loop;
 
   -- Create the group
-  insert into groups (created_by, name, icon, color)
+  insert into groups (created_by, name, icon, color, requires_premium)
   values (
     v_user_id, trim(p_name),
     coalesce(p_icon, 'group'),
-    coalesce(p_color, '#378ADD')
+    coalesce(p_color, '#378ADD'),
+    v_requires_premium
   )
   returning id into v_new_id;
 
@@ -1425,7 +1432,7 @@ begin
 
   return jsonb_build_object(
     'group_id', v_new_id,
-    'group_count', v_count + 1,
+    'requires_premium', v_requires_premium,
     'tier', v_tier
   );
 end;

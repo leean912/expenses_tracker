@@ -1,6 +1,8 @@
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../service_locator.dart';
+import '../../subscription/providers/subscription_provider.dart';
 import '../data/models/group_model.dart';
 
 class GroupsNotifier extends AsyncNotifier<List<GroupModel>> {
@@ -26,16 +28,20 @@ class GroupsNotifier extends AsyncNotifier<List<GroupModel>> {
     required String color,
   }) async {
     try {
-      await supabase.rpc('create_group', params: {
-        'p_name': name,
-        'p_member_user_ids': memberUserIds,
-        'p_icon': 'group',
-        'p_color': color,
-      });
+      await supabase.rpc(
+        'create_group',
+        params: {
+          'p_name': name,
+          'p_member_user_ids': memberUserIds,
+          'p_icon': 'group',
+          'p_color': color,
+        },
+      );
       state = AsyncData(await _fetch());
       return null;
     } catch (e) {
       final msg = e.toString();
+      debugPrint('Create group error: $msg');
       if (msg.contains('upgrade_required')) return 'upgrade_required';
       return 'Something went wrong.';
     }
@@ -52,10 +58,10 @@ class GroupsNotifier extends AsyncNotifier<List<GroupModel>> {
   /// Returns null on success or an error message.
   Future<String?> addMember(String groupId, String userId) async {
     try {
-      await supabase.rpc('add_group_member', params: {
-        'p_group_id': groupId,
-        'p_user_id': userId,
-      });
+      await supabase.rpc(
+        'add_group_member',
+        params: {'p_group_id': groupId, 'p_user_id': userId},
+      );
       state = AsyncData(await _fetch());
       return null;
     } catch (_) {
@@ -79,14 +85,26 @@ class GroupsNotifier extends AsyncNotifier<List<GroupModel>> {
         }).toList(),
       );
     }
-    await supabase.rpc('remove_group_member', params: {
-      'p_group_id': groupId,
-      'p_user_id': userId,
-    });
+    await supabase.rpc(
+      'remove_group_member',
+      params: {'p_group_id': groupId, 'p_user_id': userId},
+    );
   }
 }
 
-final groupsProvider =
-    AsyncNotifierProvider<GroupsNotifier, List<GroupModel>>(
-      GroupsNotifier.new,
+final groupsProvider = AsyncNotifierProvider<GroupsNotifier, List<GroupModel>>(
+  GroupsNotifier.new,
+);
+
+/// Groups available for selection in pickers (e.g. split bill participant picker).
+/// Excludes premium-flagged groups when the user is on the free tier.
+final pickerGroupsProvider = Provider.autoDispose<AsyncValue<List<GroupModel>>>(
+  (ref) {
+    final groupsAsync = ref.watch(groupsProvider);
+    final isPremium = ref.watch(isPremiumProvider);
+    return groupsAsync.whenData(
+      (groups) =>
+          isPremium ? groups : groups.where((g) => !g.requiresPremium).toList(),
     );
+  },
+);

@@ -109,7 +109,7 @@ class ExpenseTile extends StatelessWidget {
 
 /// Renders expenses grouped by date, each group in its own rounded card.
 /// Supports swipe-to-delete with a confirmation dialog.
-class ExpenseListCard extends StatelessWidget {
+class ExpenseListCard extends StatefulWidget {
   const ExpenseListCard({
     super.key,
     required this.expenses,
@@ -123,7 +123,14 @@ class ExpenseListCard extends StatelessWidget {
   final void Function(ExpenseTileData expense)? onTileTap;
   final Future<void> Function(String id)? onDelete;
 
-  bool get _groupByMonth => timePeriod == TimePeriod.year;
+  @override
+  State<ExpenseListCard> createState() => _ExpenseListCardState();
+}
+
+class _ExpenseListCardState extends State<ExpenseListCard> {
+  final Set<String> _dismissedIds = {};
+
+  bool get _groupByMonth => widget.timePeriod == TimePeriod.year;
 
   String _formatHeader(DateTime date) {
     if (_groupByMonth) {
@@ -137,7 +144,6 @@ class ExpenseListCard extends StatelessWidget {
     return DateFormat('EEE, d MMM').format(date);
   }
 
-  /// Groups expenses preserving the existing sort order.
   List<(DateTime, List<ExpenseTileData>)> _group(List<ExpenseTileData> list) {
     final Map<DateTime, List<ExpenseTileData>> map = {};
     final List<DateTime> order = [];
@@ -177,7 +183,11 @@ class ExpenseListCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (expenses.isEmpty) {
+    final visibleExpenses = widget.expenses
+        .where((e) => !_dismissedIds.contains(e.id))
+        .toList();
+
+    if (visibleExpenses.isEmpty) {
       return Padding(
         padding: EdgeInsets.all(AppSpacing.xl),
         child: SizedBox(
@@ -193,7 +203,7 @@ class ExpenseListCard extends StatelessWidget {
       );
     }
 
-    final groups = _group(expenses);
+    final groups = _group(visibleExpenses);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -232,7 +242,10 @@ class ExpenseListCard extends StatelessWidget {
                       key: Key(group[i].id),
                       direction: DismissDirection.endToStart,
                       confirmDismiss: (_) => _confirmDelete(context),
-                      onDismissed: (_) => onDelete?.call(group[i].id),
+                      onDismissed: (_) {
+                        setState(() => _dismissedIds.add(group[i].id));
+                        widget.onDelete?.call(group[i].id);
+                      },
                       background: Container(
                         alignment: Alignment.centerRight,
                         padding: const EdgeInsets.only(right: AppSpacing.xl),
@@ -244,9 +257,9 @@ class ExpenseListCard extends StatelessWidget {
                       ),
                       child: ExpenseTile(
                         expense: group[i],
-                        onTap: onTileTap == null
+                        onTap: widget.onTileTap == null
                             ? null
-                            : () => onTileTap!(group[i]),
+                            : () => widget.onTileTap!(group[i]),
                       ),
                     ),
                     if (i < group.length - 1)

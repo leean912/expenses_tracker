@@ -17,6 +17,7 @@ create table groups (
   name text not null check (length(trim(name)) > 0),
   icon text not null default 'group',
   color text not null default '#378ADD',
+  requires_premium boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -31,6 +32,7 @@ create table groups (
 | `name` | text | Display name (e.g., "Roommates", "Office Lunch") |
 | `icon` | text | Material icon name |
 | `color` | text | Hex color |
+| `requires_premium` | boolean | True for groups created beyond the 2-group free limit while on premium; locks the group when subscription lapses |
 
 ## The "creator-only" model
 

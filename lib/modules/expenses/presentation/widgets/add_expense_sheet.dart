@@ -1666,7 +1666,7 @@ class _GroupPickerSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final groupsAsync = ref.watch(groupsProvider);
+    final groupsAsync = ref.watch(pickerGroupsProvider);
 
     return Container(
       margin: const EdgeInsets.fromLTRB(

@@ -26,6 +26,7 @@ class GroupModel {
     required this.icon,
     required this.color,
     required this.members,
+    this.requiresPremium = false,
   });
 
   final String id;
@@ -33,6 +34,7 @@ class GroupModel {
   final String icon;
   final String color;
   final List<GroupMemberPreview> members;
+  final bool requiresPremium;
 
   factory GroupModel.fromJson(Map<String, dynamic> json) {
     final rawMembers = json['members'] as List? ?? [];
@@ -44,6 +46,7 @@ class GroupModel {
       members: rawMembers
           .map((m) => GroupMemberPreview.fromJson(m as Map<String, dynamic>))
           .toList(),
+      requiresPremium: json['requires_premium'] as bool? ?? false,
     );
   }
 }

@@ -6,6 +6,7 @@ import '../../../../core/routes/routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/upgrade_sheet.dart';
 import '../../../../modules/expenses/utils/expense_ui_helpers.dart';
+import '../../../subscription/providers/subscription_provider.dart';
 import '../../data/models/contact_model.dart';
 import '../../data/models/group_model.dart';
 import '../../providers/contacts_provider.dart';
@@ -307,6 +308,24 @@ class _GroupsTabState extends ConsumerState<_GroupsTab> {
   }
 
   Future<void> _showCreateGroupSheet() async {
+    final isPremium = ref.read(isPremiumProvider);
+    final groups = ref.read(groupsProvider).valueOrNull ?? [];
+    final freeGroupCount = groups.where((g) => !g.requiresPremium).length;
+
+    if (!isPremium && freeGroupCount >= 2) {
+      if (!mounted) return;
+      showModalBottomSheet<void>(
+        context: context,
+        backgroundColor: Colors.transparent,
+        builder: (_) => const UpgradeSheet(
+          title: "You've used all 2 groups!",
+          description:
+              'Upgrade to Premium for unlimited groups, categories, and accounts.',
+        ),
+      );
+      return;
+    }
+
     final contacts = ref.read(contactsProvider).valueOrNull ?? [];
     if (contacts.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -354,6 +373,7 @@ class _GroupsTabState extends ConsumerState<_GroupsTab> {
   @override
   Widget build(BuildContext context) {
     final groupsAsync = ref.watch(groupsProvider);
+    final isPremium = ref.watch(isPremiumProvider);
 
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
@@ -439,6 +459,8 @@ class _GroupsTabState extends ConsumerState<_GroupsTab> {
                 ),
               ),
               data: (groups) {
+                final freeGroupCount =
+                    groups.where((g) => !g.requiresPremium).length;
                 final filtered = groups
                     .where((g) => !_dismissedIds.contains(g.id))
                     .where(
@@ -463,23 +485,50 @@ class _GroupsTabState extends ConsumerState<_GroupsTab> {
                   );
                 }
 
-                return ListView.separated(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.xl,
-                    vertical: AppSpacing.sm,
-                  ),
-                  itemCount: filtered.length,
-                  separatorBuilder: (_, _) =>
+                return Column(
+                  children: [
+                    if (!isPremium) ...[
+                      _GroupUsageBanner(
+                        used: freeGroupCount,
+                        limit: 2,
+                      ),
                       const SizedBox(height: AppSpacing.sm),
-                  itemBuilder: (context, index) {
-                    final group = filtered[index];
-                    return _GroupTile(
-                      group: group,
-                      onDelete: () => _handleDelete(group.id, group.name),
-                      onTap: () =>
-                          context.push('$groupDetailRoute/${group.id}'),
-                    );
-                  },
+                    ],
+                    Expanded(
+                      child: ListView.separated(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.xl,
+                          vertical: AppSpacing.sm,
+                        ),
+                        itemCount: filtered.length,
+                        separatorBuilder: (_, _) =>
+                            const SizedBox(height: AppSpacing.sm),
+                        itemBuilder: (context, index) {
+                          final group = filtered[index];
+                          final isLocked =
+                              !isPremium && group.requiresPremium;
+                          return _GroupTile(
+                            group: group,
+                            isLocked: isLocked,
+                            onDelete: () =>
+                                _handleDelete(group.id, group.name),
+                            onTap: isLocked
+                                ? () => showModalBottomSheet<void>(
+                                      context: context,
+                                      backgroundColor: Colors.transparent,
+                                      builder: (_) => const UpgradeSheet(
+                                        title: 'Premium group',
+                                        description:
+                                            'This group was created with Premium. Upgrade to unlock it.',
+                                      ),
+                                    )
+                                : () => context
+                                    .push('$groupDetailRoute/${group.id}'),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
                 );
               },
             ),
@@ -566,102 +615,185 @@ class _GroupTile extends StatelessWidget {
     required this.group,
     required this.onDelete,
     required this.onTap,
+    this.isLocked = false,
   });
 
   final GroupModel group;
   final VoidCallback onDelete;
   final VoidCallback onTap;
+  final bool isLocked;
 
   @override
   Widget build(BuildContext context) {
     final color = hexToColor(group.color);
+    final effectiveColor =
+        isLocked ? color.withValues(alpha: 0.35) : color;
     final memberNames = group.members.map((m) => m.displayName).join(', ');
 
-    return Dismissible(
-      key: Key(group.id),
-      direction: DismissDirection.endToStart,
-      onDismissed: (_) => onDelete(),
-      background: Container(
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: AppSpacing.xl),
-        decoration: BoxDecoration(
-          color: const Color(0xFFFFEBEB),
-          borderRadius: BorderRadius.circular(AppRadius.md),
+    return Opacity(
+      opacity: isLocked ? 0.5 : 1.0,
+      child: Dismissible(
+        key: Key(group.id),
+        direction: DismissDirection.endToStart,
+        onDismissed: (_) => onDelete(),
+        background: Container(
+          alignment: Alignment.centerRight,
+          padding: const EdgeInsets.only(right: AppSpacing.xl),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFEBEB),
+            borderRadius: BorderRadius.circular(AppRadius.md),
+          ),
+          child: const Icon(
+            Icons.delete_outline_rounded,
+            color: Color(0xFF993C1D),
+            size: 20,
+          ),
         ),
-        child: const Icon(
-          Icons.delete_outline_rounded,
-          color: Color(0xFF993C1D),
-          size: 20,
+        child: GestureDetector(
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.xl,
+              vertical: AppSpacing.lg,
+            ),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: effectiveColor.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.group_rounded, size: 18, color: effectiveColor),
+                ),
+                const SizedBox(width: AppSpacing.lg),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        group.name,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      if (memberNames.isNotEmpty)
+                        Text(
+                          memberNames,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textTertiary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        )
+                      else
+                        const Text(
+                          'No members',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textTertiary,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                if (isLocked)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.md,
+                      vertical: AppSpacing.xs,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceMuted,
+                      borderRadius: BorderRadius.circular(AppRadius.pill),
+                    ),
+                    child: const Text(
+                      'Premium',
+                      style: TextStyle(
+                          fontSize: 11, color: AppColors.textTertiary),
+                    ),
+                  )
+                else
+                  Text(
+                    '${group.members.length + 1}',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ),
       ),
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.xl,
-            vertical: AppSpacing.lg,
+    );
+  }
+}
+
+// ── Group usage banner ────────────────────────────────────────────────────────
+
+class _GroupUsageBanner extends StatelessWidget {
+  const _GroupUsageBanner({required this.used, required this.limit});
+
+  final int used;
+  final int limit;
+
+  @override
+  Widget build(BuildContext context) {
+    final remaining = limit - used;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(
+        AppSpacing.xl,
+        0,
+        AppSpacing.xl,
+        0,
+      ),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.lg,
+        vertical: AppSpacing.md,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceMuted,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.info_outline_rounded,
+            size: 14,
+            color: AppColors.textTertiary,
           ),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(AppRadius.md),
-            border: Border.all(color: AppColors.border),
+          const SizedBox(width: AppSpacing.sm),
+          Text(
+            '$used / $limit groups',
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppColors.textSecondary,
+            ),
           ),
-          child: Row(
-            children: [
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.15),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(Icons.group_rounded, size: 18, color: color),
+          const Spacer(),
+          if (remaining <= 1)
+            Text(
+              remaining == 0 ? 'Limit reached' : '1 slot left',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: remaining == 0
+                    ? const Color(0xFFE24B4A)
+                    : AppColors.budgetOverallBar,
               ),
-              const SizedBox(width: AppSpacing.lg),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      group.name,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    if (memberNames.isNotEmpty)
-                      Text(
-                        memberNames,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textTertiary,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      )
-                    else
-                      const Text(
-                        'No members',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textTertiary,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              Text(
-                '${group.members.length + 1}',
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ],
-          ),
-        ),
+            ),
+        ],
       ),
     );
   }
