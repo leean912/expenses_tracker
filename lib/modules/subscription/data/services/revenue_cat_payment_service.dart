@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -13,11 +14,23 @@ class RevenueCatPaymentService implements PaymentService {
   final _androidApiKey = env.revenueCatApiKey;
   static const _entitlementKey = 'spendz Pro';
 
+  final _customerInfoController =
+      StreamController<SubscriptionInfo>.broadcast();
+
+  @override
+  Stream<SubscriptionInfo> get customerInfoStream =>
+      _customerInfoController.stream;
+
   @override
   Future<void> initialize() async {
     if (kDebugMode) await Purchases.setLogLevel(LogLevel.debug);
     final apiKey = Platform.isIOS ? _iOSApiKey : _androidApiKey;
     await Purchases.configure(PurchasesConfiguration(apiKey));
+    Purchases.addCustomerInfoUpdateListener((info) {
+      if (!_customerInfoController.isClosed) {
+        _customerInfoController.add(_fromCustomerInfo(info));
+      }
+    });
   }
 
   @override

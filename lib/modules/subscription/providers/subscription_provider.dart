@@ -15,7 +15,15 @@ final isPremiumProvider = Provider<bool>((ref) {
 
 class SubscriptionNotifier extends AsyncNotifier<SubscriptionInfo> {
   @override
-  Future<SubscriptionInfo> build() => paymentService.getSubscriptionInfo();
+  Future<SubscriptionInfo> build() {
+    final sub = paymentService.customerInfoStream.listen((info) {
+      state = AsyncData(info);
+      final userId = supabase.auth.currentUser?.id;
+      if (userId != null) syncSubscriptionTier(userId);
+    });
+    ref.onDispose(sub.cancel);
+    return paymentService.getSubscriptionInfo();
+  }
 
   Future<void> refresh() async {
     ref.invalidateSelf();
