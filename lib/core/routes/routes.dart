@@ -13,3 +13,4 @@ const String budgetsRoute = '/budgets';
 const String groupDetailRoute = '/contacts/groups';
 const String collabDetailRoute = '/collabs';
 const String collabMembersRoute = '/collabs/members';
+const String paywallRoute = '/paywall';

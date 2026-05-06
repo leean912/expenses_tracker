@@ -25,4 +25,7 @@ final class Env {
 
   @EnviedField(varName: 'GOOGLE_LOGIN_IOS_CLIENT_ID')
   final String googleLoginIosClientId = _instance.googleLoginIosClientId;
+
+  @EnviedField(varName: 'REVENUECAT_API_KEY')
+  final String revenueCatApiKey = _instance.revenueCatApiKey;
 }

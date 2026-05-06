@@ -22,7 +22,7 @@ class CollabsScreen extends ConsumerStatefulWidget {
 }
 
 class _CollabsScreenState extends ConsumerState<CollabsScreen> {
-  _CollabFilter _filter = _CollabFilter.all;
+  _CollabFilter _filter = _CollabFilter.ongoing;
 
   @override
   Widget build(BuildContext context) {
@@ -185,15 +185,9 @@ class _FilterMenuButton extends StatelessWidget {
           vertical: 6,
         ),
         decoration: BoxDecoration(
-          color: current != _CollabFilter.all
-              ? AppColors.accent
-              : AppColors.surface,
+          color: AppColors.surface,
           borderRadius: BorderRadius.circular(AppRadius.md),
-          border: Border.all(
-            color: current != _CollabFilter.all
-                ? AppColors.accent
-                : AppColors.border,
-          ),
+          border: Border.all(color: AppColors.border),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -203,18 +197,14 @@ class _FilterMenuButton extends StatelessWidget {
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
-                color: current != _CollabFilter.all
-                    ? AppColors.accentText
-                    : AppColors.textSecondary,
+                color: AppColors.textSecondary,
               ),
             ),
             const SizedBox(width: 2),
             Icon(
               Icons.keyboard_arrow_down_rounded,
               size: 16,
-              color: current != _CollabFilter.all
-                  ? AppColors.accentText
-                  : AppColors.textTertiary,
+              color: AppColors.textTertiary,
             ),
           ],
         ),

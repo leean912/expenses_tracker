@@ -196,7 +196,5 @@ To strengthen the upgrade pitch, V2 should add features that ONLY exist in Premi
 - **Recurring expenses** — auto-create monthly subscriptions
 - **Custom split methods** — percentages, exact amounts, shares
 - **Receipt photo storage** — attach photos to expenses
-- **Bank sync (Plaid/TrueLayer)** — auto-import transactions
-- **Multiple home currencies** — for users who travel a lot or have foreign income
 
 Each of these moves Premium from "just unlimited usage" to "qualitatively better app." That's where conversion really jumps.

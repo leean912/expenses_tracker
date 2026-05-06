@@ -5,17 +5,54 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/routes/routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../auth/providers/auth_provider.dart';
+import '../../../subscription/providers/subscription_provider.dart';
+import '../../../../service_locator.dart';
 
 class MoreScreen extends ConsumerWidget {
   const MoreScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final isPremium = ref.watch(isPremiumProvider);
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: ListView(
           children: [
+            const _SectionHeader('Subscription'),
+            ListTile(
+              leading: Icon(
+                Icons.workspace_premium_rounded,
+                color: isPremium
+                    ? AppColors.budgetOverallBar
+                    : AppColors.textSecondary,
+              ),
+              title: Text(
+                isPremium ? 'Spendz Pro' : 'Upgrade to Pro',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              subtitle: Text(
+                isPremium ? 'Active' : 'Unlock all features',
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              trailing: const Icon(
+                Icons.chevron_right_rounded,
+                color: AppColors.textTertiary,
+              ),
+              onTap: isPremium
+                  ? () => paymentService.presentCustomerCenter()
+                  : () => context.push(paywallRoute),
+            ),
+            const Divider(height: 1, color: AppColors.border),
+            const SizedBox(height: AppSpacing.xl),
             const _SectionHeader('Settings'),
             ListTile(
               leading: const Icon(

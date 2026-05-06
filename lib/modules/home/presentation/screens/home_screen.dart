@@ -8,6 +8,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../service_locator.dart';
 import '../../../auth/providers/auth_provider.dart';
 import '../../../auth/providers/states/auth_state.dart';
+import '../../../subscription/providers/subscription_provider.dart';
 import '../../providers/home/home_provider.dart';
 import '../../providers/home/home_state.dart';
 import '../widgets/analytics_banner.dart';
@@ -141,6 +142,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         .whenOrNull(authenticated: (u) => u);
     final userName = authUser?.username ?? '';
     final displayName = authUser?.displayName;
+    final isPremium = ref.watch(isPremiumProvider);
 
     final homeAsync = ref.watch(homeDataProvider(_filter));
     final homeData = homeAsync.valueOrNull;
@@ -218,6 +220,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             GreetingHeader(
                               userName: userName,
                               displayName: displayName,
+                              isPremium: isPremium,
                               onBellTap: () => debugPrint('Bell tapped'),
                               onAvatarTap: () => context.push(contactsRoute),
                             ),
@@ -233,9 +236,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       ),
                       pinned: true,
                     ),
-
-                  if (homeData != null &&
-                      _selectedPeriod != TimePeriod.custom)
+                  SliverToBoxAdapter(
+                    child: TimeFilterChips(
+                      selected: _selectedPeriod,
+                      onSelected: _onPeriodSelected,
+                    ),
+                  ),
+                  if (homeData != null && _selectedPeriod != TimePeriod.custom)
                     SliverToBoxAdapter(
                       child: BudgetGrid(
                         budgets: homeData.budgets,
@@ -253,13 +260,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         },
                       ),
                     ),
-
-                  SliverToBoxAdapter(
-                    child: TimeFilterChips(
-                      selected: _selectedPeriod,
-                      onSelected: _onPeriodSelected,
-                    ),
-                  ),
 
                   if (homeData != null)
                     SliverToBoxAdapter(

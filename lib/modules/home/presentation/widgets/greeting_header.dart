@@ -9,12 +9,14 @@ class GreetingHeader extends StatelessWidget {
     super.key,
     this.userName = 'Alice',
     this.displayName,
+    this.isPremium = false,
     this.onBellTap,
     this.onAvatarTap,
   });
 
   final String userName;
   final String? displayName;
+  final bool isPremium;
   final VoidCallback? onBellTap;
   final VoidCallback? onAvatarTap;
 
@@ -50,6 +52,28 @@ class GreetingHeader extends StatelessWidget {
                         color: AppColors.textPrimary,
                       ),
                     ),
+                    if (isPremium) ...[
+                      const SizedBox(width: 6),
+                      const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.workspace_premium_rounded,
+                            size: 15,
+                            color: AppColors.premiumStatus,
+                          ),
+                          SizedBox(width: 3),
+                          Text(
+                            'Pro',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.premiumStatus,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
                 if (displayName != null)

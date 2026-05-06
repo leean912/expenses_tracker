@@ -16,7 +16,7 @@ class BudgetVsActualCard extends StatelessWidget {
 
   Color _barColor(double progress) {
     if (progress >= 1.0) return const Color(0xFFD84040);
-    if (progress >= 0.8) return const Color(0xFFBA7517);
+    if (progress >= 0.8) return AppColors.premiumStatus;
     return AppColors.incomeDark;
   }
 

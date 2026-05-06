@@ -5,9 +5,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../service_locator.dart';
-import '../../../../auth/providers/auth_provider.dart';
-import '../../../../auth/providers/states/auth_state.dart';
 import '../../../../expenses/data/models/category_model.dart';
+import '../../../../subscription/providers/subscription_provider.dart';
 import '../../../../expenses/providers/categories_provider.dart';
 import '../../../../expenses/utils/expense_ui_helpers.dart';
 
@@ -17,8 +16,7 @@ class CategoriesScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final categoriesAsync = ref.watch(categoriesProvider);
-    final user = ref.watch(authProvider).whenOrNull(authenticated: (u) => u);
-    final isPremium = user?.subscriptionTier != 'free';
+    final isPremium = ref.watch(isPremiumProvider);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -88,12 +86,7 @@ class CategoriesScreen extends ConsumerWidget {
         onPressed: () {
           final categories = ref.read(categoriesProvider).valueOrNull ?? [];
           final customCount = categories.where((c) => !c.isDefault).length;
-          final isPremiumNow =
-              ref
-                  .read(authProvider)
-                  .whenOrNull(authenticated: (u) => u)
-                  ?.subscriptionTier !=
-              'free';
+          final isPremiumNow = ref.read(isPremiumProvider);
 
           if (!isPremiumNow && customCount >= 5) {
             _showUpgradeSheet(context, 5);

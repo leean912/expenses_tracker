@@ -19,6 +19,7 @@ Future<void> main() async {
   );
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await paymentService.initialize();
 
   runApp(ProviderScope(child: const MainApp()));
 }

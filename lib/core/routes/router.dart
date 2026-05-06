@@ -17,6 +17,7 @@ import '../../modules/settings/budget/presentation/screens/budget_list_screen.da
 import '../../modules/settings/categories/presentation/screens/categories_screen.dart';
 import '../../modules/split_bills/presentation/screens/split_bill_detail_screen.dart';
 import '../../modules/split_bills/presentation/screens/split_bills_screen.dart';
+import '../../modules/subscription/presentation/screens/paywall_screen.dart';
 import 'app_shell.dart';
 
 final router = GoRouter(
@@ -52,6 +53,10 @@ final router = GoRouter(
     GoRoute(
       path: budgetsRoute,
       builder: (context, state) => const BudgetListScreen(),
+    ),
+    GoRoute(
+      path: paywallRoute,
+      builder: (context, state) => const PaywallScreen(),
     ),
     StatefulShellRoute.indexedStack(
       builder: (context, state, navigationShell) =>

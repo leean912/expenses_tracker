@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../routes/routes.dart';
 import '../theme/app_colors.dart';
 
 class UpgradeSheet extends StatelessWidget {
@@ -70,7 +71,10 @@ class UpgradeSheet extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: FilledButton(
-              onPressed: () {},
+              onPressed: () {
+                context.pop();
+                context.push(paywallRoute);
+              },
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.budgetOverallBar,
                 foregroundColor: Colors.white,

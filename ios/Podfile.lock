@@ -53,6 +53,20 @@ PODS:
   - GTMSessionFetcher/Full (3.5.0):
     - GTMSessionFetcher/Core
   - PromisesObjC (2.4.0)
+  - purchases_flutter (10.0.1):
+    - Flutter
+    - PurchasesHybridCommon (= 18.1.0)
+  - purchases_ui_flutter (10.0.1):
+    - Flutter
+    - PurchasesHybridCommonUI (= 18.1.0)
+  - PurchasesHybridCommon (18.1.0):
+    - RevenueCat (= 5.68.0)
+  - PurchasesHybridCommonUI (18.1.0):
+    - PurchasesHybridCommon (= 18.1.0)
+    - RevenueCatUI (= 5.68.0)
+  - RevenueCat (5.68.0)
+  - RevenueCatUI (5.68.0):
+    - RevenueCat (= 5.68.0)
   - shared_preferences_foundation (0.0.1):
     - Flutter
     - FlutterMacOS
@@ -64,6 +78,8 @@ DEPENDENCIES:
   - firebase_core (from `.symlinks/plugins/firebase_core/ios`)
   - Flutter (from `Flutter`)
   - google_sign_in_ios (from `.symlinks/plugins/google_sign_in_ios/darwin`)
+  - purchases_flutter (from `.symlinks/plugins/purchases_flutter/ios`)
+  - purchases_ui_flutter (from `.symlinks/plugins/purchases_ui_flutter/ios`)
   - shared_preferences_foundation (from `.symlinks/plugins/shared_preferences_foundation/darwin`)
   - url_launcher_ios (from `.symlinks/plugins/url_launcher_ios/ios`)
 
@@ -79,6 +95,10 @@ SPEC REPOS:
     - GTMAppAuth
     - GTMSessionFetcher
     - PromisesObjC
+    - PurchasesHybridCommon
+    - PurchasesHybridCommonUI
+    - RevenueCat
+    - RevenueCatUI
 
 EXTERNAL SOURCES:
   app_links:
@@ -89,6 +109,10 @@ EXTERNAL SOURCES:
     :path: Flutter
   google_sign_in_ios:
     :path: ".symlinks/plugins/google_sign_in_ios/darwin"
+  purchases_flutter:
+    :path: ".symlinks/plugins/purchases_flutter/ios"
+  purchases_ui_flutter:
+    :path: ".symlinks/plugins/purchases_ui_flutter/ios"
   shared_preferences_foundation:
     :path: ".symlinks/plugins/shared_preferences_foundation/darwin"
   url_launcher_ios:
@@ -109,6 +133,12 @@ SPEC CHECKSUMS:
   GTMAppAuth: 217a876b249c3c585a54fd6f73e6b58c4f5c4238
   GTMSessionFetcher: 5aea5ba6bd522a239e236100971f10cb71b96ab6
   PromisesObjC: f5707f49cb48b9636751c5b2e7d227e43fba9f47
+  purchases_flutter: 50a5d9fa83ee5605a8fc653792d667404ca90bce
+  purchases_ui_flutter: e89e9f04bfa136e068c75426fffc291741ca39bb
+  PurchasesHybridCommon: 32902b8fad349cf549f096183926ee33af00e36a
+  PurchasesHybridCommonUI: 658bc5ca18c14a4bcc543740a3acc092cd0064f6
+  RevenueCat: c535d3739d51163f6d9d5dbd01c7b5d93b718ff5
+  RevenueCatUI: fb23ded3007789db7a240f05c35c2237a197d629
   shared_preferences_foundation: 7036424c3d8ec98dfe75ff1667cb0cd531ec82bb
   url_launcher_ios: 7a95fa5b60cc718a708b8f2966718e93db0cef1b
 

@@ -6,6 +6,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../service_locator.dart';
+import '../../subscription/providers/subscription_provider.dart';
 import '../data/models/user_model.dart';
 import 'states/auth_state.dart';
 
@@ -39,6 +40,8 @@ class AuthNotifier extends Notifier<AppAuthState> {
             .single(),
       );
 
+      unawaited(paymentService.identify(currentSession.user.id));
+      unawaited(syncSubscriptionTier(currentSession.user.id));
       state = AppAuthState.authenticated(existing);
     } else {
       state = const AppAuthState.unauthenticated();
@@ -68,6 +71,8 @@ class AuthNotifier extends Notifier<AppAuthState> {
         return;
       }
 
+      unawaited(paymentService.identify(profile.id));
+      unawaited(syncSubscriptionTier(profile.id));
       state = AppAuthState.authenticated(profile);
     } catch (e) {
       debugPrint('login error: $e');
@@ -146,6 +151,7 @@ class AuthNotifier extends Notifier<AppAuthState> {
 
     await supabase.auth.signOut();
     await GoogleSignIn.instance.disconnect();
+    unawaited(paymentService.logout());
 
     state = const AppAuthState.unauthenticated();
   }

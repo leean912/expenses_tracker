@@ -8,6 +8,7 @@ import '../../../../../service_locator.dart';
 import '../../../../auth/providers/auth_provider.dart';
 import '../../../../auth/providers/states/auth_state.dart';
 import '../../../../expenses/data/models/account_model.dart';
+import '../../../../subscription/providers/subscription_provider.dart';
 import '../../../../expenses/providers/accounts_provider.dart';
 import '../../../../expenses/utils/expense_ui_helpers.dart';
 
@@ -17,8 +18,7 @@ class AccountsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final accountsAsync = ref.watch(accountsProvider);
-    final user = ref.watch(authProvider).whenOrNull(authenticated: (u) => u);
-    final isPremium = user?.subscriptionTier != 'free';
+    final isPremium = ref.watch(isPremiumProvider);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -88,18 +88,9 @@ class AccountsScreen extends ConsumerWidget {
         onPressed: () {
           final accounts = ref.read(accountsProvider).valueOrNull ?? [];
           final customCount = accounts.where((a) => !a.isDefault).length;
-          final isPremiumNow =
-              ref
-                  .read(authProvider)
-                  .whenOrNull(authenticated: (u) => u)
-                  ?.subscriptionTier !=
-              'free';
+          final isPremiumNow = ref.read(isPremiumProvider);
           final defaultCurrency =
-              ref
-                  .read(authProvider)
-                  .whenOrNull(authenticated: (u) => u)
-                  ?.defaultCurrency ??
-              'MYR';
+              ref.read(authProvider).whenOrNull(authenticated: (u) => u)?.defaultCurrency ?? 'MYR';
 
           if (!isPremiumNow && customCount >= 10) {
             _showUpgradeSheet(context, 10);
