@@ -14,3 +14,6 @@ const String groupDetailRoute = '/contacts/groups';
 const String collabDetailRoute = '/collabs';
 const String collabMembersRoute = '/collabs/members';
 const String paywallRoute = '/paywall';
+const String recurringRoute = '/recurring';
+const String recurringExpenseFormRoute = '/recurring/expense/form';
+const String recurringSplitBillFormRoute = '/recurring/split-bill/form';

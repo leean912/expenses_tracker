@@ -17,6 +17,11 @@ import '../../modules/settings/budget/presentation/screens/budget_list_screen.da
 import '../../modules/settings/categories/presentation/screens/categories_screen.dart';
 import '../../modules/split_bills/presentation/screens/split_bill_detail_screen.dart';
 import '../../modules/split_bills/presentation/screens/split_bills_screen.dart';
+import '../../modules/recurring/data/models/recurring_expense_model.dart';
+import '../../modules/recurring/data/models/recurring_split_bill_model.dart';
+import '../../modules/recurring/presentation/screens/recurring_expense_form_screen.dart';
+import '../../modules/recurring/presentation/screens/recurring_list_screen.dart';
+import '../../modules/recurring/presentation/screens/recurring_split_bill_form_screen.dart';
 import '../../modules/subscription/presentation/screens/paywall_screen.dart';
 import 'app_shell.dart';
 
@@ -57,6 +62,22 @@ final router = GoRouter(
     GoRoute(
       path: paywallRoute,
       builder: (context, state) => const PaywallScreen(),
+    ),
+    GoRoute(
+      path: recurringRoute,
+      builder: (context, state) => const RecurringListScreen(),
+    ),
+    GoRoute(
+      path: recurringExpenseFormRoute,
+      builder: (context, state) => RecurringExpenseFormScreen(
+        existing: state.extra as RecurringExpenseModel?,
+      ),
+    ),
+    GoRoute(
+      path: recurringSplitBillFormRoute,
+      builder: (context, state) => RecurringSplitBillFormScreen(
+        existing: state.extra as RecurringSplitBillModel?,
+      ),
     ),
     StatefulShellRoute.indexedStack(
       builder: (context, state, navigationShell) =>
