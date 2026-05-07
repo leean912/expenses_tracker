@@ -40,8 +40,14 @@ final homeDataProvider = FutureProvider.family<HomeData, HomeFilter>((
   final period = filter.period;
   final userId = supabase.auth.currentUser!.id;
   final (start, end) = filter.toDateRange();
-  final (prevStart, prevEnd) = period.toPreviousDateRange();
   final budgetPeriod = _budgetPeriodFor(period);
+
+  final now = DateTime.now();
+  final thisMonthStart =
+      '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-01';
+  final thisMonthEnd = TimePeriod.month.toDateRange().$2;
+  final lastMonthStart = TimePeriod.month.toPreviousDateRange().$1;
+  final lastMonthEnd = TimePeriod.month.toPreviousDateRange().$2;
 
   final results = await Future.wait([
     // 1. Current-period expenses — feeds analytics, budget spend, and the list.
@@ -59,18 +65,29 @@ final homeDataProvider = FutureProvider.family<HomeData, HomeFilter>((
         .order('expense_date', ascending: false)
         .order('created_at', ascending: false),
 
-    // 2. Previous-period totals (expense type only, for delta calculation).
+    // 2. Fixed: current calendar month totals (expense type only).
     supabase
         .from('expenses')
         .select('home_amount_cents')
         .eq('user_id', userId)
         .eq('type', 'expense')
-        .gte('expense_date', prevStart)
-        .lte('expense_date', prevEnd)
+        .gte('expense_date', thisMonthStart)
+        .lte('expense_date', thisMonthEnd)
         .isFilter('deleted_at', null)
         .isFilter('archived_at', null),
 
-    // 3. Active budgets for the matching period, with category color.
+    // 3. Fixed: last calendar month totals (expense type only).
+    supabase
+        .from('expenses')
+        .select('home_amount_cents')
+        .eq('user_id', userId)
+        .eq('type', 'expense')
+        .gte('expense_date', lastMonthStart)
+        .lte('expense_date', lastMonthEnd)
+        .isFilter('deleted_at', null)
+        .isFilter('archived_at', null),
+
+    // 4. Active budgets for the matching period, with category color.
     supabase
         .from('budgets')
         .select(
@@ -82,8 +99,9 @@ final homeDataProvider = FutureProvider.family<HomeData, HomeFilter>((
   ]);
 
   final expenseRows = results[0] as List<dynamic>;
-  final prevRows = results[1] as List<dynamic>;
-  final budgetRows = results[2] as List<dynamic>;
+  final thisMonthRows = results[1] as List<dynamic>;
+  final lastMonthRows = results[2] as List<dynamic>;
+  final budgetRows = results[3] as List<dynamic>;
 
   // ── Analytics ─────────────────────────────────────────────────────────────
 
@@ -112,11 +130,15 @@ final homeDataProvider = FutureProvider.family<HomeData, HomeFilter>((
     }
   }
 
-  final int prevTotalCents = prevRows.fold(
+  final int thisMonthTotalCents = thisMonthRows.fold(
     0,
     (sum, r) => sum + ((r as Map)['home_amount_cents'] as int? ?? 0),
   );
-  final changeVsLast = totalCents - prevTotalCents;
+  final int lastMonthTotalCents = lastMonthRows.fold(
+    0,
+    (sum, r) => sum + ((r as Map)['home_amount_cents'] as int? ?? 0),
+  );
+  final changeVsLast = thisMonthTotalCents - lastMonthTotalCents;
   // final changePercent = prevTotalCents == 0
   //     ? 0.0
   //     : (changeVsLast / prevTotalCents) * 100.0;

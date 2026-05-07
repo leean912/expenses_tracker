@@ -11,8 +11,16 @@ final subscriptionProvider =
   SubscriptionNotifier.new,
 );
 
+// Debug-only override: null = use real subscription, true = force premium, false = force free.
+final devPremiumOverrideProvider = StateProvider<bool?>((ref) => null);
+
 // Premium if RC subscription is active OR referral_premium_expires_at is in the future.
 final isPremiumProvider = Provider<bool>((ref) {
+  if (kDebugMode) {
+    final override = ref.watch(devPremiumOverrideProvider);
+    if (override != null) return override;
+  }
+
   if (ref.watch(subscriptionProvider).valueOrNull?.isPremium ?? false) return true;
 
   return ref.watch(authProvider).maybeWhen(

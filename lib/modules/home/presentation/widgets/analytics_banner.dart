@@ -148,12 +148,12 @@ class AnalyticsBanner extends StatelessWidget {
                   ),
                   Expanded(
                     child: _StatItem(
-                      label: 'vs last month',
+                      label: 'Current vs last month',
                       value:
                           '${summary.changeVsLastMonthCents < 0 ? "−" : "+"}${_fmtCents(summary.changeVsLastMonthCents)}',
                       valueColor: summary.changeVsLastMonthCents < 0
                           ? AppColors.positiveDark
-                          : AppColors.textPrimary,
+                          : AppColors.expenseLight,
                     ),
                   ),
                 ],

@@ -17,7 +17,7 @@ class SpendingBarChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (buckets.isEmpty || buckets.every((b) => b.spendCents == 0 && b.incomeCents == 0)) {
+    if (buckets.isEmpty || buckets.every((b) => b.spendCents == 0)) {
       return const SizedBox(
         height: 180,
         child: Center(
@@ -29,12 +29,8 @@ class SpendingBarChart extends StatelessWidget {
       );
     }
 
-    final hasIncome = buckets.any((b) => b.incomeCents > 0);
-
     final maxVal = buckets
-        .map((b) => hasIncome
-            ? [b.spendCents, b.incomeCents].reduce((a, c) => a > c ? a : c)
-            : b.spendCents)
+        .map((b) => b.spendCents)
         .reduce((a, b) => a > b ? a : b)
         .toDouble();
     final adjustedMax = maxVal == 0 ? 10000.0 : maxVal * 1.3;
@@ -43,70 +39,33 @@ class SpendingBarChart extends StatelessWidget {
     final barGroups = buckets.asMap().entries.map((entry) {
       final i = entry.key;
       final b = entry.value;
-
-      if (hasIncome) {
-        return BarChartGroupData(
-          x: i,
-          barsSpace: 3,
-          barRods: [
-            BarChartRodData(
-              toY: b.spendCents.toDouble(),
-              color: const Color(0xFFD84040),
-              width: 8,
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(3)),
+      return BarChartGroupData(
+        x: i,
+        barRods: [
+          BarChartRodData(
+            toY: b.spendCents.toDouble(),
+            gradient: LinearGradient(
+              colors: [
+                const Color(0xFFD84040),
+                const Color(0xFFD84040).withValues(alpha: 0.65),
+              ],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
             ),
-            BarChartRodData(
-              toY: b.incomeCents.toDouble(),
-              color: AppColors.incomeDark,
-              width: 8,
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(3)),
+            width: buckets.length <= 7 ? 18 : 10,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+            backDrawRodData: BackgroundBarChartRodData(
+              show: true,
+              toY: adjustedMax,
+              color: AppColors.surfaceMuted,
             ),
-          ],
-        );
-      } else {
-        return BarChartGroupData(
-          x: i,
-          barRods: [
-            BarChartRodData(
-              toY: b.spendCents.toDouble(),
-              gradient: LinearGradient(
-                colors: [
-                  const Color(0xFFD84040),
-                  const Color(0xFFD84040).withValues(alpha: 0.65),
-                ],
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-              ),
-              width: buckets.length <= 7 ? 18 : 10,
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(4)),
-              backDrawRodData: BackgroundBarChartRodData(
-                show: true,
-                toY: adjustedMax,
-                color: AppColors.surfaceMuted,
-              ),
-            ),
-          ],
-        );
-      }
+          ),
+        ],
+      );
     }).toList();
 
     return Column(
       children: [
-        if (hasIncome)
-          Padding(
-            padding: const EdgeInsets.only(bottom: AppSpacing.md),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                _LegendDot(color: const Color(0xFFD84040), label: 'Spend'),
-                const SizedBox(width: AppSpacing.lg),
-                _LegendDot(color: AppColors.incomeDark, label: 'Income'),
-              ],
-            ),
-          ),
         SizedBox(
           height: 200,
           child: BarChart(
@@ -189,16 +148,10 @@ class SpendingBarChart extends StatelessWidget {
                   tooltipBorder:
                       const BorderSide(color: AppColors.border, width: 0.5),
                   getTooltipItem: (group, groupIndex, rod, rodIndex) {
-                    final isIncome = hasIncome && rodIndex == 1;
-                    final label = isIncome
-                        ? 'Income  ${_fmt(rod.toY)}'
-                        : 'Spend  ${_fmt(rod.toY)}';
                     return BarTooltipItem(
-                      label,
-                      TextStyle(
-                        color: isIncome
-                            ? AppColors.incomeDark
-                            : const Color(0xFFD84040),
+                      'Spend  ${_fmt(rod.toY)}',
+                      const TextStyle(
+                        color: Color(0xFFD84040),
                         fontSize: 11,
                         fontWeight: FontWeight.w500,
                       ),
@@ -208,33 +161,6 @@ class SpendingBarChart extends StatelessWidget {
               ),
             ),
           ),
-        ),
-      ],
-    );
-  }
-}
-
-class _LegendDot extends StatelessWidget {
-  const _LegendDot({required this.color, required this.label});
-
-  final Color color;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 4),
-        Text(
-          label,
-          style:
-              const TextStyle(fontSize: 11, color: AppColors.textSecondary),
         ),
       ],
     );

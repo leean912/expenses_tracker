@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -236,6 +237,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       ),
                       pinned: true,
                     ),
+                  if (kDebugMode)
+                    SliverToBoxAdapter(
+                      child: _DevPremiumToggle(),
+                    ),
+
                   SliverToBoxAdapter(
                     child: TimeFilterChips(
                       selected: _selectedPeriod,
@@ -290,6 +296,50 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
                 const SliverToBoxAdapter(child: SizedBox(height: 24)),
               ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DevPremiumToggle extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final override = ref.watch(devPremiumOverrideProvider);
+
+    final (label, color) = switch (override) {
+      true => ('DEV: Force Premium', Colors.amber),
+      false => ('DEV: Force Free', Colors.redAccent),
+      _ => ('DEV: Real Subscription', Colors.grey),
+    };
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: GestureDetector(
+        onTap: () {
+          final next = switch (override) {
+            null => false,
+            false => true,
+            _ => null,
+          };
+          ref.read(devPremiumOverrideProvider.notifier).state = next;
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.15),
+            border: Border.all(color: color.withValues(alpha: 0.6)),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              color: color,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.3,
             ),
           ),
         ),

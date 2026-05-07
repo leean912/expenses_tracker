@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-enum AnalysisPeriod { week, month, year, custom }
+enum AnalysisPeriod { day, week, month, year, custom }
 
 class AnalysisFilter {
   const AnalysisFilter({
@@ -44,6 +44,7 @@ class AnalysisFilter {
 
 extension AnalysisPeriodLabel on AnalysisPeriod {
   String get label => switch (this) {
+        AnalysisPeriod.day => 'Today',
         AnalysisPeriod.week => 'Week',
         AnalysisPeriod.month => 'Month',
         AnalysisPeriod.year => 'Year',
@@ -65,6 +66,9 @@ extension AnalysisPeriodRange on AnalysisPeriod {
     late DateTime end;
 
     switch (this) {
+      case AnalysisPeriod.day:
+        start = today;
+        end = today;
       case AnalysisPeriod.week:
         start = today.subtract(Duration(days: today.weekday - 1));
         end = start.add(const Duration(days: 6));
@@ -124,39 +128,47 @@ class BudgetProgress {
     required this.spentCents,
     required this.limitCents,
     required this.barColor,
+    this.pacePoints = const [],
   });
 
   final String label;
   final int spentCents;
   final int limitCents;
   final Color barColor;
+  final List<SpendVsBudgetPoint> pacePoints;
 
   double get progress =>
       limitCents == 0 ? 0 : (spentCents / limitCents).clamp(0.0, 1.5);
   int get percentUsed => (progress * 100).clamp(0, 999).round();
 }
 
-class DailyPoint {
-  const DailyPoint({required this.date, required this.cumulativeCents});
+class SpendVsBudgetPoint {
+  const SpendVsBudgetPoint({
+    required this.label,
+    required this.cumulativeSpendCents,
+    required this.cumulativeBudgetCents,
+  });
 
-  final DateTime date;
-  final int cumulativeCents;
+  final String label;
+  final int cumulativeSpendCents;
+  final int cumulativeBudgetCents;
 }
+
 
 class AnalysisData {
   const AnalysisData({
     required this.categoryBreakdown,
+    required this.accountBreakdown,
     required this.periodBreakdown,
     required this.budgetProgress,
-    required this.cumulativeTrend,
-    required this.totalSpentCents,
+      required this.totalSpentCents,
     required this.totalIncomeCents,
   });
 
   final List<CategorySpend> categoryBreakdown;
+  final List<CategorySpend> accountBreakdown;
   final List<PeriodBucket> periodBreakdown;
   final List<BudgetProgress> budgetProgress;
-  final List<DailyPoint> cumulativeTrend;
   final int totalSpentCents;
   final int totalIncomeCents;
 }

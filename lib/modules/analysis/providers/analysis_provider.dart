@@ -4,8 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../service_locator.dart';
 import 'analysis_state.dart';
 
-final analysisDataProvider =
-    FutureProvider.family<AnalysisData, AnalysisFilter>((ref, filter) async {
+final analysisDataProvider = FutureProvider.family<AnalysisData, AnalysisFilter>((
+  ref,
+  filter,
+) async {
   final userId = supabase.auth.currentUser!.id;
   final (start, end) = filter.toDateRange();
   final startDate = DateTime.parse(start);
@@ -17,8 +19,8 @@ final analysisDataProvider =
       var q = supabase
           .from('expenses')
           .select(
-            'home_amount_cents, type, expense_date, category_id, '
-            'category:categories(name, color)',
+            'home_amount_cents, type, expense_date, category_id, account_id, '
+            'category:categories(name, color), account:accounts(name)',
           )
           .eq('user_id', userId)
           .gte('expense_date', start)
@@ -32,9 +34,7 @@ final analysisDataProvider =
     }(),
     supabase
         .from('budgets')
-        .select(
-          'limit_cents, category_id, category:categories(name, color)',
-        )
+        .select('limit_cents, category_id, category:categories(name, color)')
         .eq('user_id', userId)
         .eq('period', budgetPeriod)
         .isFilter('deleted_at', null),
@@ -48,6 +48,7 @@ final analysisDataProvider =
   int totalSpentCents = 0;
   int totalIncomeCents = 0;
   final Map<String, ({int cents, String name, String? colorHex})> catMap = {};
+  final Map<String, ({int cents, String name})> accountMap = {};
 
   for (final r in expenseRows) {
     final row = r as Map<String, dynamic>;
@@ -57,6 +58,9 @@ final analysisDataProvider =
     final catData = row['category'] as Map<String, dynamic>?;
     final catName = catData?['name'] as String? ?? 'Other';
     final colorHex = catData?['color'] as String?;
+    final accountId = row['account_id'] as String? ?? 'none';
+    final accountData = row['account'] as Map<String, dynamic>?;
+    final accountName = accountData?['name'] as String? ?? 'No Account';
 
     if (isIncome) {
       totalIncomeCents += cents;
@@ -68,6 +72,11 @@ final analysisDataProvider =
         name: catName,
         colorHex: colorHex ?? existing?.colorHex,
       );
+      final existingAcc = accountMap[accountId];
+      accountMap[accountId] = (
+        cents: (existingAcc?.cents ?? 0) + cents,
+        name: accountName,
+      );
     }
   }
 
@@ -78,11 +87,26 @@ final analysisDataProvider =
       categoryName: e.value.name,
       color: color,
       totalCents: e.value.cents,
-      percentage:
-          totalSpentCents == 0 ? 0 : e.value.cents / totalSpentCents * 100,
+      percentage: totalSpentCents == 0
+          ? 0
+          : e.value.cents / totalSpentCents * 100,
     );
-  }).toList()
-    ..sort((a, b) => b.totalCents.compareTo(a.totalCents));
+  }).toList()..sort((a, b) => b.totalCents.compareTo(a.totalCents));
+
+  final sortedAccounts = accountMap.entries.toList()
+    ..sort((a, b) => b.value.cents.compareTo(a.value.cents));
+  final accountBreakdown = sortedAccounts.indexed.map((entry) {
+    final (i, e) = entry;
+    return CategorySpend(
+      categoryId: e.key,
+      categoryName: e.value.name,
+      color: _accountPalette[i % _accountPalette.length],
+      totalCents: e.value.cents,
+      percentage: totalSpentCents == 0
+          ? 0
+          : e.value.cents / totalSpentCents * 100,
+    );
+  }).toList();
 
   // ── Period breakdown (bar chart) ──────────────────────────────────────────
 
@@ -93,15 +117,55 @@ final analysisDataProvider =
     filter.period,
   );
 
-  // ── Cumulative trend (line chart) ─────────────────────────────────────────
-
-  final cumulativeTrend = _buildCumulativeTrend(
-    expenseRows,
-    startDate,
-    endDate,
-  );
-
   // ── Budget progress ────────────────────────────────────────────────────────
+
+  // ── Budget progress + pace points ─────────────────────────────────────────
+
+  final buildPace = filter.period != AnalysisPeriod.day &&
+      filter.period != AnalysisPeriod.custom;
+  final isYearly = filter.period == AnalysisPeriod.year;
+  final totalDays = endDate.difference(startDate).inDays + 1;
+  final bucketCount = isYearly ? ((totalDays - 1) ~/ 7) + 1 : totalDays;
+
+  String paceLabel(int i) {
+    if (isYearly) return 'W${i + 1}';
+    final d = startDate.add(Duration(days: i));
+    return totalDays <= 7
+        ? const ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][d.weekday - 1]
+        : '${d.day}';
+  }
+
+  int paceIndex(String dateStr) {
+    final d = DateTime.parse(dateStr);
+    final offset = d.difference(startDate).inDays;
+    if (offset < 0) return -1;
+    return isYearly
+        ? (offset ~/ 7).clamp(0, bucketCount - 1)
+        : (offset < bucketCount ? offset : -1);
+  }
+
+  List<SpendVsBudgetPoint> buildPacePoints(String? catId, int limitCents) {
+    if (!buildPace) return const [];
+    final buckets = List.filled(bucketCount, 0);
+    for (final r in expenseRows) {
+      final er = r as Map<String, dynamic>;
+      if (er['type'] == 'income') continue;
+      if (catId != null && er['category_id'] != catId) continue;
+      final idx = paceIndex(er['expense_date'] as String);
+      if (idx < 0) continue;
+      buckets[idx] += er['home_amount_cents'] as int? ?? 0;
+    }
+    final budgetPerBucket = limitCents / bucketCount;
+    var running = 0;
+    return List.generate(bucketCount, (i) {
+      running += buckets[i];
+      return SpendVsBudgetPoint(
+        label: paceLabel(i),
+        cumulativeSpendCents: running,
+        cumulativeBudgetCents: ((i + 1) * budgetPerBucket).round(),
+      );
+    });
+  }
 
   final budgetProgress = budgetRows.map((b) {
     final row = b as Map<String, dynamic>;
@@ -110,23 +174,22 @@ final analysisDataProvider =
     final label = catData?['name'] as String? ?? 'Overall';
     final color =
         _hexToColor(catData?['color'] as String?) ?? const Color(0xFFBA7517);
-    final spentCents = catId == null
-        ? totalSpentCents
-        : (catMap[catId]?.cents ?? 0);
+    final limitCents = row['limit_cents'] as int;
+    final spentCents = catId == null ? totalSpentCents : (catMap[catId]?.cents ?? 0);
     return BudgetProgress(
       label: label,
       spentCents: spentCents,
-      limitCents: row['limit_cents'] as int,
+      limitCents: limitCents,
       barColor: color,
+      pacePoints: buildPacePoints(catId, limitCents),
     );
-  }).toList()
-    ..sort((a, b) => b.spentCents.compareTo(a.spentCents));
+  }).toList()..sort((a, b) => b.spentCents.compareTo(a.spentCents));
 
   return AnalysisData(
     categoryBreakdown: categoryBreakdown,
+    accountBreakdown: accountBreakdown,
     periodBreakdown: periodBreakdown,
     budgetProgress: budgetProgress,
-    cumulativeTrend: cumulativeTrend,
     totalSpentCents: totalSpentCents,
     totalIncomeCents: totalIncomeCents,
   );
@@ -141,6 +204,8 @@ List<PeriodBucket> _buildPeriodBuckets(
   AnalysisPeriod period,
 ) {
   switch (period) {
+    case AnalysisPeriod.day:
+      return _bucketByDay(rows, startDate, 1);
     case AnalysisPeriod.week:
       return _bucketByDay(rows, startDate, 7);
     case AnalysisPeriod.month:
@@ -179,8 +244,7 @@ List<PeriodBucket> _bucketByDay(
 
   return List.generate(count, (i) {
     final date = startDate.add(Duration(days: i));
-    final label =
-        count <= 7 ? weekdayLabels[date.weekday - 1] : '${date.day}';
+    final label = count <= 7 ? weekdayLabels[date.weekday - 1] : '${date.day}';
     return PeriodBucket(
       label: label,
       spendCents: spendBuckets[i],
@@ -259,8 +323,18 @@ List<PeriodBucket> _bucketByWeek(
 
 List<PeriodBucket> _bucketByMonth(List<dynamic> rows, int year) {
   const monthLabels = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
   ];
   final spendBuckets = List.filled(12, 0);
   final incomeBuckets = List.filled(12, 0);
@@ -288,32 +362,18 @@ List<PeriodBucket> _bucketByMonth(List<dynamic> rows, int year) {
   );
 }
 
-List<DailyPoint> _buildCumulativeTrend(
-  List<dynamic> rows,
-  DateTime startDate,
-  DateTime endDate,
-) {
-  final totalDays = endDate.difference(startDate).inDays + 1;
-  final dailyCents = List.filled(totalDays, 0);
+// ── Account color palette ─────────────────────────────────────────────────────
 
-  for (final r in rows) {
-    final row = r as Map<String, dynamic>;
-    if (row['type'] == 'income') continue;
-    final date = DateTime.parse(row['expense_date'] as String);
-    final idx = date.difference(startDate).inDays;
-    if (idx < 0 || idx >= totalDays) continue;
-    dailyCents[idx] += row['home_amount_cents'] as int? ?? 0;
-  }
-
-  var running = 0;
-  return List.generate(totalDays, (i) {
-    running += dailyCents[i];
-    return DailyPoint(
-      date: startDate.add(Duration(days: i)),
-      cumulativeCents: running,
-    );
-  });
-}
+const _accountPalette = [
+  Color(0xFF5B8CFF),
+  Color(0xFFFF7C5B),
+  Color(0xFF4DC8A0),
+  Color(0xFFFFB347),
+  Color(0xFFA78BFA),
+  Color(0xFFFF6B9D),
+  Color(0xFF34C6CD),
+  Color(0xFFFFD166),
+];
 
 // ── Color helpers ─────────────────────────────────────────────────────────────
 
