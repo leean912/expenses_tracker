@@ -32,7 +32,8 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
     (Icons.document_scanner_rounded, 'Receipt OCR scanning'),
     (Icons.currency_exchange_rounded, 'Live FX rates'),
     (Icons.download_rounded, 'Data export (CSV & PDF)'),
-    (Icons.repeat_rounded, 'Recurring expenses'),
+    (Icons.repeat_rounded, 'Unlimited recurring expenses'),
+    (Icons.repeat_one_rounded, 'Unlimited recurring split bills'),
     (Icons.photo_camera_rounded, 'Receipt photo storage'),
   ];
 

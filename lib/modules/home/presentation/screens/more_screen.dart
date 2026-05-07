@@ -113,6 +113,26 @@ class MoreScreen extends ConsumerWidget {
               ),
               onTap: () => context.push(settingsAccountsRoute),
             ),
+            const Divider(height: 1, indent: 56, color: AppColors.border),
+            ListTile(
+              leading: const Icon(
+                Icons.savings_outlined,
+                color: AppColors.textSecondary,
+              ),
+              title: const Text(
+                'Budgets',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              trailing: const Icon(
+                Icons.chevron_right_rounded,
+                color: AppColors.textTertiary,
+              ),
+              onTap: () => context.push(budgetsRoute),
+            ),
             const Divider(height: 1, color: AppColors.border),
             const SizedBox(height: AppSpacing.xl),
             const _SectionHeader('Account'),

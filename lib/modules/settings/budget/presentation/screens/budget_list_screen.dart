@@ -273,11 +273,11 @@ class _BudgetTile extends StatelessWidget {
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.of(ctx).pop(false),
+                onPressed: () => ctx.pop(false),
                 child: const Text('Cancel'),
               ),
               TextButton(
-                onPressed: () => Navigator.of(ctx).pop(true),
+                onPressed: () => ctx.pop(true),
                 child: const Text(
                   'Delete',
                   style: TextStyle(color: Color(0xFFE24B4A)),
@@ -488,7 +488,7 @@ class _BudgetFormSheetState extends ConsumerState<_BudgetFormSheet> {
                   style: TextStyle(fontSize: 12, color: AppColors.textTertiary),
                 ),
                 selected: _categoryId == null,
-                onTap: () => Navigator.of(ctx).pop((id: null, name: 'Overall')),
+                onTap: () => ctx.pop((id: null, name: 'Overall')),
               ),
               const Divider(height: 1, color: AppColors.border),
               ...categories.map((cat) {
@@ -512,7 +512,7 @@ class _BudgetFormSheetState extends ConsumerState<_BudgetFormSheet> {
                   ),
                   selected: _categoryId == cat.id,
                   onTap: () =>
-                      Navigator.of(ctx).pop((id: cat.id, name: cat.name)),
+                      ctx.pop((id: cat.id, name: cat.name)),
                 );
               }),
             ],
@@ -520,7 +520,7 @@ class _BudgetFormSheetState extends ConsumerState<_BudgetFormSheet> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
+            onPressed: () => ctx.pop(),
             child: const Text('Cancel'),
           ),
         ],

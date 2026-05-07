@@ -23,24 +23,25 @@ alter table expenses
 -- ═══════════════════════════════════════════════════════════════════
 -- 2. RECURRING_EXPENSES
 -- Template for a personal recurring expense or income entry.
--- MYR only (MVP). Free tier: max 5. Premium: unlimited.
+-- MYR only (MVP). Free tier: max 3. Premium: unlimited.
 -- ═══════════════════════════════════════════════════════════════════
 
 create table recurring_expenses (
-  id           uuid primary key default gen_random_uuid(),
-  user_id      uuid not null references profiles(id) on delete cascade,
-  title        text not null check (length(trim(title)) > 0),
-  amount_cents bigint not null check (amount_cents > 0),
-  type         text not null default 'expense' check (type in ('expense', 'income')),
-  category_id  uuid references categories(id) on delete set null,
-  account_id   uuid references accounts(id) on delete set null,
-  note         text,
-  frequency    text not null check (frequency in ('daily', 'monthly', 'yearly')),
-  next_run_at  date not null,
-  is_active    boolean not null default true,
-  created_at   timestamptz not null default now(),
-  updated_at   timestamptz not null default now(),
-  deleted_at   timestamptz
+  id               uuid primary key default gen_random_uuid(),
+  user_id          uuid not null references profiles(id) on delete cascade,
+  title            text not null check (length(trim(title)) > 0),
+  amount_cents     bigint not null check (amount_cents > 0),
+  type             text not null default 'expense' check (type in ('expense', 'income')),
+  category_id      uuid references categories(id) on delete set null,
+  account_id       uuid references accounts(id) on delete set null,
+  note             text,
+  frequency        text not null check (frequency in ('daily', 'monthly', 'yearly')),
+  next_run_at      date not null,
+  is_active        boolean not null default true,
+  requires_premium boolean not null default false,
+  created_at       timestamptz not null default now(),
+  updated_at       timestamptz not null default now(),
+  deleted_at       timestamptz
 );
 
 create index idx_recurring_expenses_user on recurring_expenses(user_id)
@@ -60,20 +61,21 @@ create trigger trg_recurring_expenses_updated_at
 -- ═══════════════════════════════════════════════════════════════════
 
 create table recurring_split_bills (
-  id           uuid primary key default gen_random_uuid(),
-  user_id      uuid not null references profiles(id) on delete cascade,
-  title        text not null check (length(trim(title)) > 0),
-  amount_cents bigint not null check (amount_cents > 0),
-  split_method text not null default 'equal' check (split_method in ('equal', 'custom')),
-  category_id  uuid references categories(id) on delete set null,
-  account_id   uuid references accounts(id) on delete set null,
-  note         text,
-  frequency    text not null check (frequency in ('daily', 'monthly', 'yearly')),
-  next_run_at  date not null,
-  is_active    boolean not null default true,
-  created_at   timestamptz not null default now(),
-  updated_at   timestamptz not null default now(),
-  deleted_at   timestamptz
+  id               uuid primary key default gen_random_uuid(),
+  user_id          uuid not null references profiles(id) on delete cascade,
+  title            text not null check (length(trim(title)) > 0),
+  amount_cents     bigint not null check (amount_cents > 0),
+  split_method     text not null default 'equal' check (split_method in ('equal', 'custom')),
+  category_id      uuid references categories(id) on delete set null,
+  account_id       uuid references accounts(id) on delete set null,
+  note             text,
+  frequency        text not null check (frequency in ('daily', 'monthly', 'yearly')),
+  next_run_at      date not null,
+  is_active        boolean not null default true,
+  requires_premium boolean not null default false,
+  created_at       timestamptz not null default now(),
+  updated_at       timestamptz not null default now(),
+  deleted_at       timestamptz
 );
 
 create index idx_recurring_split_bills_user on recurring_split_bills(user_id)
@@ -165,10 +167,11 @@ create or replace function create_recurring_expense(
   p_note         text    default null
 ) returns jsonb language plpgsql security definer as $$
 declare
-  v_user_id uuid := auth.uid();
-  v_tier    text;
-  v_count   integer;
-  v_new_id  uuid;
+  v_user_id        uuid := auth.uid();
+  v_tier           text;
+  v_count          integer;
+  v_requires_premium boolean;
+  v_new_id         uuid;
 begin
   if v_user_id is null then raise exception 'Not authenticated'; end if;
 
@@ -177,10 +180,12 @@ begin
   select count(*) into v_count from recurring_expenses
   where user_id = v_user_id and deleted_at is null;
 
-  if v_tier = 'free' and v_count >= 5 then
-    raise exception 'Free tier limit reached (5 recurring expenses). Upgrade to Premium for unlimited.'
+  if v_tier = 'free' and v_count >= 3 then
+    raise exception 'Free tier limit reached (3 recurring expenses). Upgrade to Premium for unlimited.'
       using errcode = 'P0001', hint = 'upgrade_required';
   end if;
+
+  v_requires_premium := (v_tier <> 'free') and (v_count >= 3);
 
   if p_category_id is not null and not exists (
     select 1 from categories where id = p_category_id and user_id = v_user_id and deleted_at is null
@@ -191,12 +196,13 @@ begin
   ) then raise exception 'Account does not belong to you'; end if;
 
   insert into recurring_expenses (
-    user_id, title, amount_cents, type, category_id, account_id, note, frequency, next_run_at
+    user_id, title, amount_cents, type, category_id, account_id, note, frequency, next_run_at, requires_premium
   ) values (
-    v_user_id, trim(p_title), p_amount_cents, p_type, p_category_id, p_account_id, p_note, p_frequency, p_first_run_at
+    v_user_id, trim(p_title), p_amount_cents, p_type, p_category_id, p_account_id, p_note, p_frequency, p_first_run_at,
+    v_requires_premium
   ) returning id into v_new_id;
 
-  return jsonb_build_object('recurring_expense_id', v_new_id);
+  return jsonb_build_object('recurring_expense_id', v_new_id, 'requires_premium', v_requires_premium);
 end; $$;
 
 
@@ -268,12 +274,13 @@ create or replace function create_recurring_split_bill(
   p_note         text default null
 ) returns jsonb language plpgsql security definer as $$
 declare
-  v_user_id      uuid := auth.uid();
-  v_tier         text;
-  v_count        integer;
-  v_new_id       uuid;
-  v_share        record;
-  v_total_custom bigint := 0;
+  v_user_id          uuid := auth.uid();
+  v_tier             text;
+  v_count            integer;
+  v_requires_premium boolean;
+  v_new_id           uuid;
+  v_share            record;
+  v_total_custom     bigint := 0;
 begin
   if v_user_id is null then raise exception 'Not authenticated'; end if;
 
@@ -286,6 +293,8 @@ begin
     raise exception 'Free tier limit reached (1 recurring split bill). Upgrade to Premium for unlimited.'
       using errcode = 'P0001', hint = 'upgrade_required';
   end if;
+
+  v_requires_premium := (v_tier <> 'free') and (v_count >= 1);
 
   if p_category_id is not null and not exists (
     select 1 from categories where id = p_category_id and user_id = v_user_id and deleted_at is null
@@ -308,9 +317,10 @@ begin
   end if;
 
   insert into recurring_split_bills (
-    user_id, title, amount_cents, split_method, category_id, account_id, note, frequency, next_run_at
+    user_id, title, amount_cents, split_method, category_id, account_id, note, frequency, next_run_at, requires_premium
   ) values (
-    v_user_id, trim(p_title), p_amount_cents, p_split_method, p_category_id, p_account_id, p_note, p_frequency, p_first_run_at
+    v_user_id, trim(p_title), p_amount_cents, p_split_method, p_category_id, p_account_id, p_note, p_frequency, p_first_run_at,
+    v_requires_premium
   ) returning id into v_new_id;
 
   for v_share in
@@ -326,7 +336,7 @@ begin
       case when p_split_method = 'custom' then v_share.share_cents else null end);
   end loop;
 
-  return jsonb_build_object('recurring_split_bill_id', v_new_id);
+  return jsonb_build_object('recurring_split_bill_id', v_new_id, 'requires_premium', v_requires_premium);
 end; $$;
 
 
@@ -557,17 +567,93 @@ end; $$;
 
 
 -- ═══════════════════════════════════════════════════════════════════
--- 9. PG_CRON SETUP
+-- 9. SUBSCRIPTION EXPIRY HANDLER
+-- Runs before the recurring cron. Downgrades expired premium users
+-- and deactivates items flagged requires_premium = true:
+--   • recurring_expenses:    deactivate where requires_premium = true
+--   • recurring_split_bills: deactivate where requires_premium = true
+-- The app detects the tier change on next launch and shows a notice.
+-- ═══════════════════════════════════════════════════════════════════
+
+create or replace function process_subscription_expirations()
+returns jsonb language plpgsql security definer as $$
+declare
+  v_user            record;
+  v_downgraded      integer := 0;
+  v_deactivated_re  integer := 0;
+  v_deactivated_rsb integer := 0;
+  v_rows            integer;
+begin
+  -- Step 1: Downgrade expired premium users
+  for v_user in
+    select id from profiles
+    where subscription_tier = 'premium'
+      and subscription_expires_at is not null
+      and subscription_expires_at < now()
+  loop
+    update profiles
+    set subscription_tier = 'free'
+    where id = v_user.id;
+
+    v_downgraded := v_downgraded + 1;
+  end loop;
+
+  -- Step 2: Deactivate premium items for ALL free users
+  -- (handles manual downgrades, failed runs, and the loop above)
+  update recurring_expenses
+  set is_active = false
+  where deleted_at is null
+    and is_active = true
+    and requires_premium = true
+    and user_id in (select id from profiles where subscription_tier = 'free');
+
+  get diagnostics v_rows = row_count;
+  v_deactivated_re := v_rows;
+
+  update recurring_split_bills
+  set is_active = false
+  where deleted_at is null
+    and is_active = true
+    and requires_premium = true
+    and user_id in (select id from profiles where subscription_tier = 'free');
+
+  get diagnostics v_rows = row_count;
+  v_deactivated_rsb := v_rows;
+
+  return jsonb_build_object(
+    'ran_at',                    now(),
+    'users_downgraded',          v_downgraded,
+    'recurring_expenses_paused', v_deactivated_re,
+    'recurring_splits_paused',   v_deactivated_rsb
+  );
+end; $$;
+
+
+-- ═══════════════════════════════════════════════════════════════════
+-- 10. PG_CRON SETUP
 -- Enable via: Supabase Dashboard → Database → Extensions → pg_cron
+-- Order: expirations run at 00:00 MYT, recurring jobs run at 00:10 MYT
+-- so downgraded users are already capped before jobs fire.
 -- ═══════════════════════════════════════════════════════════════════
 
 -- create extension if not exists pg_cron;  -- enable in Dashboard first
 
 select cron.schedule(
+  'process-subscription-expirations',  -- unique job name
+  '0 16 * * *',                        -- 16:00 UTC daily (= 00:00 MYT)
+  $$ select process_subscription_expirations() $$
+);
+
+select cron.schedule(
   'process-recurring-jobs',   -- unique job name
-  '0 16 * * *',               -- 16:00 UTC daily (= 00:00 MYT, midnight Malaysia time)
+  '10 16 * * *',              -- 16:10 UTC daily (= 00:10 MYT)
   $$ select process_recurring_jobs() $$
 );
 
 -- Verify:  select * from cron.job;
--- Remove:  select cron.unschedule('process-recurring-jobs');
+-- Remove:  select cron.unschedule('process-subscription-expirations');
+--          select cron.unschedule('process-recurring-jobs');
+
+-- If rescheduling an existing recurring job (already registered at 00:00 MYT):
+--   select cron.unschedule('process-recurring-jobs');
+--   select cron.schedule('process-recurring-jobs', '10 16 * * *', $$ select process_recurring_jobs() $$);

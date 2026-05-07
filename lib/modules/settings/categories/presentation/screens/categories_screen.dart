@@ -6,9 +6,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../service_locator.dart';
 import '../../../../expenses/data/models/category_model.dart';
-import '../../../../subscription/providers/subscription_provider.dart';
 import '../../../../expenses/providers/categories_provider.dart';
 import '../../../../expenses/utils/expense_ui_helpers.dart';
+import '../../../../subscription/providers/subscription_provider.dart';
 
 class CategoriesScreen extends ConsumerWidget {
   const CategoriesScreen({super.key});
@@ -50,7 +50,9 @@ class CategoriesScreen extends ConsumerWidget {
           ),
         ),
         data: (categories) {
-          final freeCustomCount = categories.where((c) => !c.isDefault && !c.requiresPremium).length;
+          final freeCustomCount = categories
+              .where((c) => !c.isDefault && !c.requiresPremium)
+              .length;
           return Column(
             children: [
               if (!isPremium) ...[
@@ -87,7 +89,9 @@ class CategoriesScreen extends ConsumerWidget {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
           final categories = ref.read(categoriesProvider).valueOrNull ?? [];
-          final freeCustomCount = categories.where((c) => !c.isDefault && !c.requiresPremium).length;
+          final freeCustomCount = categories
+              .where((c) => !c.isDefault && !c.requiresPremium)
+              .length;
           final isPremiumNow = ref.read(isPremiumProvider);
 
           if (!isPremiumNow && freeCustomCount >= 5) {
@@ -135,11 +139,11 @@ class CategoriesScreen extends ConsumerWidget {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
+            onPressed: () => ctx.pop(false),
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
+            onPressed: () => ctx.pop(true),
             child: const Text(
               'Delete',
               style: TextStyle(color: Color(0xFFE24B4A)),
@@ -168,7 +172,11 @@ class CategoriesScreen extends ConsumerWidget {
 // ── Category tile ─────────────────────────────────────────────────────────────
 
 class _CategoryTile extends StatelessWidget {
-  const _CategoryTile({required this.category, this.isGreyed = false, this.onDelete});
+  const _CategoryTile({
+    required this.category,
+    this.isGreyed = false,
+    this.onDelete,
+  });
 
   final CategoryModel category;
   final bool isGreyed;
@@ -192,7 +200,11 @@ class _CategoryTile extends StatelessWidget {
             color: effectiveColor.withValues(alpha: 0.15),
             shape: BoxShape.circle,
           ),
-          child: Icon(iconForName(category.icon), size: 18, color: effectiveColor),
+          child: Icon(
+            iconForName(category.icon),
+            size: 18,
+            color: effectiveColor,
+          ),
         ),
         title: Text(
           category.name,
@@ -218,28 +230,28 @@ class _CategoryTile extends StatelessWidget {
                 ),
               )
             : isGreyed
-                ? Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.md,
-                      vertical: AppSpacing.xs,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceMuted,
-                      borderRadius: BorderRadius.circular(AppRadius.pill),
-                    ),
-                    child: const Text(
-                      'Premium',
-                      style: TextStyle(fontSize: 11, color: AppColors.textTertiary),
-                    ),
-                  )
-                : IconButton(
-                    icon: const Icon(
-                      Icons.delete_outline_rounded,
-                      size: 18,
-                      color: AppColors.textTertiary,
-                    ),
-                    onPressed: onDelete,
-                  ),
+            ? Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md,
+                  vertical: AppSpacing.xs,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceMuted,
+                  borderRadius: BorderRadius.circular(AppRadius.pill),
+                ),
+                child: const Text(
+                  'Premium',
+                  style: TextStyle(fontSize: 11, color: AppColors.textTertiary),
+                ),
+              )
+            : IconButton(
+                icon: const Icon(
+                  Icons.delete_outline_rounded,
+                  size: 18,
+                  color: AppColors.textTertiary,
+                ),
+                onPressed: onDelete,
+              ),
       ),
     );
   }
@@ -348,11 +360,14 @@ class _AddCategorySheetState extends ConsumerState<_AddCategorySheet> {
       _error = null;
     });
     try {
-      await supabase.rpc('create_custom_category', params: {
-        'p_name': name,
-        'p_icon': _selectedIcon,
-        'p_color': _selectedColor,
-      });
+      await supabase.rpc(
+        'create_custom_category',
+        params: {
+          'p_name': name,
+          'p_icon': _selectedIcon,
+          'p_color': _selectedColor,
+        },
+      );
       widget.onCreated();
       if (mounted) context.pop();
     } on PostgrestException catch (e) {

@@ -9,6 +9,7 @@ class RecurringSplitBillModel {
     required this.frequency,
     required this.nextRunAt,
     required this.isActive,
+    required this.requiresPremium,
     required this.shares,
     this.categoryId,
     this.accountId,
@@ -22,6 +23,7 @@ class RecurringSplitBillModel {
   final String frequency;   // 'daily' | 'monthly' | 'yearly'
   final DateTime nextRunAt;
   final bool isActive;
+  final bool requiresPremium;
   final List<RecurringSplitBillShareModel> shares;
   final String? categoryId;
   final String? accountId;
@@ -37,6 +39,7 @@ class RecurringSplitBillModel {
       frequency: json['frequency'] as String,
       nextRunAt: DateTime.parse(json['next_run_at'] as String),
       isActive: json['is_active'] as bool,
+      requiresPremium: json['requires_premium'] as bool? ?? false,
       shares: sharesRaw
           .map((s) => RecurringSplitBillShareModel.fromJson(
                 s as Map<String, dynamic>,
@@ -56,6 +59,7 @@ class RecurringSplitBillModel {
         frequency: frequency,
         nextRunAt: nextRunAt,
         isActive: isActive ?? this.isActive,
+        requiresPremium: requiresPremium,
         shares: shares,
         categoryId: categoryId,
         accountId: accountId,

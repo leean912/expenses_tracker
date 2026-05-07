@@ -1,10 +1,14 @@
+import 'package:expenses_tracker_new/modules/auth/providers/states/auth_state.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../modules/auth/providers/auth_provider.dart';
 import '../../modules/expenses/presentation/widgets/add_expense_sheet.dart';
 import '../../modules/home/presentation/widgets/custom_bottom_nav.dart';
+import 'routes.dart';
 
-class AppShell extends StatelessWidget {
+class AppShell extends ConsumerWidget {
   const AppShell({super.key, required this.navigationShell});
 
   final StatefulNavigationShell navigationShell;
@@ -20,7 +24,14 @@ class AppShell extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    ref.listen(authProvider, (prev, next) {
+      next.whenOrNull(
+        unauthenticated: () {
+          if (context.mounted) context.go(loginRoute);
+        },
+      );
+    });
     return Scaffold(
       body: navigationShell,
       bottomNavigationBar: SafeArea(

@@ -8,9 +8,9 @@ import '../../../../../service_locator.dart';
 import '../../../../auth/providers/auth_provider.dart';
 import '../../../../auth/providers/states/auth_state.dart';
 import '../../../../expenses/data/models/account_model.dart';
-import '../../../../subscription/providers/subscription_provider.dart';
 import '../../../../expenses/providers/accounts_provider.dart';
 import '../../../../expenses/utils/expense_ui_helpers.dart';
+import '../../../../subscription/providers/subscription_provider.dart';
 
 class AccountsScreen extends ConsumerWidget {
   const AccountsScreen({super.key});
@@ -52,7 +52,9 @@ class AccountsScreen extends ConsumerWidget {
           ),
         ),
         data: (accounts) {
-          final freeCustomCount = accounts.where((a) => !a.isDefault && !a.requiresPremium).length;
+          final freeCustomCount = accounts
+              .where((a) => !a.isDefault && !a.requiresPremium)
+              .length;
           return Column(
             children: [
               if (!isPremium) ...[
@@ -89,10 +91,16 @@ class AccountsScreen extends ConsumerWidget {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
           final accounts = ref.read(accountsProvider).valueOrNull ?? [];
-          final freeCustomCount = accounts.where((a) => !a.isDefault && !a.requiresPremium).length;
+          final freeCustomCount = accounts
+              .where((a) => !a.isDefault && !a.requiresPremium)
+              .length;
           final isPremiumNow = ref.read(isPremiumProvider);
           final defaultCurrency =
-              ref.read(authProvider).whenOrNull(authenticated: (u) => u)?.defaultCurrency ?? 'MYR';
+              ref
+                  .read(authProvider)
+                  .whenOrNull(authenticated: (u) => u)
+                  ?.defaultCurrency ??
+              'MYR';
 
           if (!isPremiumNow && freeCustomCount >= 5) {
             _showUpgradeSheet(context, 5);
@@ -140,11 +148,11 @@ class AccountsScreen extends ConsumerWidget {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
+            onPressed: () => ctx.pop(false),
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
+            onPressed: () => ctx.pop(true),
             child: const Text(
               'Delete',
               style: TextStyle(color: Color(0xFFE24B4A)),
@@ -173,7 +181,11 @@ class AccountsScreen extends ConsumerWidget {
 // ── Account tile ──────────────────────────────────────────────────────────────
 
 class _AccountTile extends StatelessWidget {
-  const _AccountTile({required this.account, this.isGreyed = false, this.onDelete});
+  const _AccountTile({
+    required this.account,
+    this.isGreyed = false,
+    this.onDelete,
+  });
 
   final AccountModel account;
   final bool isGreyed;
@@ -197,7 +209,11 @@ class _AccountTile extends StatelessWidget {
             color: effectiveColor.withValues(alpha: 0.15),
             shape: BoxShape.circle,
           ),
-          child: Icon(iconForName(account.icon), size: 18, color: effectiveColor),
+          child: Icon(
+            iconForName(account.icon),
+            size: 18,
+            color: effectiveColor,
+          ),
         ),
         title: Text(
           account.name,
@@ -227,28 +243,28 @@ class _AccountTile extends StatelessWidget {
                 ),
               )
             : isGreyed
-                ? Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.md,
-                      vertical: AppSpacing.xs,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceMuted,
-                      borderRadius: BorderRadius.circular(AppRadius.pill),
-                    ),
-                    child: const Text(
-                      'Premium',
-                      style: TextStyle(fontSize: 11, color: AppColors.textTertiary),
-                    ),
-                  )
-                : IconButton(
-                    icon: const Icon(
-                      Icons.delete_outline_rounded,
-                      size: 18,
-                      color: AppColors.textTertiary,
-                    ),
-                    onPressed: onDelete,
-                  ),
+            ? Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md,
+                  vertical: AppSpacing.xs,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceMuted,
+                  borderRadius: BorderRadius.circular(AppRadius.pill),
+                ),
+                child: const Text(
+                  'Premium',
+                  style: TextStyle(fontSize: 11, color: AppColors.textTertiary),
+                ),
+              )
+            : IconButton(
+                icon: const Icon(
+                  Icons.delete_outline_rounded,
+                  size: 18,
+                  color: AppColors.textTertiary,
+                ),
+                onPressed: onDelete,
+              ),
       ),
     );
   }
@@ -372,13 +388,16 @@ class _AddAccountSheetState extends ConsumerState<_AddAccountSheet> {
       _error = null;
     });
     try {
-      await supabase.rpc('create_account', params: {
-        'p_name': name,
-        'p_account_type': _selectedType,
-        'p_icon': _selectedIcon,
-        'p_color': _selectedColor,
-        'p_currency': widget.defaultCurrency,
-      });
+      await supabase.rpc(
+        'create_account',
+        params: {
+          'p_name': name,
+          'p_account_type': _selectedType,
+          'p_icon': _selectedIcon,
+          'p_color': _selectedColor,
+          'p_currency': widget.defaultCurrency,
+        },
+      );
       widget.onCreated();
       if (mounted) context.pop();
     } on PostgrestException catch (e) {

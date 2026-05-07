@@ -79,46 +79,73 @@ class _ExpensesTab extends ConsumerWidget {
       ),
       data: (items) => Stack(
         children: [
-          items.isEmpty
-              ? _EmptyView(
-                  icon: Icons.repeat_rounded,
-                  label: 'No recurring expenses',
-                  hint: 'Tap + to set up a recurring expense.',
-                )
-              : ListView.separated(
-                  padding: const EdgeInsets.only(top: AppSpacing.sm, bottom: 100),
-                  itemCount: items.length,
-                  separatorBuilder: (_, _) =>
-                      const Divider(height: 1, color: AppColors.border),
-                  itemBuilder: (context, i) {
-                    final item = items[i];
-                    return RecurringExpenseTile(
-                      item: item,
-                      onTap: () => context.push(
-                        recurringExpenseFormRoute,
-                        extra: item,
-                      ),
-                      onToggle: (v) => ref
-                          .read(recurringExpensesProvider.notifier)
-                          .toggle(item.id, isActive: v),
-                      onDelete: () => ref
-                          .read(recurringExpensesProvider.notifier)
-                          .delete(item.id),
-                    );
-                  },
+          Column(
+            children: [
+              if (!isPremium) ...[
+                _UsageBanner(
+                  used: items.length,
+                  limit: 3,
+                  label: 'recurring expenses',
                 ),
+                const SizedBox(height: AppSpacing.sm),
+              ],
+              Expanded(
+                child: RefreshIndicator(
+                  color: AppColors.accent,
+                  onRefresh: () => ref.refresh(recurringExpensesProvider.future),
+                  child: items.isEmpty
+                      ? _EmptyView(
+                          icon: Icons.repeat_rounded,
+                          label: 'No recurring expenses',
+                          hint: 'Tap + to set up a recurring expense.',
+                        )
+                      : ListView.separated(
+                          padding: const EdgeInsets.only(top: AppSpacing.sm, bottom: 100),
+                          itemCount: items.length,
+                          separatorBuilder: (_, _) =>
+                              const Divider(height: 1, color: AppColors.border),
+                          itemBuilder: (context, i) {
+                            final item = items[i];
+                            final isLocked = !isPremium && item.requiresPremium;
+                            return RecurringExpenseTile(
+                              item: item,
+                              isLocked: isLocked,
+                              onTap: isLocked
+                                  ? () => UpgradeSheet.show(
+                                        context,
+                                        title: 'Premium recurring expense',
+                                        description:
+                                            'This was created with Premium. Upgrade to unlock it.',
+                                      )
+                                  : () => context.push(
+                                        recurringExpenseFormRoute,
+                                        extra: item,
+                                      ),
+                              onToggle: (v) => ref
+                                  .read(recurringExpensesProvider.notifier)
+                                  .toggle(item.id, isActive: v),
+                              onDelete: () => ref
+                                  .read(recurringExpensesProvider.notifier)
+                                  .delete(item.id),
+                            );
+                          },
+                        ),
+                ),
+              ),
+            ],
+          ),
           Positioned(
             right: AppSpacing.xl,
             bottom: AppSpacing.xl,
             child: FloatingActionButton.extended(
               heroTag: 'add_recurring_expense',
               onPressed: () {
-                if (!isPremium && items.length >= 5) {
+                if (!isPremium && items.length >= 3) {
                   UpgradeSheet.show(
                     context,
                     title: 'Upgrade for unlimited recurring expenses',
                     description:
-                        'Free plan allows up to 5 recurring expenses. Go Premium for unlimited.',
+                        'Free plan allows up to 3 recurring expenses. Go Premium for unlimited.',
                   );
                   return;
                 }
@@ -156,34 +183,61 @@ class _SplitBillsTab extends ConsumerWidget {
       ),
       data: (items) => Stack(
         children: [
-          items.isEmpty
-              ? _EmptyView(
-                  icon: Icons.call_split_rounded,
-                  label: 'No recurring split bills',
-                  hint: 'Tap + to automate a recurring split.',
-                )
-              : ListView.separated(
-                  padding: const EdgeInsets.only(top: AppSpacing.sm, bottom: 100),
-                  itemCount: items.length,
-                  separatorBuilder: (_, _) =>
-                      const Divider(height: 1, color: AppColors.border),
-                  itemBuilder: (context, i) {
-                    final item = items[i];
-                    return RecurringSplitBillTile(
-                      item: item,
-                      onTap: () => context.push(
-                        recurringSplitBillFormRoute,
-                        extra: item,
-                      ),
-                      onToggle: (v) => ref
-                          .read(recurringSplitBillsProvider.notifier)
-                          .toggle(item.id, isActive: v),
-                      onDelete: () => ref
-                          .read(recurringSplitBillsProvider.notifier)
-                          .delete(item.id),
-                    );
-                  },
+          Column(
+            children: [
+              if (!isPremium) ...[
+                _UsageBanner(
+                  used: items.length,
+                  limit: 1,
+                  label: 'recurring split bill',
                 ),
+                const SizedBox(height: AppSpacing.sm),
+              ],
+              Expanded(
+                child: RefreshIndicator(
+                  color: AppColors.accent,
+                  onRefresh: () => ref.refresh(recurringSplitBillsProvider.future),
+                  child: items.isEmpty
+                      ? _EmptyView(
+                          icon: Icons.call_split_rounded,
+                          label: 'No recurring split bills',
+                          hint: 'Tap + to automate a recurring split.',
+                        )
+                      : ListView.separated(
+                          padding: const EdgeInsets.only(top: AppSpacing.sm, bottom: 100),
+                          itemCount: items.length,
+                          separatorBuilder: (_, _) =>
+                              const Divider(height: 1, color: AppColors.border),
+                          itemBuilder: (context, i) {
+                            final item = items[i];
+                            final isLocked = !isPremium && item.requiresPremium;
+                            return RecurringSplitBillTile(
+                              item: item,
+                              isLocked: isLocked,
+                              onTap: isLocked
+                                  ? () => UpgradeSheet.show(
+                                        context,
+                                        title: 'Premium recurring split',
+                                        description:
+                                            'This was created with Premium. Upgrade to unlock it.',
+                                      )
+                                  : () => context.push(
+                                        recurringSplitBillFormRoute,
+                                        extra: item,
+                                      ),
+                              onToggle: (v) => ref
+                                  .read(recurringSplitBillsProvider.notifier)
+                                  .toggle(item.id, isActive: v),
+                              onDelete: () => ref
+                                  .read(recurringSplitBillsProvider.notifier)
+                                  .delete(item.id),
+                            );
+                          },
+                        ),
+                ),
+              ),
+            ],
+          ),
           Positioned(
             right: AppSpacing.xl,
             bottom: AppSpacing.xl,
@@ -210,6 +264,70 @@ class _SplitBillsTab extends ConsumerWidget {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Usage banner ──────────────────────────────────────────────────────────────
+
+class _UsageBanner extends StatelessWidget {
+  const _UsageBanner({
+    required this.used,
+    required this.limit,
+    required this.label,
+  });
+
+  final int used;
+  final int limit;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final remaining = limit - used;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(
+        AppSpacing.xl,
+        AppSpacing.md,
+        AppSpacing.xl,
+        0,
+      ),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.lg,
+        vertical: AppSpacing.md,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceMuted,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.info_outline_rounded,
+            size: 14,
+            color: AppColors.textTertiary,
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Text(
+            '$used / $limit $label',
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const Spacer(),
+          if (remaining <= 1)
+            Text(
+              remaining == 0 ? 'Limit reached' : '1 slot left',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: remaining == 0
+                    ? const Color(0xFFE24B4A)
+                    : AppColors.budgetOverallBar,
+              ),
+            ),
         ],
       ),
     );

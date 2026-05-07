@@ -181,10 +181,10 @@ class _RecurringSplitBillFormScreenState
             ),
             actions: [
               TextButton(
-                  onPressed: () => Navigator.of(ctx).pop(),
+                  onPressed: () => ctx.pop(),
                   child: const Text('Cancel')),
               FilledButton(
-                onPressed: () => Navigator.of(ctx).pop(localSelected),
+                onPressed: () => ctx.pop(localSelected),
                 style: FilledButton.styleFrom(
                     backgroundColor: AppColors.accent,
                     foregroundColor: AppColors.accentText),

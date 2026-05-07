@@ -16,6 +16,8 @@
 | Categories | 11 default + 5 custom = **16 total** | Unlimited |
 | Accounts | 2 default + **5 custom** = 7 total | Unlimited |
 | Groups | **2** | Unlimited |
+| Recurring expenses | **3** | Unlimited |
+| Recurring split bills | **1** | Unlimited |
 | Collabs | Unlimited | Unlimited |
 | Contacts | Unlimited | Unlimited |
 | Expenses | Unlimited | Unlimited |

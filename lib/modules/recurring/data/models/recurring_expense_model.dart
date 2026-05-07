@@ -7,6 +7,7 @@ class RecurringExpenseModel {
     required this.frequency,
     required this.nextRunAt,
     required this.isActive,
+    required this.requiresPremium,
     this.categoryId,
     this.accountId,
     this.note,
@@ -19,6 +20,7 @@ class RecurringExpenseModel {
   final String frequency;  // 'daily' | 'monthly' | 'yearly'
   final DateTime nextRunAt;
   final bool isActive;
+  final bool requiresPremium;
   final String? categoryId;
   final String? accountId;
   final String? note;
@@ -32,6 +34,7 @@ class RecurringExpenseModel {
         frequency: json['frequency'] as String,
         nextRunAt: DateTime.parse(json['next_run_at'] as String),
         isActive: json['is_active'] as bool,
+        requiresPremium: json['requires_premium'] as bool? ?? false,
         categoryId: json['category_id'] as String?,
         accountId: json['account_id'] as String?,
         note: json['note'] as String?,
@@ -48,6 +51,7 @@ class RecurringExpenseModel {
         frequency: frequency,
         nextRunAt: nextRunAt,
         isActive: isActive ?? this.isActive,
+        requiresPremium: requiresPremium,
         categoryId: categoryId,
         accountId: accountId,
         note: note,
