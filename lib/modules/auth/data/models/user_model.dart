@@ -16,6 +16,8 @@ abstract class UserModel with _$UserModel {
     @Default('free')
     String subscriptionTier,
     @JsonKey(name: 'subscription_expires_at') DateTime? subscriptionExpiresAt,
+    @JsonKey(name: 'referral_code') String? referralCode,
+    @JsonKey(name: 'referral_premium_expires_at') DateTime? referralPremiumExpiresAt,
     @JsonKey(name: 'created_at') DateTime? createdAt,
     @JsonKey(name: 'updated_at') DateTime? updatedAt,
     @JsonKey(name: 'deleted_at') DateTime? deletedAt,

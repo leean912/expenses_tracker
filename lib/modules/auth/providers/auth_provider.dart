@@ -150,7 +150,7 @@ class AuthNotifier extends Notifier<AppAuthState> {
     state = const AppAuthState.loading();
 
     await supabase.auth.signOut();
-    await GoogleSignIn.instance.disconnect();
+    // await GoogleSignIn.instance.disconnect();
     unawaited(paymentService.logout());
 
     state = const AppAuthState.unauthenticated();

@@ -53,6 +53,32 @@ class MoreScreen extends ConsumerWidget {
             ),
             const Divider(height: 1, color: AppColors.border),
             const SizedBox(height: AppSpacing.xl),
+            const _SectionHeader('Referral'),
+            ListTile(
+              leading: const Icon(
+                Icons.card_giftcard_rounded,
+                color: AppColors.textSecondary,
+              ),
+              title: const Text(
+                'Refer & Earn',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              subtitle: const Text(
+                'Earn 3 free days per friend you refer',
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              ),
+              trailing: const Icon(
+                Icons.chevron_right_rounded,
+                color: AppColors.textTertiary,
+              ),
+              onTap: () => context.push(referralRoute),
+            ),
+            const Divider(height: 1, color: AppColors.border),
+            const SizedBox(height: AppSpacing.xl),
             const _SectionHeader('Settings'),
             ListTile(
               leading: const Icon(

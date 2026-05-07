@@ -86,11 +86,7 @@ class RecurringExpenseTile extends StatelessWidget {
                     color: color.withValues(alpha: 0.12),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(
-                    Icons.repeat_rounded,
-                    size: 20,
-                    color: color,
-                  ),
+                  child: Icon(Icons.repeat_rounded, size: 20, color: color),
                 ),
                 const SizedBox(width: AppSpacing.lg),
                 Expanded(
@@ -116,7 +112,9 @@ class RecurringExpenseTile extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
-                              color: item.isActive ? color : AppColors.textTertiary,
+                              color: item.isActive
+                                  ? color
+                                  : AppColors.textTertiary,
                             ),
                           ),
                         ],
@@ -151,7 +149,10 @@ class RecurringExpenseTile extends StatelessWidget {
                     ),
                     child: const Text(
                       'Premium',
-                      style: TextStyle(fontSize: 11, color: AppColors.textTertiary),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppColors.textTertiary,
+                      ),
                     ),
                   )
                 else
@@ -176,7 +177,10 @@ class _FreqBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 2),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: 2,
+      ),
       decoration: BoxDecoration(
         color: AppColors.surfaceMuted,
         borderRadius: BorderRadius.circular(AppRadius.pill),

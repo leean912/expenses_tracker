@@ -12,8 +12,9 @@ Supabase (`profiles.subscription_tier`) is kept in sync via a webhook for **serv
 
 ```
 User purchases → RevenueCat → isPremiumProvider (Flutter)
-                           ↓
-                     RC Webhook → Supabase Edge Function → profiles.subscription_tier
+
+profiles.subscription_tier is kept in sync via pg_cron (process_subscription_expirations),
+NOT via RC webhook. The webhook approach is documented below but is not implemented.
 ```
 
 ---
@@ -120,20 +121,13 @@ context.push(paywallRoute);
 
 ---
 
-## Supabase Sync via Webhook
+## Supabase Sync
 
-The `profiles.subscription_tier` column must be kept in sync so Supabase RPCs can enforce freemium limits server-side.
+**Current implementation:** `profiles.subscription_tier` is kept in sync by the `process_subscription_expirations()` pg_cron job (runs daily at 16:00 UTC / 00:00 MYT). It downgrades expired premium users to free and deactivates premium-only recurring items. See `docs/recurring_migration.sql`.
 
-### Setup
+**RC webhook is NOT implemented.** The scaffold below is kept for reference in case a webhook is added later.
 
-1. Create a Supabase Edge Function at `supabase/functions/revenuecat-webhook/index.ts`
-2. In the RC Dashboard → **Settings → Integrations → Webhooks** → add the Edge Function URL:
-   ```
-   https://<project-ref>.supabase.co/functions/v1/revenuecat-webhook
-   ```
-3. Set a shared secret in the RC webhook config; verify it in the Edge Function
-
-### Edge Function (scaffold)
+### Edge Function scaffold (not deployed)
 
 ```typescript
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -229,6 +223,6 @@ Before going to production:
 - [ ] Create **Products** (monthly, annual, lifetime) and attach to the entitlement
 - [ ] Create an **Offering** with the products as packages
 - [ ] Replace test API keys with production keys
-- [ ] Configure **Webhook** URL pointing to the Supabase Edge Function
-- [ ] Set and store the **Webhook shared secret** in Supabase secrets (`REVENUECAT_WEBHOOK_SECRET`)
+- [ ] Configure **Webhook** URL pointing to the Supabase Edge Function *(optional — not currently used; sync is via pg_cron)*
+- [ ] Set and store the **Webhook shared secret** in Supabase secrets (`REVENUECAT_WEBHOOK_SECRET`) *(only if webhook is enabled)*
 - [ ] Test the full purchase → webhook → profile update flow in sandbox

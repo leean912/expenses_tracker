@@ -17,6 +17,10 @@ _UserModel _$UserModelFromJson(Map<String, dynamic> json) => _UserModel(
   subscriptionExpiresAt: json['subscription_expires_at'] == null
       ? null
       : DateTime.parse(json['subscription_expires_at'] as String),
+  referralCode: json['referral_code'] as String?,
+  referralPremiumExpiresAt: json['referral_premium_expires_at'] == null
+      ? null
+      : DateTime.parse(json['referral_premium_expires_at'] as String),
   createdAt: json['created_at'] == null
       ? null
       : DateTime.parse(json['created_at'] as String),
@@ -39,6 +43,9 @@ Map<String, dynamic> _$UserModelToJson(
   'default_currency': instance.defaultCurrency,
   'subscription_tier': instance.subscriptionTier,
   'subscription_expires_at': instance.subscriptionExpiresAt?.toIso8601String(),
+  'referral_code': instance.referralCode,
+  'referral_premium_expires_at': instance.referralPremiumExpiresAt
+      ?.toIso8601String(),
   'created_at': instance.createdAt?.toIso8601String(),
   'updated_at': instance.updatedAt?.toIso8601String(),
   'deleted_at': instance.deletedAt?.toIso8601String(),

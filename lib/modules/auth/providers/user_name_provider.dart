@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import '../../../service_locator.dart';
 import 'auth_provider.dart';
 
@@ -32,14 +31,13 @@ class UserNameState {
 class UserNameNotifier extends Notifier<UserNameState> {
   Timer? _debounce;
 
+  static final _validUsernamePattern = RegExp(r'^[a-z0-9_]{3,20}$');
+
   @override
   UserNameState build() {
     ref.onDispose(() => _debounce?.cancel());
     return const UserNameState();
   }
-
-  // 3–20 chars, lowercase alphanumeric + underscore, any starting char.
-  static final _validPattern = RegExp(r'^[a-z0-9_]{3,20}$');
 
   void onUsernameChanged(String value) {
     _debounce?.cancel();
@@ -49,13 +47,12 @@ class UserNameNotifier extends Notifier<UserNameState> {
       return;
     }
 
-    if (!_validPattern.hasMatch(value)) {
+    if (!_validUsernamePattern.hasMatch(value)) {
       state = state.copyWith(availability: UsernameAvailability.invalid);
       return;
     }
 
     state = state.copyWith(availability: UsernameAvailability.checking);
-
     _debounce = Timer(const Duration(milliseconds: 500), () => _check(value));
   }
 
@@ -78,14 +75,21 @@ class UserNameNotifier extends Notifier<UserNameState> {
     }
   }
 
-  Future<bool> submit(String username) async {
+  bool get canSubmit {
     if (state.availability != UsernameAvailability.available) return false;
+    if (state.isSubmitting) return false;
+    return true;
+  }
+
+  Future<bool> submit(String username) async {
+    if (!canSubmit) return false;
 
     state = state.copyWith(isSubmitting: true, error: null);
 
     try {
       await supabase.rpc('set_username', params: {'p_username': username});
       ref.invalidate(authProvider);
+      state = state.copyWith(isSubmitting: false);
       return true;
     } catch (e) {
       state = state.copyWith(

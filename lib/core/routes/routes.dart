@@ -17,3 +17,5 @@ const String paywallRoute = '/paywall';
 const String recurringRoute = '/recurring';
 const String recurringExpenseFormRoute = '/recurring/expense/form';
 const String recurringSplitBillFormRoute = '/recurring/split-bill/form';
+const String referralRoute = '/referral';
+const String referralOnboardingRoute = '/referral-onboarding';

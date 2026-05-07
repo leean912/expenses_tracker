@@ -14,11 +14,11 @@ class UserNameScreen extends ConsumerStatefulWidget {
 }
 
 class _UserNameScreenState extends ConsumerState<UserNameScreen> {
-  final _controller = TextEditingController();
+  final _usernameController = TextEditingController();
 
   @override
   void dispose() {
-    _controller.dispose();
+    _usernameController.dispose();
     super.dispose();
   }
 
@@ -52,7 +52,7 @@ class _UserNameScreenState extends ConsumerState<UserNameScreen> {
               ),
               const SizedBox(height: 40),
               _UsernameField(
-                controller: _controller,
+                controller: _usernameController,
                 state: state,
                 onChanged: notifier.onUsernameChanged,
               ),
@@ -62,19 +62,21 @@ class _UserNameScreenState extends ConsumerState<UserNameScreen> {
                 const SizedBox(height: 8),
                 Text(
                   state.error!,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.red,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: Colors.red),
                 ),
               ],
               const Spacer(),
               _SubmitButton(
                 state: state,
+                notifier: notifier,
                 onPressed: () async {
-                  final ok = await notifier.submit(_controller.text.trim());
-                  if (ok && context.mounted) {
-                    context.pushReplacement(homeRoute);
-                  }
+                  final ok = await notifier.submit(
+                    _usernameController.text.trim(),
+                  );
+                  if (!context.mounted) return;
+                  if (ok) context.pushReplacement(referralOnboardingRoute);
                 },
               ),
             ],
@@ -131,7 +133,10 @@ class _UsernameField extends StatelessWidget {
             : null,
         filled: true,
         fillColor: AppColors.surface,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadius.md),
           borderSide: BorderSide(color: _borderColor),
@@ -157,12 +162,15 @@ class _FeedbackText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (text, color) = switch (state.availability) {
-      UsernameAvailability.available => ('Username is available', const Color(0xFF3B6D11)),
+      UsernameAvailability.available => (
+        'Username is available',
+        const Color(0xFF3B6D11),
+      ),
       UsernameAvailability.taken => ('Username is already taken', Colors.red),
       UsernameAvailability.invalid => (
-          '3–20 chars, lowercase letters, numbers, underscores only',
-          Colors.red,
-        ),
+        '3–20 chars, lowercase letters, numbers, underscores only',
+        Colors.red,
+      ),
       _ => ('', AppColors.textTertiary),
     };
 
@@ -176,13 +184,15 @@ class _FeedbackText extends StatelessWidget {
 }
 
 class _SubmitButton extends StatelessWidget {
-  const _SubmitButton({required this.state, required this.onPressed});
+  const _SubmitButton({
+    required this.state,
+    required this.notifier,
+    required this.onPressed,
+  });
 
   final UserNameState state;
+  final UserNameNotifier notifier;
   final VoidCallback onPressed;
-
-  bool get _enabled =>
-      state.availability == UsernameAvailability.available && !state.isSubmitting;
 
   @override
   Widget build(BuildContext context) {
@@ -190,7 +200,7 @@ class _SubmitButton extends StatelessWidget {
       width: double.infinity,
       height: 52,
       child: FilledButton(
-        onPressed: _enabled ? onPressed : null,
+        onPressed: notifier.canSubmit ? onPressed : null,
         style: FilledButton.styleFrom(
           backgroundColor: AppColors.accent,
           disabledBackgroundColor: AppColors.surfaceMuted,

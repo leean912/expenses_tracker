@@ -23,6 +23,8 @@ import '../../modules/recurring/presentation/screens/recurring_expense_form_scre
 import '../../modules/recurring/presentation/screens/recurring_list_screen.dart';
 import '../../modules/recurring/presentation/screens/recurring_split_bill_form_screen.dart';
 import '../../modules/subscription/presentation/screens/paywall_screen.dart';
+import '../../modules/referral/presentation/screens/referral_screen.dart';
+import '../../modules/auth/presentation/screens/referral_onboarding_screen.dart';
 import 'app_shell.dart';
 
 final router = GoRouter(
@@ -66,6 +68,14 @@ final router = GoRouter(
     GoRoute(
       path: recurringRoute,
       builder: (context, state) => const RecurringListScreen(),
+    ),
+    GoRoute(
+      path: referralRoute,
+      builder: (context, state) => const ReferralScreen(),
+    ),
+    GoRoute(
+      path: referralOnboardingRoute,
+      builder: (context, state) => const ReferralOnboardingScreen(),
     ),
     GoRoute(
       path: recurringExpenseFormRoute,
