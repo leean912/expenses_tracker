@@ -22,6 +22,7 @@ final referralStatsProvider = FutureProvider.autoDispose<ReferralStats>((ref) as
     referralCode: data['referral_code'] as String,
     totalReferrals: data['total_referrals'] as int,
     hasUsedReferral: usedRow != null,
+    referralsUntilNext: data['referrals_until_next'] as int,
     bonusExpiresAt: data['bonus_expires_at'] != null
         ? DateTime.parse(data['bonus_expires_at'] as String)
         : null,

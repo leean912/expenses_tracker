@@ -568,8 +568,10 @@ end; $$;
 
 -- ═══════════════════════════════════════════════════════════════════
 -- 9. SUBSCRIPTION EXPIRY HANDLER
--- Runs before the recurring cron. Downgrades expired premium users
--- and deactivates items flagged requires_premium = true:
+-- Runs before the recurring cron. Handles expired premium users:
+--   • If referral_premium_expires_at is still active → transition to referral premium
+--   • Otherwise → downgrade to free
+-- Then deactivates premium-only recurring items for all free users:
 --   • recurring_expenses:    deactivate where requires_premium = true
 --   • recurring_split_bills: deactivate where requires_premium = true
 -- The app detects the tier change on next launch and shows a notice.
@@ -580,22 +582,34 @@ returns jsonb language plpgsql security definer as $$
 declare
   v_user            record;
   v_downgraded      integer := 0;
+  v_referral_kept   integer := 0;
   v_deactivated_re  integer := 0;
   v_deactivated_rsb integer := 0;
   v_rows            integer;
 begin
-  -- Step 1: Downgrade expired premium users
+  -- Step 1: Handle expired premium users
   for v_user in
-    select id from profiles
+    select id, referral_premium_expires_at
+    from profiles
     where subscription_tier = 'premium'
       and subscription_expires_at is not null
       and subscription_expires_at < now()
   loop
-    update profiles
-    set subscription_tier = 'free'
-    where id = v_user.id;
-
-    v_downgraded := v_downgraded + 1;
+    if v_user.referral_premium_expires_at is not null
+       and v_user.referral_premium_expires_at > now() then
+      -- Paid sub expired but referral premium is still active: transition to referral premium
+      update profiles
+      set subscription_expires_at = v_user.referral_premium_expires_at
+      where id = v_user.id;
+      v_referral_kept := v_referral_kept + 1;
+    else
+      -- No active referral premium: downgrade to free
+      update profiles
+      set subscription_tier = 'free',
+          subscription_expires_at = null
+      where id = v_user.id;
+      v_downgraded := v_downgraded + 1;
+    end if;
   end loop;
 
   -- Step 2: Deactivate premium items for ALL free users
@@ -623,6 +637,7 @@ begin
   return jsonb_build_object(
     'ran_at',                    now(),
     'users_downgraded',          v_downgraded,
+    'referral_premium_kept',     v_referral_kept,
     'recurring_expenses_paused', v_deactivated_re,
     'recurring_splits_paused',   v_deactivated_rsb
   );

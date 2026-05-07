@@ -68,7 +68,7 @@ class MoreScreen extends ConsumerWidget {
                 ),
               ),
               subtitle: const Text(
-                'Earn 3 free days per friend you refer',
+                'Refer 5 friends, earn 7 free premium days',
                 style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
               ),
               trailing: const Icon(

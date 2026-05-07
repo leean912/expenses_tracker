@@ -3,8 +3,8 @@
 -- Run in Supabase SQL editor after the main schema is deployed.
 --
 -- Design: referral_premium_expires_at in profiles IS the "bank".
--- Each new referral pushes the date forward by 3 days from the
--- later of (paid subscription expiry, current referral expiry, now).
+-- Milestone model: every 5th referral awards the referrer 7 premium days.
+-- Days stack from the later of (paid sub expiry, current referral expiry, now).
 -- No RevenueCat promotional API needed — Flutter reads
 -- referral_premium_expires_at directly from the profile.
 -- ═══════════════════════════════════════════════════════════════════
@@ -64,7 +64,7 @@ create table referrals (
   id           uuid primary key default gen_random_uuid(),
   referrer_id  uuid not null references profiles(id) on delete cascade,
   referee_id   uuid not null references profiles(id) on delete cascade,
-  bonus_days   int not null default 3,
+  bonus_days   int not null default 0,  -- 0 for non-milestone rows, 7 on every 5th referral
   granted_at   timestamptz not null default now(),
   unique(referee_id)
 );
@@ -80,10 +80,10 @@ create policy "referrals_select_own" on referrals for select
 -- ═══════════════════════════════════════════════════════════════════
 -- 4. apply_referral_code RPC
 -- Called once during onboarding by the new user (referee).
--- Pushes referral_premium_expires_at forward on the referrer by 3 days
--- from the latest of: their paid sub expiry, existing referral expiry, now.
--- For free referrers: immediately activates premium in profiles.
--- For paid referrers: referral premium will activate after paid sub ends.
+-- Milestone model: every 5th referral awards the referrer 7 premium days.
+-- Non-milestone referrals are recorded but grant no days.
+-- For free referrers hitting a milestone: activates premium immediately.
+-- For paid referrers: referral premium stacks after paid sub ends.
 -- ═══════════════════════════════════════════════════════════════════
 
 create or replace function apply_referral_code(p_code text)
@@ -92,6 +92,8 @@ declare
   v_referee_id   uuid := auth.uid();
   v_referrer_id  uuid;
   v_clean_code   text := upper(trim(p_code));
+  v_new_count    int;
+  v_bonus_days   int := 0;
   v_new_expiry   timestamptz;
 begin
   if v_referee_id is null then
@@ -121,30 +123,44 @@ begin
       using errcode = 'P0001', hint = 'already_used';
   end if;
 
+  -- Count referrals after this one to detect milestone (every 5th)
+  select count(*) + 1 into v_new_count
+  from referrals where referrer_id = v_referrer_id;
+
+  if v_new_count % 5 = 0 then
+    v_bonus_days := 7;
+  end if;
+
   insert into referrals (referrer_id, referee_id, bonus_days)
-  values (v_referrer_id, v_referee_id, 3);
+  values (v_referrer_id, v_referee_id, v_bonus_days);
 
-  -- New expiry = max(paid sub expiry, current referral expiry, now) + 3 days
-  select greatest(
-    coalesce(subscription_expires_at, now()),
-    coalesce(referral_premium_expires_at, now())
-  ) + interval '3 days'
-  into v_new_expiry
-  from profiles where id = v_referrer_id;
+  -- Only update premium expiry on milestone referrals
+  if v_bonus_days > 0 then
+    -- New expiry = max(paid sub expiry, current referral expiry, now) + 7 days
+    select greatest(
+      coalesce(subscription_expires_at, now()),
+      coalesce(referral_premium_expires_at, now())
+    ) + interval '7 days'
+    into v_new_expiry
+    from profiles where id = v_referrer_id;
 
-  -- Always update referral_premium_expires_at
-  update profiles
-  set referral_premium_expires_at = v_new_expiry
-  where id = v_referrer_id;
+    update profiles
+    set referral_premium_expires_at = v_new_expiry
+    where id = v_referrer_id;
 
-  -- For free referrers: activate premium immediately in profiles
-  update profiles
-  set subscription_tier       = 'premium',
-      subscription_expires_at = v_new_expiry
-  where id = v_referrer_id
-    and subscription_tier = 'free';
+    -- For free referrers: activate premium immediately
+    update profiles
+    set subscription_tier       = 'premium',
+        subscription_expires_at = v_new_expiry
+    where id = v_referrer_id
+      and subscription_tier = 'free';
+  end if;
 
-  return jsonb_build_object('referrer_id', v_referrer_id, 'bonus_days', 3);
+  return jsonb_build_object(
+    'referrer_id', v_referrer_id,
+    'bonus_days',  v_bonus_days,
+    'new_count',   v_new_count
+  );
 end;
 $$;
 
@@ -173,9 +189,10 @@ begin
   from referrals where referrer_id = v_user_id;
 
   return jsonb_build_object(
-    'referral_code',    v_code,
-    'total_referrals',  v_count,
-    'bonus_expires_at', v_expires_at
+    'referral_code',        v_code,
+    'total_referrals',      v_count,
+    'bonus_expires_at',     v_expires_at,
+    'referrals_until_next', 5 - (v_count % 5)
   );
 end;
 $$;

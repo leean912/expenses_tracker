@@ -26,15 +26,17 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
   bool _isPurchasing = false;
 
   static const _features = [
+    (Icons.block_rounded, 'Remove all ads'),
     (Icons.all_inclusive_rounded, 'Unlimited categories'),
     (Icons.account_balance_wallet_rounded, 'Unlimited accounts'),
     (Icons.group_rounded, 'Unlimited groups'),
-    (Icons.document_scanner_rounded, 'Receipt OCR scanning'),
-    (Icons.currency_exchange_rounded, 'Live FX rates'),
-    (Icons.download_rounded, 'Data export (CSV & PDF)'),
     (Icons.repeat_rounded, 'Unlimited recurring expenses'),
     (Icons.repeat_one_rounded, 'Unlimited recurring split bills'),
+    (Icons.tune_rounded, 'Year & custom filters in analysis'),
+    (Icons.download_rounded, 'Data export (CSV & PDF)'),
     (Icons.photo_camera_rounded, 'Receipt photo storage'),
+    // (Icons.document_scanner_rounded, 'Receipt OCR scanning'),
+    // (Icons.currency_exchange_rounded, 'Live FX rates'),
   ];
 
   void _onOfferingsLoaded(Offerings offerings) {

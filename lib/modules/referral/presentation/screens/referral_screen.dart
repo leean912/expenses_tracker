@@ -209,6 +209,32 @@ class _StatsCard extends StatelessWidget {
               ),
             ],
           ),
+          const SizedBox(height: 16),
+          const Divider(height: 1, color: AppColors.border),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '${stats.progressInCurrentMilestone}/5 towards next 7 days',
+                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              ),
+              Text(
+                '${stats.referralsUntilNext} more to go',
+                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: stats.progressInCurrentMilestone / 5,
+              minHeight: 6,
+              backgroundColor: AppColors.border,
+              valueColor: AlwaysStoppedAnimation<Color>(AppColors.accent),
+            ),
+          ),
           if (hasBonusActive) ...[
             const SizedBox(height: 12),
             const Divider(height: 1, color: AppColors.border),
@@ -446,8 +472,8 @@ class _HowItWorksCard extends StatelessWidget {
     const steps = [
       (Icons.share_rounded, 'Share your code with friends'),
       (Icons.person_add_rounded, 'They enter it when signing up'),
-      (Icons.workspace_premium_rounded, 'You earn 3 free premium days per friend'),
-      (Icons.add_rounded, 'Days stack — refer 10 friends, get 30 days free!'),
+      (Icons.workspace_premium_rounded, 'Every 5 referrals earns you 7 free premium days'),
+      (Icons.all_inclusive_rounded, 'No cap — every 5 referrals keeps adding 7 more days'),
     ];
 
     return Container(
