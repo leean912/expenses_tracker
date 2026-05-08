@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,8 +6,11 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/routes/routes.dart';
+import '../../../../core/services/receipt_upload_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/amount_input_formatter.dart';
+import '../../../../core/widgets/receipt_viewer.dart';
+import '../../../../core/widgets/upgrade_sheet.dart';
 import '../../../../service_locator.dart';
 import '../../../expenses/data/models/account_model.dart';
 import '../../../expenses/data/models/category_model.dart';
@@ -15,6 +19,7 @@ import '../../../expenses/providers/categories_provider.dart';
 import '../../../expenses/utils/expense_ui_helpers.dart';
 import '../../../home/providers/home/home_provider.dart';
 import '../../../split_bills/providers/split_bills_provider.dart';
+import '../../../subscription/providers/subscription_provider.dart';
 import '../../data/models/collab_model.dart';
 import '../../providers/collab_expenses_provider.dart';
 
@@ -45,6 +50,12 @@ class _CollabExpenseSheetState extends ConsumerState<CollabExpenseSheet>
   DateTime _date = DateTime.now();
   bool _expenseLoading = false;
   String? _expenseError;
+
+  // ── Receipt state ──────────────────────────────────────────────────────────
+  String? _expenseReceiptUrl;
+  bool _expenseReceiptUploading = false;
+  String? _splitReceiptUrl;
+  bool _splitReceiptUploading = false;
 
   // ── Split bill tab state ───────────────────────────────────────────────────
   final _splitAmountController = TextEditingController();
@@ -113,6 +124,66 @@ class _CollabExpenseSheetState extends ConsumerState<CollabExpenseSheet>
       p.controller.dispose();
     }
     super.dispose();
+  }
+
+  // ── Receipt actions ───────────────────────────────────────────────────────
+
+  Future<void> _pickExpenseReceipt() async {
+    if (!ref.read(isPremiumProvider)) {
+      UpgradeSheet.show(
+        context,
+        title: 'Receipt photos',
+        description: 'Attach receipt photos to your expenses with Premium.',
+      );
+      return;
+    }
+    setState(() => _expenseReceiptUploading = true);
+    final url = await ReceiptUploadService.pickAndUpload(
+      context,
+      supabase.auth.currentUser!.id,
+    );
+    if (mounted) {
+      setState(() {
+        if (url != null) _expenseReceiptUrl = url;
+        _expenseReceiptUploading = false;
+      });
+    }
+  }
+
+  Future<void> _deleteExpenseReceipt() async {
+    final url = _expenseReceiptUrl;
+    if (url == null) return;
+    setState(() => _expenseReceiptUrl = null);
+    await ReceiptUploadService.deleteByUrl(url);
+  }
+
+  Future<void> _pickSplitReceipt() async {
+    if (!ref.read(isPremiumProvider)) {
+      UpgradeSheet.show(
+        context,
+        title: 'Receipt photos',
+        description: 'Attach receipt photos to your split bills with Premium.',
+      );
+      return;
+    }
+    setState(() => _splitReceiptUploading = true);
+    final url = await ReceiptUploadService.pickAndUpload(
+      context,
+      supabase.auth.currentUser!.id,
+    );
+    if (mounted) {
+      setState(() {
+        if (url != null) _splitReceiptUrl = url;
+        _splitReceiptUploading = false;
+      });
+    }
+  }
+
+  Future<void> _deleteSplitReceipt() async {
+    final url = _splitReceiptUrl;
+    if (url == null) return;
+    setState(() => _splitReceiptUrl = null);
+    await ReceiptUploadService.deleteByUrl(url);
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -254,6 +325,7 @@ class _CollabExpenseSheetState extends ConsumerState<CollabExpenseSheet>
       if (_accountId != null) payload['account_id'] = _accountId;
       final note = _noteController.text.trim();
       if (note.isNotEmpty) payload['note'] = note;
+      if (_expenseReceiptUrl != null) payload['receipt_url'] = _expenseReceiptUrl;
 
       await supabase.from('expenses').insert(payload);
 
@@ -319,7 +391,7 @@ class _CollabExpenseSheetState extends ConsumerState<CollabExpenseSheet>
           'p_place_name': null,
           'p_latitude': null,
           'p_longitude': null,
-          'p_receipt_url': null,
+          'p_receipt_url': _splitReceiptUrl,
           'p_shares': shares,
           'p_home_amount_cents': homeAmountCents,
           'p_home_currency': collab.homeCurrency,
@@ -466,10 +538,14 @@ class _CollabExpenseSheetState extends ConsumerState<CollabExpenseSheet>
                       error: _expenseError,
                       categoriesAsync: categoriesAsync,
                       accountsAsync: accountsAsync,
+                      receiptUrl: _expenseReceiptUrl,
+                      receiptUploading: _expenseReceiptUploading,
                       onCategorySelect: (id) =>
                           setState(() => _categoryId = id),
                       onAccountSelect: (id) => setState(() => _accountId = id),
                       onDateTap: () => _pickDate(isSplit: false),
+                      onAddReceipt: _pickExpenseReceipt,
+                      onDeleteReceipt: _deleteExpenseReceipt,
                     ),
                     _SplitBillForm(
                       collab: collab,
@@ -496,6 +572,10 @@ class _CollabExpenseSheetState extends ConsumerState<CollabExpenseSheet>
                         if (v) _applyEqualSplit();
                       },
                       onRemoveParticipant: _removeParticipant,
+                      receiptUrl: _splitReceiptUrl,
+                      receiptUploading: _splitReceiptUploading,
+                      onAddReceipt: _pickSplitReceipt,
+                      onDeleteReceipt: _deleteSplitReceipt,
                     ),
                   ],
                 ),
@@ -592,6 +672,10 @@ class _ExpenseForm extends StatelessWidget {
     required this.onCategorySelect,
     required this.onAccountSelect,
     required this.onDateTap,
+    required this.onAddReceipt,
+    required this.onDeleteReceipt,
+    this.receiptUrl,
+    this.receiptUploading = false,
   });
 
   final CollabModel collab;
@@ -604,9 +688,13 @@ class _ExpenseForm extends StatelessWidget {
   final String? error;
   final AsyncValue<List<CategoryModel>> categoriesAsync;
   final AsyncValue<List<AccountModel>> accountsAsync;
+  final String? receiptUrl;
+  final bool receiptUploading;
   final ValueChanged<String?> onCategorySelect;
   final ValueChanged<String?> onAccountSelect;
   final VoidCallback onDateTap;
+  final VoidCallback onAddReceipt;
+  final VoidCallback onDeleteReceipt;
 
   String _formatDate(DateTime d) {
     final now = DateTime.now();
@@ -708,6 +796,16 @@ class _ExpenseForm extends StatelessWidget {
               decoration: _rateDecoration,
             ),
           ],
+
+          const SizedBox(height: AppSpacing.xxl),
+
+          // Receipt
+          _ReceiptRow(
+            receiptUrl: receiptUrl,
+            isUploading: receiptUploading,
+            onAdd: onAddReceipt,
+            onDelete: onDeleteReceipt,
+          ),
 
           const SizedBox(height: AppSpacing.xxl),
 
@@ -862,6 +960,10 @@ class _SplitBillForm extends StatelessWidget {
     required this.onDateTap,
     required this.onEqualSplitToggle,
     required this.onRemoveParticipant,
+    required this.onAddReceipt,
+    required this.onDeleteReceipt,
+    this.receiptUrl,
+    this.receiptUploading = false,
   });
 
   final CollabModel collab;
@@ -878,11 +980,15 @@ class _SplitBillForm extends StatelessWidget {
   final String? error;
   final AsyncValue<List<CategoryModel>> categoriesAsync;
   final AsyncValue<List<AccountModel>> accountsAsync;
+  final String? receiptUrl;
+  final bool receiptUploading;
   final ValueChanged<String?> onCategorySelect;
   final ValueChanged<String?> onAccountSelect;
   final VoidCallback onDateTap;
   final ValueChanged<bool> onEqualSplitToggle;
   final ValueChanged<int> onRemoveParticipant;
+  final VoidCallback onAddReceipt;
+  final VoidCallback onDeleteReceipt;
 
   String _formatDate(DateTime d) {
     final now = DateTime.now();
@@ -1001,6 +1107,16 @@ class _SplitBillForm extends StatelessWidget {
               ),
             ],
           ],
+
+          const SizedBox(height: AppSpacing.xxl),
+
+          // Receipt
+          _ReceiptRow(
+            receiptUrl: receiptUrl,
+            isUploading: receiptUploading,
+            onAdd: onAddReceipt,
+            onDelete: onDeleteReceipt,
+          ),
 
           const SizedBox(height: AppSpacing.xxl),
 
@@ -1205,6 +1321,118 @@ class _SplitBillForm extends StatelessWidget {
           const SizedBox(height: AppSpacing.xxl),
         ],
       ),
+    );
+  }
+}
+
+// ── Receipt row ───────────────────────────────────────────────────────────────
+
+class _ReceiptRow extends StatelessWidget {
+  const _ReceiptRow({
+    required this.receiptUrl,
+    required this.isUploading,
+    required this.onAdd,
+    required this.onDelete,
+  });
+
+  final String? receiptUrl;
+  final bool isUploading;
+  final VoidCallback onAdd;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _SectionLabel('Receipt'),
+        const SizedBox(height: AppSpacing.md),
+        if (isUploading)
+          Container(
+            height: 80,
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(AppRadius.lg),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: const Center(
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: AppColors.textTertiary,
+                ),
+              ),
+            ),
+          )
+        else if (receiptUrl == null)
+          GestureDetector(
+            onTap: onAdd,
+            child: Container(
+              height: 80,
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(AppRadius.lg),
+                border: Border.all(color: AppColors.borderDashed, width: 1.5),
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.receipt_long_rounded,
+                    size: 18,
+                    color: AppColors.textTertiary,
+                  ),
+                  SizedBox(width: AppSpacing.sm),
+                  Text(
+                    'Add receipt',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else
+          Stack(
+            children: [
+              GestureDetector(
+                onTap: () => showReceiptViewer(context, receiptUrl!),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(AppRadius.lg),
+                  child: CachedNetworkImage(
+                    imageUrl: receiptUrl!,
+                    height: 160,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 8,
+                right: 8,
+                child: GestureDetector(
+                  onTap: onDelete,
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: const BoxDecoration(
+                      color: Colors.black54,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.delete_rounded,
+                      size: 16,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+      ],
     );
   }
 }

@@ -16,7 +16,8 @@ class ExpenseTile extends StatelessWidget {
       expense.isCollab ||
       expense.isSplitBill ||
       expense.isRecurring ||
-      expense.isForeignCurrency;
+      expense.isForeignCurrency ||
+      expense.hasReceipt;
 
   List<Widget> _buildBadges(ExpenseTileData expense) {
     final badges = <Widget>[];
@@ -38,6 +39,11 @@ class ExpenseTile extends StatelessWidget {
     if (expense.isForeignCurrency) {
       badges.add(
         _Badge(icon: Icons.language_rounded, label: expense.currencyCode!),
+      );
+    }
+    if (expense.hasReceipt) {
+      badges.add(
+        _Badge(icon: Icons.receipt_long_rounded, label: 'Receipt'),
       );
     }
     return [

@@ -1,11 +1,15 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:expenses_tracker_new/modules/home/providers/home/home_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../../core/services/receipt_upload_service.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/widgets/receipt_viewer.dart';
 import '../../../../service_locator.dart';
+import '../../../subscription/providers/subscription_provider.dart';
 import '../../../expenses/data/models/account_model.dart';
 import '../../../expenses/data/models/category_model.dart';
 import '../../../expenses/providers/accounts_provider.dart';
@@ -80,6 +84,14 @@ class _BillDetail extends ConsumerWidget {
         padding: const EdgeInsets.all(AppSpacing.xl),
         children: [
           _BillHeader(bill: bill),
+          if (bill.receiptUrl != null) ...[
+            const SizedBox(height: AppSpacing.xl),
+            _ReceiptSection(
+              receiptUrl: bill.receiptUrl!,
+              billId: billId,
+              isCreator: bill.createdBy == currentUserId,
+            ),
+          ],
           const SizedBox(height: AppSpacing.xl),
           const Text(
             'PARTICIPANTS',
@@ -117,6 +129,195 @@ class _BillDetail extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: AppSpacing.xxl),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Receipt section ──────────────────────────────────────────────────────────
+
+class _ReceiptSection extends ConsumerStatefulWidget {
+  const _ReceiptSection({
+    required this.receiptUrl,
+    required this.billId,
+    required this.isCreator,
+  });
+
+  final String receiptUrl;
+  final String billId;
+  final bool isCreator;
+
+  @override
+  ConsumerState<_ReceiptSection> createState() => _ReceiptSectionState();
+}
+
+class _ReceiptSectionState extends ConsumerState<_ReceiptSection> {
+  bool _expanded = false;
+  bool _deleting = false;
+
+  Future<void> _delete() async {
+    final isPremium = ref.read(isPremiumProvider);
+    if (!isPremium) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Delete receipt?'),
+        content: const Text('This cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text(
+              'Delete',
+              style: TextStyle(color: Color(0xFFE24B4A)),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _deleting = true);
+    await ReceiptUploadService.deleteByUrl(widget.receiptUrl);
+    await supabase
+        .from('split_bills')
+        .update({'receipt_url': null}).eq('id', widget.billId);
+    if (mounted) {
+      ref.invalidate(splitBillDetailProvider(widget.billId));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isPremium = ref.watch(isPremiumProvider);
+    final canDelete = widget.isCreator && isPremium;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.xl),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header row — always visible
+          InkWell(
+            onTap: () => setState(() => _expanded = !_expanded),
+            borderRadius: BorderRadius.circular(AppRadius.xl),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.xl,
+                vertical: AppSpacing.lg,
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.receipt_long_rounded,
+                    size: 16,
+                    color: AppColors.textSecondary,
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  const Text(
+                    'Receipt attached',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const Spacer(),
+                  if (_deleting)
+                    const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  else
+                    Text(
+                      _expanded ? 'Hide' : 'View',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.accent,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+
+          // Expanded image
+          if (_expanded) ...[
+            const Divider(height: 1, color: AppColors.border),
+            GestureDetector(
+              onTap: () => showReceiptViewer(context, widget.receiptUrl),
+              child: ClipRRect(
+              borderRadius: const BorderRadius.vertical(
+                bottom: Radius.circular(AppRadius.xl),
+              ),
+              child: CachedNetworkImage(
+                imageUrl: widget.receiptUrl,
+                width: double.infinity,
+                fit: BoxFit.fitWidth,
+                placeholder: (context2, p) => const SizedBox(
+                  height: 160,
+                  child: Center(
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  ),
+                ),
+                errorWidget: (context2, url, err) => const SizedBox(
+                  height: 80,
+                  child: Center(
+                    child: Icon(
+                      Icons.broken_image_rounded,
+                      color: AppColors.textTertiary,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            ),
+            if (canDelete)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.xl,
+                  AppSpacing.md,
+                  AppSpacing.xl,
+                  AppSpacing.lg,
+                ),
+                child: GestureDetector(
+                  onTap: _deleting ? null : _delete,
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.delete_outline_rounded,
+                        size: 14,
+                        color: Color(0xFFE24B4A),
+                      ),
+                      SizedBox(width: 4),
+                      Text(
+                        'Delete receipt',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFFE24B4A),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
         ],
       ),
     );

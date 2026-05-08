@@ -55,7 +55,7 @@ final homeDataProvider = FutureProvider.family<HomeData, HomeFilter>((
         .from('expenses')
         .select(
           'id, note, home_amount_cents, type, expense_date, category_id, '
-          'currency, collab_id, source_split_bill_id, source_recurring_expense_id, '
+          'currency, collab_id, source_split_bill_id, source_recurring_expense_id, receipt_url, '
           'category:categories(name, color), account:accounts(name)',
         )
         .eq('user_id', userId)
@@ -219,6 +219,7 @@ final homeDataProvider = FutureProvider.family<HomeData, HomeFilter>((
       isCollab: row['collab_id'] != null,
       isSplitBill: row['source_split_bill_id'] != null,
       isRecurring: row['source_recurring_expense_id'] != null,
+      hasReceipt: row['receipt_url'] != null,
       currencyCode: (currency != null && currency != 'MYR') ? currency : null,
     );
   }).toList();

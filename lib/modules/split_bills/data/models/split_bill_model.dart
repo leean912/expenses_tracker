@@ -12,6 +12,7 @@ class SplitBillModel {
     required this.paidBy,
     this.payer,
     this.shares = const [],
+    this.receiptUrl,
   });
 
   final String id;
@@ -23,6 +24,7 @@ class SplitBillModel {
   final String paidBy;
   final ProfileSummary? payer;
   final List<SplitShareModel> shares;
+  final String? receiptUrl;
 
   int get settledCount => shares.where((s) => s.isSettled).length;
 
@@ -42,6 +44,7 @@ class SplitBillModel {
       shares: sharesRaw
           .map((s) => SplitShareModel.fromJson(s as Map<String, dynamic>))
           .toList(),
+      receiptUrl: json['receipt_url'] as String?,
     );
   }
 }

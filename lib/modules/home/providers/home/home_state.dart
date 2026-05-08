@@ -185,6 +185,7 @@ class ExpenseTileData {
     this.isCollab = false,
     this.isSplitBill = false,
     this.isRecurring = false,
+    this.hasReceipt = false,
     this.currencyCode,
   });
 
@@ -200,6 +201,7 @@ class ExpenseTileData {
   final bool isCollab;
   final bool isSplitBill;
   final bool isRecurring;
+  final bool hasReceipt;
 
   /// Non-null when the expense was recorded in a foreign currency (not MYR).
   final String? currencyCode;

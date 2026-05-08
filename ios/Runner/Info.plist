@@ -66,6 +66,10 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>To attach a receipt photo to your expense</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>To choose a receipt photo from your gallery</string>
 	<key>CFBundleURLTypes</key>
 		<array>
 			<dict>

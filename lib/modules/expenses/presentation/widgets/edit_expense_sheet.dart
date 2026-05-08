@@ -1,13 +1,18 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/routes/routes.dart';
+import '../../../../core/services/receipt_upload_service.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/widgets/receipt_viewer.dart';
 import '../../../../core/utils/amount_input_formatter.dart';
+import '../../../../core/widgets/upgrade_sheet.dart';
 import '../../../../service_locator.dart';
 import '../../../home/providers/home/home_provider.dart';
+import '../../../subscription/providers/subscription_provider.dart';
 import '../../data/models/account_model.dart';
 import '../../data/models/category_model.dart';
 import '../../providers/accounts_provider.dart';
@@ -45,6 +50,9 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
   String _currency = 'MYR';
   String _homeCurrency = 'MYR';
 
+  String? _receiptUrl;
+  bool _receiptUploading = false;
+
   bool _isSplitBill = false;
   bool _isRecurring = false;
   bool _isCollab = false;
@@ -73,7 +81,7 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
           .select(
             'id, note, amount_cents, home_amount_cents, currency, home_currency, '
             'conversion_rate, expense_date, category_id, account_id, '
-            'source_split_bill_id, source_recurring_expense_id, collab_id',
+            'source_split_bill_id, source_recurring_expense_id, collab_id, receipt_url',
           )
           .eq('id', widget.expenseId)
           .single();
@@ -88,6 +96,7 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
       setState(() {
         _currency = row['currency'] as String? ?? 'MYR';
         _homeCurrency = row['home_currency'] as String? ?? 'MYR';
+        _receiptUrl = row['receipt_url'] as String?;
         _isSplitBill = row['source_split_bill_id'] != null;
         _isRecurring = row['source_recurring_expense_id'] != null;
         _isCollab = row['collab_id'] != null;
@@ -118,6 +127,35 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
     ];
     final m = months[date.month - 1];
     return date.year == now.year ? '$m ${date.day}' : '$m ${date.day}, ${date.year}';
+  }
+
+  Future<void> _pickReceipt() async {
+    if (!ref.read(isPremiumProvider)) {
+      UpgradeSheet.show(
+        context,
+        title: 'Receipt photos',
+        description: 'Attach receipt photos to your expenses with Premium.',
+      );
+      return;
+    }
+    setState(() => _receiptUploading = true);
+    final url = await ReceiptUploadService.pickAndUpload(
+      context,
+      supabase.auth.currentUser!.id,
+    );
+    if (mounted) {
+      setState(() {
+        if (url != null) _receiptUrl = url;
+        _receiptUploading = false;
+      });
+    }
+  }
+
+  Future<void> _deleteReceipt() async {
+    final url = _receiptUrl;
+    if (url == null) return;
+    setState(() => _receiptUrl = null);
+    await ReceiptUploadService.deleteByUrl(url);
   }
 
   Future<void> _pickDate() async {
@@ -160,6 +198,7 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
         'account_id': _selectedAccountId,
         'amount_cents': amountCents,
         'expense_date': DateFormat('yyyy-MM-dd').format(_selectedDate),
+        'receipt_url': _receiptUrl,
         'updated_at': DateTime.now().toIso8601String(),
       };
 
@@ -217,6 +256,9 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
 
     setState(() => _saving = true);
     try {
+      if (_receiptUrl != null) {
+        ReceiptUploadService.deleteByUrl(_receiptUrl!);
+      }
       await supabase.from('expenses').update({
         'deleted_at': DateTime.now().toIso8601String(),
       }).eq('id', widget.expenseId);
@@ -534,6 +576,16 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
                               ),
                             ),
                           ],
+
+                          const SizedBox(height: AppSpacing.xxl),
+
+                          // ── Receipt ─────────────────────────────────────
+                          _ReceiptRow(
+                            receiptUrl: _receiptUrl,
+                            isUploading: _receiptUploading,
+                            onAdd: _pickReceipt,
+                            onDelete: _deleteReceipt,
+                          ),
 
                           const SizedBox(height: AppSpacing.xxl),
 
@@ -912,6 +964,118 @@ class _CategoryPicker extends StatelessWidget {
             ),
           ),
         ),
+      ],
+    );
+  }
+}
+
+// ── Receipt row ───────────────────────────────────────────────────────────────
+
+class _ReceiptRow extends StatelessWidget {
+  const _ReceiptRow({
+    required this.receiptUrl,
+    required this.isUploading,
+    required this.onAdd,
+    required this.onDelete,
+  });
+
+  final String? receiptUrl;
+  final bool isUploading;
+  final VoidCallback onAdd;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _SectionLabel('Receipt'),
+        const SizedBox(height: AppSpacing.md),
+        if (isUploading)
+          Container(
+            height: 80,
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(AppRadius.lg),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: const Center(
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: AppColors.textTertiary,
+                ),
+              ),
+            ),
+          )
+        else if (receiptUrl == null)
+          GestureDetector(
+            onTap: onAdd,
+            child: Container(
+              height: 80,
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(AppRadius.lg),
+                border: Border.all(color: AppColors.borderDashed, width: 1.5),
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.receipt_long_rounded,
+                    size: 18,
+                    color: AppColors.textTertiary,
+                  ),
+                  SizedBox(width: AppSpacing.sm),
+                  Text(
+                    'Add receipt',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else
+          Stack(
+            children: [
+              GestureDetector(
+                onTap: () => showReceiptViewer(context, receiptUrl!),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(AppRadius.lg),
+                  child: CachedNetworkImage(
+                    imageUrl: receiptUrl!,
+                    height: 160,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 8,
+                right: 8,
+                child: GestureDetector(
+                  onTap: onDelete,
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: const BoxDecoration(
+                      color: Colors.black54,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.delete_rounded,
+                      size: 16,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
       ],
     );
   }

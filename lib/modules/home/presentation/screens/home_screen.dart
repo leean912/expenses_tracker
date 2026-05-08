@@ -12,6 +12,7 @@ import '../../../auth/providers/states/auth_state.dart';
 import '../../../subscription/providers/subscription_provider.dart';
 import '../../providers/home/home_provider.dart';
 import '../../providers/home/home_state.dart';
+import '../../../../core/services/receipt_upload_service.dart';
 import '../../../expenses/presentation/widgets/edit_expense_sheet.dart';
 import '../widgets/analytics_banner.dart';
 import '../widgets/budget_grid.dart';
@@ -107,6 +108,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Future<void> _deleteExpense(String id) async {
+    final row = await supabase
+        .from('expenses')
+        .select('receipt_url')
+        .eq('id', id)
+        .maybeSingle();
+    final receiptUrl = row?['receipt_url'] as String?;
+    if (receiptUrl != null) {
+      ReceiptUploadService.deleteByUrl(receiptUrl);
+    }
     await supabase
         .from('expenses')
         .update({'deleted_at': DateTime.now().toIso8601String()})

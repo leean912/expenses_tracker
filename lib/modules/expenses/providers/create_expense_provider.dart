@@ -20,6 +20,7 @@ class CreateExpenseNotifier extends AutoDisposeNotifier<CreateExpenseState> {
     String? categoryId,
     String? accountId,
     String? note,
+    String? receiptUrl,
   }) async {
     state = const CreateExpenseState(isLoading: true);
     try {
@@ -40,6 +41,7 @@ class CreateExpenseNotifier extends AutoDisposeNotifier<CreateExpenseState> {
       if (categoryId != null) payload['category_id'] = categoryId;
       if (accountId != null) payload['account_id'] = accountId;
       if (note != null && note.isNotEmpty) payload['note'] = note;
+      if (receiptUrl != null) payload['receipt_url'] = receiptUrl;
 
       await supabase.from('expenses').insert(payload);
 
