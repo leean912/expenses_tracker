@@ -162,21 +162,29 @@ class _RecurringExpenseFormScreenState
           surfaceTintColor: Colors.transparent,
           elevation: 0,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new_rounded,
-                color: AppColors.textPrimary, size: 20),
+            icon: const Icon(
+              Icons.arrow_back_ios_new_rounded,
+              color: AppColors.textPrimary,
+              size: 20,
+            ),
             onPressed: () => context.pop(),
           ),
           title: Text(
             _isEdit ? 'Edit Recurring Expense' : 'New Recurring Expense',
             style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary),
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
+            ),
           ),
         ),
         body: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(
-              AppSpacing.xl, AppSpacing.lg, AppSpacing.xl, AppSpacing.xxl),
+            AppSpacing.xl,
+            AppSpacing.lg,
+            AppSpacing.xl,
+            AppSpacing.xxl,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -185,9 +193,12 @@ class _RecurringExpenseFormScreenState
               TextField(
                 controller: _titleController,
                 style: const TextStyle(
-                    fontSize: 14, color: AppColors.textPrimary),
-                decoration:
-                    formInputDecoration(hint: 'e.g. Netflix, Gym membership'),
+                  fontSize: 14,
+                  color: AppColors.textPrimary,
+                ),
+                decoration: formInputDecoration(
+                  hint: 'e.g. Netflix, Gym membership',
+                ),
               ),
 
               const SizedBox(height: AppSpacing.xxl),
@@ -198,24 +209,23 @@ class _RecurringExpenseFormScreenState
                 children: [
                   for (final entry in [
                     ('expense', 'Expense'),
-                    ('income', 'Income')
+                    ('income', 'Income'),
                   ])
                     Expanded(
                       child: Padding(
                         padding: EdgeInsets.only(
-                            right: entry.$1 == 'expense' ? AppSpacing.sm : 0),
+                          right: entry.$1 == 'expense' ? AppSpacing.sm : 0,
+                        ),
                         child: GestureDetector(
                           onTap: () => setState(() => _type = entry.$1),
                           child: AnimatedContainer(
                             duration: const Duration(milliseconds: 150),
-                            padding:
-                                const EdgeInsets.symmetric(vertical: 10),
+                            padding: const EdgeInsets.symmetric(vertical: 10),
                             decoration: BoxDecoration(
                               color: _type == entry.$1
                                   ? AppColors.accent
                                   : AppColors.surface,
-                              borderRadius:
-                                  BorderRadius.circular(AppRadius.lg),
+                              borderRadius: BorderRadius.circular(AppRadius.lg),
                               border: Border.all(
                                 color: _type == entry.$1
                                     ? AppColors.accent
@@ -246,11 +256,14 @@ class _RecurringExpenseFormScreenState
               const SizedBox(height: AppSpacing.md),
               TextField(
                 controller: _amountController,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 inputFormatters: [AmountInputFormatter()],
                 style: const TextStyle(
-                    fontSize: 14, color: AppColors.textPrimary),
+                  fontSize: 14,
+                  color: AppColors.textPrimary,
+                ),
                 decoration: formInputDecoration(hint: '0.00', prefix: 'RM '),
               ),
 
@@ -271,7 +284,9 @@ class _RecurringExpenseFormScreenState
                 onTap: _pickDate,
                 child: Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.lg, vertical: AppSpacing.lg),
+                    horizontal: AppSpacing.lg,
+                    vertical: AppSpacing.lg,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.surface,
                     borderRadius: BorderRadius.circular(AppRadius.lg),
@@ -279,19 +294,26 @@ class _RecurringExpenseFormScreenState
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.calendar_today_rounded,
-                          size: 16, color: AppColors.textSecondary),
+                      const Icon(
+                        Icons.calendar_today_rounded,
+                        size: 16,
+                        color: AppColors.textSecondary,
+                      ),
                       const SizedBox(width: AppSpacing.md),
                       Text(
                         DateFormat('d MMM yyyy').format(_runAt),
                         style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                            color: AppColors.textPrimary),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.textPrimary,
+                        ),
                       ),
                       const Spacer(),
-                      const Icon(Icons.chevron_right_rounded,
-                          size: 18, color: AppColors.textTertiary),
+                      const Icon(
+                        Icons.chevron_right_rounded,
+                        size: 18,
+                        color: AppColors.textTertiary,
+                      ),
                     ],
                   ),
                 ),
@@ -313,7 +335,8 @@ class _RecurringExpenseFormScreenState
                   onAddTap: () => context.push(settingsCategoriesRoute),
                 ),
                 loading: () => const _PickerLoading(),
-                error: (_, _) => const _PickerError('Failed to load categories'),
+                error: (_, _) =>
+                    const _PickerError('Failed to load categories'),
               ),
 
               const SizedBox(height: AppSpacing.xxl),
@@ -342,45 +365,86 @@ class _RecurringExpenseFormScreenState
               TextField(
                 controller: _noteController,
                 style: const TextStyle(
-                    fontSize: 14, color: AppColors.textPrimary),
+                  fontSize: 14,
+                  color: AppColors.textPrimary,
+                ),
                 decoration: formInputDecoration(hint: 'Add a note'),
               ),
 
               if (_error != null) ...[
                 const SizedBox(height: AppSpacing.lg),
-                Text(_error!,
-                    style: const TextStyle(
-                        fontSize: 12, color: Color(0xFFE24B4A))),
+                Text(
+                  _error!,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFFE24B4A),
+                  ),
+                ),
               ],
 
               const SizedBox(height: AppSpacing.xxl),
 
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: _loading ? null : _save,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.accent,
-                    foregroundColor: AppColors.accentText,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppRadius.lg)),
-                  ),
-                  child: _loading
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, color: AppColors.accentText),
-                        )
-                      : Text(
-                          _isEdit ? 'Update' : 'Save',
-                          style: const TextStyle(
-                              fontSize: 15, fontWeight: FontWeight.w600),
-                        ),
-                ),
-              ),
+              // SizedBox(
+              //   width: double.infinity,
+              //   child: FilledButton(
+              //     onPressed: _loading ? null : _save,
+              //     style: FilledButton.styleFrom(
+              //       backgroundColor: AppColors.accent,
+              //       foregroundColor: AppColors.accentText,
+              //       padding: const EdgeInsets.symmetric(vertical: 16),
+              //       shape: RoundedRectangleBorder(
+              //           borderRadius: BorderRadius.circular(AppRadius.lg)),
+              //     ),
+              //     child: _loading
+              //         ? const SizedBox(
+              //             width: 20,
+              //             height: 20,
+              //             child: CircularProgressIndicator(
+              //                 strokeWidth: 2, color: AppColors.accentText),
+              //           )
+              //         : Text(
+              //             _isEdit ? 'Update' : 'Save',
+              //             style: const TextStyle(
+              //                 fontSize: 15, fontWeight: FontWeight.w600),
+              //           ),
+              //   ),
+              // ),
             ],
+          ),
+        ),
+        bottomNavigationBar: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.xl),
+            child: SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: _loading ? null : _save,
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.accent,
+                  foregroundColor: AppColors.accentText,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.lg),
+                  ),
+                ),
+                child: _loading
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.accentText,
+                        ),
+                      )
+                    : Text(
+                        _isEdit ? 'Update' : 'Save',
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+              ),
+            ),
           ),
         ),
       ),
@@ -425,7 +489,9 @@ class _ChipPicker<T> extends StatelessWidget {
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 150),
               padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.lg, vertical: AppSpacing.md),
+                horizontal: AppSpacing.lg,
+                vertical: AppSpacing.md,
+              ),
               decoration: BoxDecoration(
                 color: isSelected ? color : color.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(AppRadius.pill),
@@ -437,9 +503,11 @@ class _ChipPicker<T> extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(iconOf(item),
-                      size: 14,
-                      color: isSelected ? Colors.white : color),
+                  Icon(
+                    iconOf(item),
+                    size: 14,
+                    color: isSelected ? Colors.white : color,
+                  ),
                   const SizedBox(width: 5),
                   Text(
                     labelOf(item),
@@ -458,7 +526,9 @@ class _ChipPicker<T> extends StatelessWidget {
           onTap: onAddTap,
           child: Container(
             padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.lg, vertical: AppSpacing.md),
+              horizontal: AppSpacing.lg,
+              vertical: AppSpacing.md,
+            ),
             decoration: BoxDecoration(
               color: AppColors.surface,
               borderRadius: BorderRadius.circular(AppRadius.pill),
@@ -467,7 +537,11 @@ class _ChipPicker<T> extends StatelessWidget {
             child: const Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.add_rounded, size: 14, color: AppColors.textSecondary),
+                Icon(
+                  Icons.add_rounded,
+                  size: 14,
+                  color: AppColors.textSecondary,
+                ),
                 SizedBox(width: 4),
                 Text(
                   'Add',
@@ -498,7 +572,9 @@ class _PickerLoading extends StatelessWidget {
           width: 18,
           height: 18,
           child: CircularProgressIndicator(
-              strokeWidth: 2, color: AppColors.textTertiary),
+            strokeWidth: 2,
+            color: AppColors.textTertiary,
+          ),
         ),
       ),
     );
@@ -511,7 +587,9 @@ class _PickerError extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Text(message,
-        style: const TextStyle(fontSize: 12, color: AppColors.textTertiary));
+    return Text(
+      message,
+      style: const TextStyle(fontSize: 12, color: AppColors.textTertiary),
+    );
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../service_locator.dart';
+import '../../home/providers/home/home_provider.dart';
 import '../data/models/recurring_expense_model.dart';
 
 class RecurringExpensesNotifier
@@ -41,6 +42,7 @@ class RecurringExpensesNotifier
         'p_note': note,
       });
       ref.invalidateSelf();
+      ref.invalidate(homeDataProvider);
       return null;
     } catch (e) {
       if (e.toString().contains('upgrade_required')) return 'upgrade_required';

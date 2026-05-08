@@ -1485,7 +1485,7 @@ class _ContactPickerSheet extends ConsumerWidget {
                           color: AppColors.accent,
                         ),
                         title: Text(
-                          'Add Contact',
+                          'Add Friend',
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
@@ -1517,7 +1517,7 @@ class _ContactPickerSheet extends ConsumerWidget {
                               color: AppColors.accent,
                             ),
                             title: Text(
-                              'Add Contact',
+                              'Add Friend',
                               style: TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w500,

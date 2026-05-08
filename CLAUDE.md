@@ -8,11 +8,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **What makes Spendz different:**
 - **Awareness over accounting** — we show users what they spent and help them reflect, not just log numbers
-- **Split bills** — collaborative expense splitting with friends, not just personal finance
-- **Collabs** — shared trip/event budgets where multiple people track spending together
+- **Friends system** — users add friends (contacts) by username; split bills and collabs are friend-first social features
+- **Split bills with friends** — collaborative expense splitting where friends see and settle their own shares
+- **Collabs** — shared trip/event budgets where multiple friends track spending together
 - **Recurring expenses & recurring split bills** — set-and-forget tracking for regular costs
 - **Simple and minimal** — no clutter, no overwhelming dashboards; clarity is a feature
-- **Cloud-synced** — Supabase backend means data is safe and available on all devices, no local-only risk
+- **Always synced** — Supabase real-time backend keeps all devices in sync automatically; no manual backup or export needed
 
 When building features, ask: does this help the user understand their finances better, or does it add friction? Favor clarity and simplicity over completeness.
 

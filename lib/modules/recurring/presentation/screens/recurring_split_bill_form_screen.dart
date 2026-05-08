@@ -8,7 +8,9 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/amount_input_formatter.dart';
 import '../../../../service_locator.dart';
 import '../../../contacts/data/models/contact_model.dart';
+import '../../../contacts/data/models/group_model.dart';
 import '../../../contacts/providers/contacts_provider.dart';
+import '../../../contacts/providers/groups_provider.dart';
 import '../../../expenses/data/models/account_model.dart';
 import '../../../expenses/data/models/category_model.dart';
 import '../../../expenses/providers/accounts_provider.dart';
@@ -37,7 +39,7 @@ class _RecurringSplitBillFormScreenState
 
   String _frequency = 'monthly';
   DateTime _runAt = DateTime.now();
-  String _splitMethod = 'equal';
+  bool _equalSplit = true;
   String? _categoryId;
   String? _accountId;
   bool _loading = false;
@@ -58,7 +60,7 @@ class _RecurringSplitBillFormScreenState
       _amountController.text = (e.amountCents / 100).toStringAsFixed(2);
       _frequency = e.frequency;
       _runAt = e.nextRunAt;
-      _splitMethod = e.splitMethod;
+      _equalSplit = e.splitMethod == 'equal';
       _categoryId = e.categoryId;
       _accountId = e.accountId;
       _noteController.text = e.note ?? '';
@@ -72,16 +74,16 @@ class _RecurringSplitBillFormScreenState
         if (share.shareCents != null) {
           p.controller.text = (share.shareCents! / 100).toStringAsFixed(2);
         }
+        p.controller.addListener(_onParticipantChanged);
         _participants.add(p);
       }
     } else {
-      _participants.add(
-          _Participant(userId: userId, displayName: 'You', isMe: true));
+      final p = _Participant(userId: userId, displayName: 'You', isMe: true);
+      p.controller.addListener(_onParticipantChanged);
+      _participants.add(p);
     }
 
-    _amountController.addListener(() {
-      if (mounted) setState(() {});
-    });
+    _amountController.addListener(_onAmountChanged);
   }
 
   @override
@@ -95,12 +97,42 @@ class _RecurringSplitBillFormScreenState
     super.dispose();
   }
 
-  double get _totalRm => double.tryParse(_amountController.text) ?? 0;
+  void _onParticipantChanged() {
+    if (mounted) setState(() {});
+  }
 
-  double get _customAllocatedRm => _participants.fold(
-      0, (sum, p) => sum + (double.tryParse(p.controller.text) ?? 0));
+  void _onAmountChanged() {
+    if (_equalSplit) _applyEqualSplit();
+    if (mounted) setState(() {});
+  }
 
-  double get _customRemainingRm => _totalRm - _customAllocatedRm;
+  int get _totalCents {
+    final v = double.tryParse(_amountController.text.trim());
+    if (v == null || v <= 0) return 0;
+    return (v * 100).round();
+  }
+
+  int get _remainingCents {
+    final total = _totalCents;
+    var allocated = 0;
+    for (final p in _participants) {
+      final v = double.tryParse(p.controller.text.trim());
+      if (v != null && v > 0) allocated += (v * 100).round();
+    }
+    return total - allocated;
+  }
+
+  void _applyEqualSplit() {
+    final total = _totalCents;
+    final count = _participants.length;
+    if (count == 0 || total == 0) return;
+    final base = total ~/ count;
+    final remainder = total - (base * count);
+    for (var i = 0; i < count; i++) {
+      final cents = i < remainder ? base + 1 : base;
+      _participants[i].controller.text = (cents / 100).toStringAsFixed(2);
+    }
+  }
 
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
@@ -121,110 +153,72 @@ class _RecurringSplitBillFormScreenState
     if (picked != null) setState(() => _runAt = picked);
   }
 
-  Future<void> _openParticipantPicker(List<ContactModel> contacts) async {
-    final myId = supabase.auth.currentUser?.id ?? '';
-    final selectedIds = _participants.map((p) => p.userId).toSet();
-
-    final updated = await showDialog<Set<String>>(
-      context: context,
-      builder: (ctx) {
-        final localSelected = Set<String>.from(selectedIds);
-        return StatefulBuilder(
-          builder: (ctx, setLocal) => AlertDialog(
-            backgroundColor: AppColors.surface,
-            title: const Text('Select Participants',
-                style:
-                    TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-            contentPadding:
-                const EdgeInsets.symmetric(vertical: AppSpacing.md),
-            content: SizedBox(
-              width: double.maxFinite,
-              child: ListView(
-                shrinkWrap: true,
-                children: [
-                  CheckboxListTile(
-                    value: true,
-                    onChanged: null,
-                    title: const Text('You (payer)',
-                        style: TextStyle(
-                            fontSize: 14, color: AppColors.textPrimary)),
-                    activeColor: AppColors.accent,
-                    controlAffinity: ListTileControlAffinity.leading,
-                  ),
-                  if (contacts.isNotEmpty)
-                    const Divider(height: 1, color: AppColors.border),
-                  ...contacts.map((c) => CheckboxListTile(
-                        value: localSelected.contains(c.friendId),
-                        onChanged: (v) => setLocal(() {
-                          if (v == true) {
-                            localSelected.add(c.friendId);
-                          } else {
-                            localSelected.remove(c.friendId);
-                          }
-                        }),
-                        title: Text(
-                          c.nickname ?? c.displayName,
-                          style: const TextStyle(
-                              fontSize: 14, color: AppColors.textPrimary),
-                        ),
-                        subtitle: c.username != null
-                            ? Text('@${c.username}',
-                                style: const TextStyle(
-                                    fontSize: 12,
-                                    color: AppColors.textTertiary))
-                            : null,
-                        activeColor: AppColors.accent,
-                        controlAffinity: ListTileControlAffinity.leading,
-                      )),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                  onPressed: () => ctx.pop(),
-                  child: const Text('Cancel')),
-              FilledButton(
-                onPressed: () => ctx.pop(localSelected),
-                style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.accent,
-                    foregroundColor: AppColors.accentText),
-                child: const Text('Done'),
-              ),
-            ],
-          ),
-        );
-      },
+  void _addParticipant(ContactModel contact) {
+    final p = _Participant(
+      userId: contact.friendId,
+      displayName: contact.nickname ?? contact.displayName,
+      isMe: false,
     );
-
-    if (updated == null) return;
-
+    p.controller.addListener(_onParticipantChanged);
     setState(() {
-      final newList = [
-        _Participant(userId: myId, displayName: 'You', isMe: true),
-      ];
-
-      for (final id in updated) {
-        if (id == myId) continue;
-        final contact = contacts.firstWhere((c) => c.friendId == id);
-        final existing = _participants.firstWhere(
-          (p) => p.userId == id,
-          orElse: () => _Participant(
-            userId: id,
-            displayName: contact.nickname ?? contact.displayName,
-            isMe: false,
-          ),
-        );
-        newList.add(existing);
-      }
-
-      for (final p in _participants) {
-        if (!newList.any((n) => n.userId == p.userId)) p.dispose();
-      }
-
-      _participants
-        ..clear()
-        ..addAll(newList);
+      _participants.add(p);
+      if (_equalSplit) _applyEqualSplit();
     });
+  }
+
+  void _removeParticipant(int index) {
+    setState(() {
+      _participants[index].controller
+        ..removeListener(_onParticipantChanged)
+        ..dispose();
+      _participants.removeAt(index);
+      if (_equalSplit) _applyEqualSplit();
+    });
+  }
+
+  void _addParticipantsFromGroup(GroupModel group) {
+    final addedIds = _participants.map((p) => p.userId).toSet();
+    final newMembers = group.members.where((m) => !addedIds.contains(m.id));
+    if (newMembers.isEmpty) return;
+    setState(() {
+      for (final member in newMembers) {
+        final p = _Participant(
+          userId: member.id,
+          displayName: member.displayName,
+          isMe: false,
+        );
+        p.controller.addListener(_onParticipantChanged);
+        _participants.add(p);
+      }
+      if (_equalSplit) _applyEqualSplit();
+    });
+  }
+
+  void _showContactPicker() {
+    final addedIds = _participants.map((p) => p.userId).toSet();
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _ContactPickerSheet(
+        addedUserIds: addedIds,
+        onSelect: _addParticipant,
+      ),
+    );
+  }
+
+  void _showGroupPicker() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _GroupPickerSheet(
+        onSelect: (group) {
+          _addParticipantsFromGroup(group);
+          context.pop();
+        },
+      ),
+    );
   }
 
   Future<void> _save() async {
@@ -243,15 +237,18 @@ class _RecurringSplitBillFormScreenState
       return;
     }
     final amountCents = (amountRm * 100).round();
+    final splitMethod = _equalSplit ? 'equal' : 'custom';
 
-    if (_splitMethod == 'custom') {
+    if (!_equalSplit) {
       final totalCustom = _participants.fold<int>(0, (sum, p) {
         final v = double.tryParse(p.controller.text) ?? 0;
         return sum + (v * 100).round();
       });
       if (totalCustom != amountCents) {
-        setState(() => _error =
-            'Custom amounts must sum to RM ${amountRm.toStringAsFixed(2)}. Currently: RM ${(totalCustom / 100).toStringAsFixed(2)}');
+        setState(
+          () => _error =
+              'Custom amounts must sum to RM ${amountRm.toStringAsFixed(2)}. Currently: RM ${(totalCustom / 100).toStringAsFixed(2)}',
+        );
         return;
       }
     }
@@ -262,7 +259,7 @@ class _RecurringSplitBillFormScreenState
 
     final shares = _participants.map((p) {
       final map = <String, dynamic>{'user_id': p.userId};
-      if (_splitMethod == 'custom') {
+      if (!_equalSplit) {
         final v = double.tryParse(p.controller.text) ?? 0;
         map['share_cents'] = (v * 100).round();
       } else {
@@ -286,7 +283,7 @@ class _RecurringSplitBillFormScreenState
         amountCents: amountCents,
         frequency: _frequency,
         nextRunAt: _runAt,
-        splitMethod: _splitMethod,
+        splitMethod: splitMethod,
         shares: shares,
         categoryId: _categoryId,
         accountId: _accountId,
@@ -298,7 +295,7 @@ class _RecurringSplitBillFormScreenState
         amountCents: amountCents,
         frequency: _frequency,
         firstRunAt: _runAt,
-        splitMethod: _splitMethod,
+        splitMethod: splitMethod,
         shares: shares,
         categoryId: _categoryId,
         accountId: _accountId,
@@ -324,12 +321,6 @@ class _RecurringSplitBillFormScreenState
   Widget build(BuildContext context) {
     final categoriesAsync = ref.watch(pickerCategoriesProvider);
     final accountsAsync = ref.watch(pickerAccountsProvider);
-    final contactsAsync = ref.watch(contactsProvider);
-    final contacts = contactsAsync.valueOrNull ?? [];
-
-    final participantCount = _participants.length;
-    final equalShareRm =
-        participantCount > 0 ? _totalRm / participantCount : 0.0;
 
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
@@ -340,21 +331,29 @@ class _RecurringSplitBillFormScreenState
           surfaceTintColor: Colors.transparent,
           elevation: 0,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new_rounded,
-                color: AppColors.textPrimary, size: 20),
+            icon: const Icon(
+              Icons.arrow_back_ios_new_rounded,
+              color: AppColors.textPrimary,
+              size: 20,
+            ),
             onPressed: () => context.pop(),
           ),
           title: Text(
             _isEdit ? 'Edit Recurring Split' : 'New Recurring Split',
             style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary),
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
+            ),
           ),
         ),
         body: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(
-              AppSpacing.xl, AppSpacing.lg, AppSpacing.xl, AppSpacing.xxl),
+            AppSpacing.xl,
+            AppSpacing.lg,
+            AppSpacing.xl,
+            AppSpacing.xxl,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -363,9 +362,12 @@ class _RecurringSplitBillFormScreenState
               TextField(
                 controller: _titleController,
                 style: const TextStyle(
-                    fontSize: 14, color: AppColors.textPrimary),
-                decoration:
-                    formInputDecoration(hint: 'e.g. House rent, Internet'),
+                  fontSize: 14,
+                  color: AppColors.textPrimary,
+                ),
+                decoration: formInputDecoration(
+                  hint: 'e.g. House rent, Internet',
+                ),
               ),
 
               const SizedBox(height: AppSpacing.xxl),
@@ -374,13 +376,15 @@ class _RecurringSplitBillFormScreenState
               const SizedBox(height: AppSpacing.md),
               TextField(
                 controller: _amountController,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 inputFormatters: [AmountInputFormatter()],
                 style: const TextStyle(
-                    fontSize: 14, color: AppColors.textPrimary),
-                decoration:
-                    formInputDecoration(hint: '0.00', prefix: 'RM '),
+                  fontSize: 14,
+                  color: AppColors.textPrimary,
+                ),
+                decoration: formInputDecoration(hint: '0.00', prefix: 'RM '),
               ),
 
               const SizedBox(height: AppSpacing.xxl),
@@ -400,7 +404,9 @@ class _RecurringSplitBillFormScreenState
                 onTap: _pickDate,
                 child: Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.lg, vertical: AppSpacing.lg),
+                    horizontal: AppSpacing.lg,
+                    vertical: AppSpacing.lg,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.surface,
                     borderRadius: BorderRadius.circular(AppRadius.lg),
@@ -408,151 +414,34 @@ class _RecurringSplitBillFormScreenState
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.calendar_today_rounded,
-                          size: 16, color: AppColors.textSecondary),
+                      const Icon(
+                        Icons.calendar_today_rounded,
+                        size: 16,
+                        color: AppColors.textSecondary,
+                      ),
                       const SizedBox(width: AppSpacing.md),
                       Text(
                         DateFormat('d MMM yyyy').format(_runAt),
                         style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                            color: AppColors.textPrimary),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.textPrimary,
+                        ),
                       ),
                       const Spacer(),
-                      const Icon(Icons.chevron_right_rounded,
-                          size: 18, color: AppColors.textTertiary),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: AppSpacing.xxl),
-
-              const FormLabel('Split Method'),
-              const SizedBox(height: AppSpacing.md),
-              Row(
-                children: [
-                  for (final entry in [
-                    ('equal', 'Equal'),
-                    ('custom', 'Custom'),
-                  ])
-                    Expanded(
-                      child: Padding(
-                        padding: EdgeInsets.only(
-                            right: entry.$1 == 'equal' ? AppSpacing.sm : 0),
-                        child: GestureDetector(
-                          onTap: () =>
-                              setState(() => _splitMethod = entry.$1),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 150),
-                            padding:
-                                const EdgeInsets.symmetric(vertical: 10),
-                            decoration: BoxDecoration(
-                              color: _splitMethod == entry.$1
-                                  ? AppColors.accent
-                                  : AppColors.surface,
-                              borderRadius:
-                                  BorderRadius.circular(AppRadius.lg),
-                              border: Border.all(
-                                color: _splitMethod == entry.$1
-                                    ? AppColors.accent
-                                    : AppColors.border,
-                              ),
-                            ),
-                            child: Text(
-                              entry.$2,
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                                color: _splitMethod == entry.$1
-                                    ? AppColors.accentText
-                                    : AppColors.textSecondary,
-                              ),
-                            ),
-                          ),
-                        ),
+                      const Icon(
+                        Icons.chevron_right_rounded,
+                        size: 18,
+                        color: AppColors.textTertiary,
                       ),
-                    ),
-                ],
-              ),
-
-              const SizedBox(height: AppSpacing.xxl),
-
-              Row(
-                children: [
-                  const Expanded(child: FormLabel('Participants')),
-                  GestureDetector(
-                    onTap: () => _openParticipantPicker(contacts),
-                    child: Text(
-                      _participants.length <= 1
-                          ? 'Add people'
-                          : 'Edit (${_participants.length})',
-                      style: const TextStyle(
-                          fontSize: 13,
-                          color: AppColors.accent,
-                          fontWeight: FontWeight.w500),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.md),
-
-              if (_participants.isEmpty)
-                Container(
-                  padding: const EdgeInsets.all(AppSpacing.lg),
-                  decoration: BoxDecoration(
-                    color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(AppRadius.lg),
-                    border: Border.all(color: AppColors.border),
-                  ),
-                  child: const Center(
-                    child: Text('No participants added yet.',
-                        style: TextStyle(
-                            fontSize: 13, color: AppColors.textTertiary)),
-                  ),
-                )
-              else
-                Container(
-                  decoration: BoxDecoration(
-                    color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(AppRadius.lg),
-                    border: Border.all(color: AppColors.border),
-                  ),
-                  child: Column(
-                    children: [
-                      for (int i = 0; i < _participants.length; i++) ...[
-                        _ParticipantRow(
-                          participant: _participants[i],
-                          showAmountField: _splitMethod == 'custom',
-                          equalShareText: _totalRm > 0
-                              ? 'RM ${equalShareRm.toStringAsFixed(2)}'
-                              : '—',
-                          onChanged: () => setState(() {}),
-                        ),
-                        if (i < _participants.length - 1)
-                          const Divider(height: 1, color: AppColors.border),
-                      ],
                     ],
                   ),
                 ),
-
-              if (_splitMethod == 'custom' && _participants.isNotEmpty) ...[
-                const SizedBox(height: AppSpacing.sm),
-                Text(
-                  'Remaining: RM ${_customRemainingRm.toStringAsFixed(2)}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: _customRemainingRm.abs() < 0.01
-                        ? AppColors.positiveDark
-                        : const Color(0xFFE24B4A),
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
+              ),
 
               const SizedBox(height: AppSpacing.xxl),
 
+              // ── Category ──────────────────────────────────────────────────
               const FormLabel('Category (Optional)'),
               const SizedBox(height: AppSpacing.md),
               categoriesAsync.when(
@@ -567,11 +456,13 @@ class _RecurringSplitBillFormScreenState
                   onAddTap: () => context.push(settingsCategoriesRoute),
                 ),
                 loading: () => const _PickerLoading(),
-                error: (_, _) => const _PickerError('Failed to load categories'),
+                error: (_, _) =>
+                    const _PickerError('Failed to load categories'),
               ),
 
               const SizedBox(height: AppSpacing.xxl),
 
+              // ── Account ───────────────────────────────────────────────────
               const FormLabel('Account (Optional)'),
               const SizedBox(height: AppSpacing.md),
               accountsAsync.when(
@@ -591,54 +482,726 @@ class _RecurringSplitBillFormScreenState
 
               const SizedBox(height: AppSpacing.xxl),
 
+              // ── Split with ─────────────────────────────────────────────────
+              Row(
+                children: [
+                  const Expanded(child: FormLabel('Split with')),
+                  const Text(
+                    'Equal split',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Switch(
+                    value: _equalSplit,
+                    onChanged: (value) => setState(() {
+                      _equalSplit = value;
+                      if (value) _applyEqualSplit();
+                    }),
+                    activeThumbColor: AppColors.accentText,
+                    activeTrackColor: AppColors.accent,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.md),
+
+              // ── Participants list ──────────────────────────────────────────
+              Container(
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(AppRadius.xl),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Column(
+                  children: [
+                    for (int i = 0; i < _participants.length; i++) ...[
+                      if (i > 0)
+                        const Divider(
+                          height: 1,
+                          thickness: 1,
+                          color: AppColors.border,
+                        ),
+                      _ParticipantRow(
+                        participant: _participants[i],
+                        readOnly: _equalSplit,
+                        onRemove: _participants[i].isMe
+                            ? null
+                            : () => _removeParticipant(i),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: AppSpacing.md),
+
+              // ── Add friend / Add group buttons ─────────────────────────────
+              Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: _showContactPicker,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.lg,
+                          vertical: AppSpacing.lg,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface,
+                          borderRadius: BorderRadius.circular(AppRadius.xl),
+                          border: Border.all(color: AppColors.borderDashed),
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.person_add_alt_1_rounded,
+                              size: 16,
+                              color: AppColors.textSecondary,
+                            ),
+                            SizedBox(width: AppSpacing.sm),
+                            Text(
+                              'Add friend',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: _showGroupPicker,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.lg,
+                          vertical: AppSpacing.lg,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface,
+                          borderRadius: BorderRadius.circular(AppRadius.xl),
+                          border: Border.all(color: AppColors.borderDashed),
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.group_add_rounded,
+                              size: 16,
+                              color: AppColors.textSecondary,
+                            ),
+                            SizedBox(width: AppSpacing.sm),
+                            Text(
+                              'Add group',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              // ── Remaining indicator (custom mode only) ─────────────────────
+              if (!_equalSplit && _remainingCents != 0) ...[
+                const SizedBox(height: AppSpacing.md),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    const Text(
+                      'Remaining: ',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textTertiary,
+                      ),
+                    ),
+                    Text(
+                      _remainingCents < 0
+                          ? 'RM ${(_remainingCents.abs() / 100).toStringAsFixed(2)} over'
+                          : 'RM ${(_remainingCents / 100).toStringAsFixed(2)}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: _remainingCents < 0
+                            ? const Color(0xFFE24B4A)
+                            : AppColors.budgetOverallBar,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+
+              if (_error != null) ...[
+                const SizedBox(height: AppSpacing.lg),
+                Text(
+                  _error!,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFFE24B4A),
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: AppSpacing.xxl),
+
               const FormLabel('Note (Optional)'),
               const SizedBox(height: AppSpacing.md),
               TextField(
                 controller: _noteController,
                 style: const TextStyle(
-                    fontSize: 14, color: AppColors.textPrimary),
+                  fontSize: 14,
+                  color: AppColors.textPrimary,
+                ),
                 decoration: formInputDecoration(hint: 'Add a note'),
               ),
 
-              if (_error != null) ...[
-                const SizedBox(height: AppSpacing.lg),
-                Text(_error!,
-                    style: const TextStyle(
-                        fontSize: 12, color: Color(0xFFE24B4A))),
-              ],
-
               const SizedBox(height: AppSpacing.xxl),
 
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: _loading ? null : _save,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.accent,
-                    foregroundColor: AppColors.accentText,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AppRadius.lg)),
-                  ),
-                  child: _loading
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, color: AppColors.accentText),
-                        )
-                      : Text(
-                          _isEdit ? 'Update' : 'Save',
-                          style: const TextStyle(
-                              fontSize: 15, fontWeight: FontWeight.w600),
-                        ),
-                ),
-              ),
+              // SizedBox(
+              //   width: double.infinity,
+              //   child: FilledButton(
+              //     onPressed: _loading ? null : _save,
+              //     style: FilledButton.styleFrom(
+              //       backgroundColor: AppColors.accent,
+              //       foregroundColor: AppColors.accentText,
+              //       padding: const EdgeInsets.symmetric(vertical: 16),
+              //       shape: RoundedRectangleBorder(
+              //         borderRadius: BorderRadius.circular(AppRadius.lg),
+              //       ),
+              //     ),
+              //     child: _loading
+              //         ? const SizedBox(
+              //             width: 20,
+              //             height: 20,
+              //             child: CircularProgressIndicator(
+              //               strokeWidth: 2,
+              //               color: AppColors.accentText,
+              //             ),
+              //           )
+              //         : Text(
+              //             _isEdit ? 'Update' : 'Save',
+              //             style: const TextStyle(
+              //               fontSize: 15,
+              //               fontWeight: FontWeight.w600,
+              //             ),
+              //           ),
+              //   ),
+              // ),
             ],
+          ),
+        ),
+        bottomNavigationBar: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.xl),
+            child: SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: _loading ? null : _save,
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.accent,
+                  foregroundColor: AppColors.accentText,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.lg),
+                  ),
+                ),
+                child: _loading
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.accentText,
+                        ),
+                      )
+                    : Text(
+                        _isEdit ? 'Update' : 'Save',
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+              ),
+            ),
           ),
         ),
       ),
     );
+  }
+}
+
+// ── Participant row ───────────────────────────────────────────────────────────
+
+class _ParticipantRow extends StatelessWidget {
+  const _ParticipantRow({
+    required this.participant,
+    required this.readOnly,
+    this.onRemove,
+  });
+
+  final _Participant participant;
+  final bool readOnly;
+  final VoidCallback? onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.lg,
+        vertical: AppSpacing.md,
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: AppColors.surfaceMuted,
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.border),
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              participant.displayName.isNotEmpty
+                  ? participant.displayName[0].toUpperCase()
+                  : '?',
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Text(
+              participant.displayName,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: AppColors.textPrimary,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          SizedBox(
+            width: 88,
+            child: TextField(
+              controller: participant.controller,
+              readOnly: readOnly,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              inputFormatters: [AmountInputFormatter()],
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: readOnly
+                    ? AppColors.textTertiary
+                    : AppColors.textPrimary,
+              ),
+              decoration: InputDecoration(
+                hintText: '0.00',
+                hintStyle: const TextStyle(
+                  color: AppColors.textTertiary,
+                  fontSize: 14,
+                ),
+                filled: true,
+                fillColor: readOnly
+                    ? AppColors.surfaceMuted
+                    : AppColors.background,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                  borderSide: const BorderSide(color: AppColors.border),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                  borderSide: const BorderSide(color: AppColors.border),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                  borderSide: const BorderSide(
+                    color: AppColors.accent,
+                    width: 1.5,
+                  ),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md,
+                  vertical: AppSpacing.sm,
+                ),
+                isDense: true,
+              ),
+            ),
+          ),
+          if (onRemove != null) ...[
+            const SizedBox(width: AppSpacing.sm),
+            GestureDetector(
+              onTap: onRemove,
+              child: const Padding(
+                padding: EdgeInsets.all(AppSpacing.xs),
+                child: Icon(
+                  Icons.close_rounded,
+                  size: 16,
+                  color: AppColors.textTertiary,
+                ),
+              ),
+            ),
+          ] else
+            const SizedBox(width: 24),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Contact picker sheet ──────────────────────────────────────────────────────
+
+class _ContactPickerSheet extends ConsumerWidget {
+  const _ContactPickerSheet({
+    required this.addedUserIds,
+    required this.onSelect,
+  });
+
+  final Set<String> addedUserIds;
+  final ValueChanged<ContactModel> onSelect;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final contactsAsync = ref.watch(contactsProvider);
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(
+        AppSpacing.xl,
+        0,
+        AppSpacing.xl,
+        AppSpacing.xl,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.xxl),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(
+              AppSpacing.xxl,
+              AppSpacing.xxl,
+              AppSpacing.xxl,
+              AppSpacing.lg,
+            ),
+            child: Text(
+              'Add friend',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ),
+          const Divider(height: 1, color: AppColors.border),
+          contactsAsync.when(
+            loading: () => const Padding(
+              padding: EdgeInsets.all(AppSpacing.xxl),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+            error: (_, _) => const Padding(
+              padding: EdgeInsets.all(AppSpacing.xxl),
+              child: Text(
+                'Failed to load contacts',
+                style: TextStyle(color: AppColors.textSecondary),
+              ),
+            ),
+            data: (contacts) {
+              if (contacts.isEmpty) {
+                return Padding(
+                  padding: const EdgeInsets.all(AppSpacing.xxl),
+                  child: Column(
+                    spacing: AppSpacing.sm,
+                    children: [
+                      const Text(
+                        'No contacts yet',
+                        style: TextStyle(color: AppColors.textTertiary),
+                      ),
+                      ListTile(
+                        leading: const Icon(
+                          Icons.add_rounded,
+                          color: AppColors.accent,
+                        ),
+                        title: const Text(
+                          'Add Friend',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        onTap: () => context.push(contactsRoute),
+                      ),
+                    ],
+                  ),
+                );
+              }
+              return LimitedBox(
+                maxHeight: 320,
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+                  itemCount: contacts.length,
+                  itemBuilder: (context, i) {
+                    final contact = contacts[i];
+                    final isAdded = addedUserIds.contains(contact.friendId);
+
+                    if (i == 0) {
+                      return Column(
+                        children: [
+                          ListTile(
+                            leading: const Icon(
+                              Icons.add_rounded,
+                              color: AppColors.accent,
+                            ),
+                            title: const Text(
+                              'Add Friend',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                            onTap: () => context.push(contactsRoute),
+                          ),
+                          _ContactTile(
+                            contact: contact,
+                            isAdded: isAdded,
+                            onSelect: () {
+                              onSelect(contact);
+                              context.pop();
+                            },
+                          ),
+                        ],
+                      );
+                    }
+                    return _ContactTile(
+                      contact: contact,
+                      isAdded: isAdded,
+                      onSelect: () {
+                        onSelect(contact);
+                        context.pop();
+                      },
+                    );
+                  },
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: AppSpacing.lg),
+        ],
+      ),
+    );
+  }
+}
+
+class _ContactTile extends StatelessWidget {
+  const _ContactTile({
+    required this.contact,
+    required this.isAdded,
+    required this.onSelect,
+  });
+
+  final ContactModel contact;
+  final bool isAdded;
+  final VoidCallback onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: Container(
+        width: 36,
+        height: 36,
+        decoration: const BoxDecoration(
+          color: AppColors.surfaceMuted,
+          shape: BoxShape.circle,
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          contact.displayName[0].toUpperCase(),
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textSecondary,
+          ),
+        ),
+      ),
+      title: RichText(
+        text: TextSpan(
+          children: [
+            TextSpan(
+              text: contact.displayName,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: isAdded ? AppColors.textTertiary : AppColors.textPrimary,
+              ),
+            ),
+            TextSpan(
+              text: ' @${contact.username}',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w300,
+                color: isAdded ? AppColors.textTertiary : AppColors.textPrimary,
+              ),
+            ),
+          ],
+        ),
+      ),
+      trailing: isAdded
+          ? const Icon(
+              Icons.check_rounded,
+              size: 18,
+              color: AppColors.positiveDark,
+            )
+          : null,
+      onTap: isAdded ? null : onSelect,
+    );
+  }
+}
+
+// ── Group picker sheet ────────────────────────────────────────────────────────
+
+class _GroupPickerSheet extends ConsumerWidget {
+  const _GroupPickerSheet({required this.onSelect});
+
+  final ValueChanged<GroupModel> onSelect;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final groupsAsync = ref.watch(pickerGroupsProvider);
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(
+        AppSpacing.xl,
+        0,
+        AppSpacing.xl,
+        AppSpacing.xl,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.xxl),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(
+              AppSpacing.xxl,
+              AppSpacing.xxl,
+              AppSpacing.xxl,
+              AppSpacing.lg,
+            ),
+            child: Text(
+              'Add group',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ),
+          const Divider(height: 1, color: AppColors.border),
+          groupsAsync.when(
+            loading: () => const Padding(
+              padding: EdgeInsets.all(AppSpacing.xxl),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+            error: (_, _) => const Padding(
+              padding: EdgeInsets.all(AppSpacing.xxl),
+              child: Text(
+                'Failed to load groups',
+                style: TextStyle(color: AppColors.textSecondary),
+              ),
+            ),
+            data: (groups) {
+              if (groups.isEmpty) {
+                return const Padding(
+                  padding: EdgeInsets.all(AppSpacing.xxl),
+                  child: Text(
+                    'No groups yet. Create one in Contacts.',
+                    style: TextStyle(color: AppColors.textTertiary),
+                  ),
+                );
+              }
+              return LimitedBox(
+                maxHeight: 320,
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+                  itemCount: groups.length,
+                  itemBuilder: (context, i) {
+                    final group = groups[i];
+                    final color = _hexToColor(group.color);
+                    final memberCount = group.members.length;
+                    return ListTile(
+                      leading: Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: color.withValues(alpha: 0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.group_rounded,
+                          size: 18,
+                          color: color,
+                        ),
+                      ),
+                      title: Text(
+                        group.name,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      subtitle: Text(
+                        '$memberCount ${memberCount == 1 ? 'member' : 'members'}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textTertiary,
+                        ),
+                      ),
+                      onTap: () => onSelect(group),
+                    );
+                  },
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: AppSpacing.lg),
+        ],
+      ),
+    );
+  }
+
+  Color _hexToColor(String hex) {
+    final h = hex.replaceFirst('#', '');
+    return Color(int.parse('FF$h', radix: 16));
   }
 }
 
@@ -679,7 +1242,9 @@ class _ChipPicker<T> extends StatelessWidget {
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 150),
               padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.lg, vertical: AppSpacing.md),
+                horizontal: AppSpacing.lg,
+                vertical: AppSpacing.md,
+              ),
               decoration: BoxDecoration(
                 color: isSelected ? color : color.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(AppRadius.pill),
@@ -691,9 +1256,11 @@ class _ChipPicker<T> extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(iconOf(item),
-                      size: 14,
-                      color: isSelected ? Colors.white : color),
+                  Icon(
+                    iconOf(item),
+                    size: 14,
+                    color: isSelected ? Colors.white : color,
+                  ),
                   const SizedBox(width: 5),
                   Text(
                     labelOf(item),
@@ -712,7 +1279,9 @@ class _ChipPicker<T> extends StatelessWidget {
           onTap: onAddTap,
           child: Container(
             padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.lg, vertical: AppSpacing.md),
+              horizontal: AppSpacing.lg,
+              vertical: AppSpacing.md,
+            ),
             decoration: BoxDecoration(
               color: AppColors.surface,
               borderRadius: BorderRadius.circular(AppRadius.pill),
@@ -721,7 +1290,11 @@ class _ChipPicker<T> extends StatelessWidget {
             child: const Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.add_rounded, size: 14, color: AppColors.textSecondary),
+                Icon(
+                  Icons.add_rounded,
+                  size: 14,
+                  color: AppColors.textSecondary,
+                ),
                 SizedBox(width: 4),
                 Text(
                   'Add',
@@ -752,7 +1325,9 @@ class _PickerLoading extends StatelessWidget {
           width: 18,
           height: 18,
           child: CircularProgressIndicator(
-              strokeWidth: 2, color: AppColors.textTertiary),
+            strokeWidth: 2,
+            color: AppColors.textTertiary,
+          ),
         ),
       ),
     );
@@ -765,104 +1340,9 @@ class _PickerError extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Text(message,
-        style: const TextStyle(fontSize: 12, color: AppColors.textTertiary));
-  }
-}
-
-// ── Participant row ───────────────────────────────────────────────────────────
-
-class _ParticipantRow extends StatelessWidget {
-  const _ParticipantRow({
-    required this.participant,
-    required this.showAmountField,
-    required this.equalShareText,
-    required this.onChanged,
-  });
-
-  final _Participant participant;
-  final bool showAmountField;
-  final String equalShareText;
-  final VoidCallback onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.lg, vertical: AppSpacing.md),
-      child: Row(
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: AppColors.accent.withValues(alpha: 0.12),
-              shape: BoxShape.circle,
-            ),
-            child: Center(
-              child: Text(
-                participant.displayName.isNotEmpty
-                    ? participant.displayName[0].toUpperCase()
-                    : '?',
-                style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.accent),
-              ),
-            ),
-          ),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: Text(participant.displayName,
-                style: const TextStyle(
-                    fontSize: 14, color: AppColors.textPrimary)),
-          ),
-          if (showAmountField)
-            SizedBox(
-              width: 110,
-              child: TextField(
-                controller: participant.controller,
-                onChanged: (_) => onChanged(),
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-                inputFormatters: [AmountInputFormatter()],
-                textAlign: TextAlign.right,
-                style: const TextStyle(
-                    fontSize: 13, color: AppColors.textPrimary),
-                decoration: InputDecoration(
-                  hintText: '0.00',
-                  hintStyle: const TextStyle(
-                      color: AppColors.textTertiary, fontSize: 13),
-                  prefixText: 'RM ',
-                  prefixStyle: const TextStyle(
-                      fontSize: 13, color: AppColors.textSecondary),
-                  isDense: true,
-                  filled: true,
-                  fillColor: AppColors.background,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(AppRadius.md),
-                    borderSide: const BorderSide(color: AppColors.border),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(AppRadius.md),
-                    borderSide: const BorderSide(color: AppColors.border),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(AppRadius.md),
-                    borderSide: const BorderSide(
-                        color: AppColors.accent, width: 1.5),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.sm, vertical: 8),
-                ),
-              ),
-            )
-          else
-            Text(equalShareText,
-                style: const TextStyle(
-                    fontSize: 13, color: AppColors.textSecondary)),
-        ],
-      ),
+    return Text(
+      message,
+      style: const TextStyle(fontSize: 12, color: AppColors.textTertiary),
     );
   }
 }
@@ -881,5 +1361,7 @@ class _Participant {
   final bool isMe;
   final TextEditingController controller = TextEditingController();
 
-  void dispose() => controller.dispose();
+  void dispose() {
+    controller.dispose();
+  }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../service_locator.dart';
+import '../../split_bills/providers/split_bills_provider.dart';
 import '../data/models/recurring_split_bill_model.dart';
 
 class RecurringSplitBillsNotifier
@@ -49,6 +50,7 @@ class RecurringSplitBillsNotifier
         },
       );
       ref.invalidateSelf();
+      ref.invalidate(splitBillsProvider);
       return null;
     } catch (e) {
       debugPrint('Create recurring split bill error: $e');

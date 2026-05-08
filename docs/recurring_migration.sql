@@ -156,6 +156,9 @@ create policy "rsbs_delete" on recurring_split_bill_shares for delete using (
 -- ═══════════════════════════════════════════════════════════════════
 
 -- ── create_recurring_expense ──────────────────────────────────────
+-- If p_first_run_at is today or past, fires the first expense immediately
+-- and advances next_run_at to the next occurrence.
+-- Returns: recurring_expense_id, requires_premium, expense_id (null if not fired now).
 create or replace function create_recurring_expense(
   p_title        text,
   p_amount_cents bigint,
@@ -167,11 +170,12 @@ create or replace function create_recurring_expense(
   p_note         text    default null
 ) returns jsonb language plpgsql security definer as $$
 declare
-  v_user_id        uuid := auth.uid();
-  v_tier           text;
-  v_count          integer;
+  v_user_id          uuid := auth.uid();
+  v_tier             text;
+  v_count            integer;
   v_requires_premium boolean;
-  v_new_id         uuid;
+  v_new_id           uuid;
+  v_expense_id       uuid := null;
 begin
   if v_user_id is null then raise exception 'Not authenticated'; end if;
 
@@ -198,11 +202,36 @@ begin
   insert into recurring_expenses (
     user_id, title, amount_cents, type, category_id, account_id, note, frequency, next_run_at, requires_premium
   ) values (
-    v_user_id, trim(p_title), p_amount_cents, p_type, p_category_id, p_account_id, p_note, p_frequency, p_first_run_at,
+    v_user_id, trim(p_title), p_amount_cents, p_type, p_category_id, p_account_id, p_note, p_frequency,
+    case when p_first_run_at <= current_date then
+      case p_frequency
+        when 'daily'   then p_first_run_at + interval '1 day'
+        when 'monthly' then p_first_run_at + interval '1 month'
+        when 'yearly'  then p_first_run_at + interval '1 year'
+      end
+    else p_first_run_at end,
     v_requires_premium
   ) returning id into v_new_id;
 
-  return jsonb_build_object('recurring_expense_id', v_new_id, 'requires_premium', v_requires_premium);
+  if p_first_run_at <= current_date then
+    insert into expenses (
+      user_id, type, source, source_recurring_expense_id,
+      amount_cents, currency,
+      home_amount_cents, home_currency, conversion_rate,
+      category_id, account_id, note, expense_date
+    ) values (
+      v_user_id, p_type, 'recurring', v_new_id,
+      p_amount_cents, 'MYR',
+      p_amount_cents, 'MYR', 1,
+      p_category_id, p_account_id, coalesce(p_note, trim(p_title)), current_date
+    ) returning id into v_expense_id;
+  end if;
+
+  return jsonb_build_object(
+    'recurring_expense_id', v_new_id,
+    'requires_premium',     v_requires_premium,
+    'expense_id',           v_expense_id
+  );
 end; $$;
 
 
@@ -262,6 +291,9 @@ end; $$;
 -- p_shares: [{"user_id":"<uuid>","share_cents":<int|null>}, ...]
 -- For equal split pass share_cents as null in each element.
 -- Creator must include themselves in p_shares (they are the payer).
+-- If p_first_run_at is today or past, the first split bill is created immediately
+-- and next_run_at is advanced to the next occurrence.
+-- Returns: recurring_split_bill_id, requires_premium, split_bill_id (null if not fired now).
 create or replace function create_recurring_split_bill(
   p_title        text,
   p_amount_cents bigint,
@@ -281,6 +313,11 @@ declare
   v_new_id           uuid;
   v_share            record;
   v_total_custom     bigint := 0;
+  v_bill_id          uuid   := null;
+  v_participant_cnt  integer;
+  v_equal_cents      bigint;
+  v_remainder        bigint;
+  v_share_idx        integer;
 begin
   if v_user_id is null then raise exception 'Not authenticated'; end if;
 
@@ -316,10 +353,18 @@ begin
     end if;
   end if;
 
+  -- If first run is today or past, fire immediately and advance next_run_at.
   insert into recurring_split_bills (
     user_id, title, amount_cents, split_method, category_id, account_id, note, frequency, next_run_at, requires_premium
   ) values (
-    v_user_id, trim(p_title), p_amount_cents, p_split_method, p_category_id, p_account_id, p_note, p_frequency, p_first_run_at,
+    v_user_id, trim(p_title), p_amount_cents, p_split_method, p_category_id, p_account_id, p_note, p_frequency,
+    case when p_first_run_at <= current_date then
+      case p_frequency
+        when 'daily'   then p_first_run_at + interval '1 day'
+        when 'monthly' then p_first_run_at + interval '1 month'
+        when 'yearly'  then p_first_run_at + interval '1 year'
+      end
+    else p_first_run_at end,
     v_requires_premium
   ) returning id into v_new_id;
 
@@ -328,7 +373,7 @@ begin
     from jsonb_array_elements(p_shares) s
   loop
     if v_share.user_id <> v_user_id and not exists (
-      select 1 from contacts where owner_id = v_user_id and friend_id = v_share.user_id and deleted_at is null
+      select 1 from contacts where owner_id = v_user_id and friend_id = v_share.user_id
     ) then raise exception 'Participant is not in your contacts: %', v_share.user_id; end if;
 
     insert into recurring_split_bill_shares (recurring_split_bill_id, user_id, share_cents)
@@ -336,7 +381,75 @@ begin
       case when p_split_method = 'custom' then v_share.share_cents else null end);
   end loop;
 
-  return jsonb_build_object('recurring_split_bill_id', v_new_id, 'requires_premium', v_requires_premium);
+  -- Fire the first split bill immediately if first_run_at is today or past.
+  if p_first_run_at <= current_date then
+    select count(*) into v_participant_cnt
+    from recurring_split_bill_shares where recurring_split_bill_id = v_new_id;
+
+    insert into split_bills (
+      created_by, paid_by,
+      total_amount_cents, currency,
+      home_amount_cents, home_currency, conversion_rate,
+      note, expense_date, category_id
+    ) values (
+      v_user_id, v_user_id,
+      p_amount_cents, 'MYR',
+      p_amount_cents, 'MYR', 1,
+      coalesce(p_note, trim(p_title)), current_date, p_category_id
+    ) returning id into v_bill_id;
+
+    if p_split_method = 'equal' then
+      v_equal_cents := p_amount_cents / v_participant_cnt;
+      v_remainder   := p_amount_cents - (v_equal_cents * v_participant_cnt);
+      v_share_idx   := 0;
+
+      for v_share in
+        select * from recurring_split_bill_shares
+        where recurring_split_bill_id = v_new_id
+        order by created_at
+      loop
+        v_share_idx := v_share_idx + 1;
+        insert into split_bill_shares (split_bill_id, user_id, share_cents, split_method, status)
+        values (
+          v_bill_id, v_share.user_id,
+          v_equal_cents + case when v_share_idx <= v_remainder then 1 else 0 end,
+          'equal',
+          case when v_share.user_id = v_user_id then 'settled' else 'pending' end
+        );
+      end loop;
+
+    else
+      for v_share in
+        select * from recurring_split_bill_shares where recurring_split_bill_id = v_new_id
+      loop
+        insert into split_bill_shares (split_bill_id, user_id, share_cents, split_method, status)
+        values (
+          v_bill_id, v_share.user_id,
+          v_share.share_cents,
+          'custom',
+          case when v_share.user_id = v_user_id then 'settled' else 'pending' end
+        );
+      end loop;
+    end if;
+
+    insert into expenses (
+      user_id, type, source, source_split_bill_id, source_recurring_split_bill_id,
+      amount_cents, currency,
+      home_amount_cents, home_currency, conversion_rate,
+      category_id, account_id, note, expense_date
+    ) values (
+      v_user_id, 'expense', 'recurring', v_bill_id, v_new_id,
+      p_amount_cents, 'MYR',
+      p_amount_cents, 'MYR', 1,
+      p_category_id, p_account_id, coalesce(p_note, trim(p_title)), current_date
+    );
+  end if;
+
+  return jsonb_build_object(
+    'recurring_split_bill_id', v_new_id,
+    'requires_premium',        v_requires_premium,
+    'split_bill_id',           v_bill_id
+  );
 end; $$;
 
 
@@ -398,7 +511,7 @@ begin
       from jsonb_array_elements(p_shares) s
     loop
       if v_share.user_id <> v_user_id and not exists (
-        select 1 from contacts where owner_id = v_user_id and friend_id = v_share.user_id and deleted_at is null
+        select 1 from contacts where owner_id = v_user_id and friend_id = v_share.user_id
       ) then raise exception 'Participant is not in your contacts: %', v_share.user_id; end if;
 
       insert into recurring_split_bill_shares (recurring_split_bill_id, user_id, share_cents)

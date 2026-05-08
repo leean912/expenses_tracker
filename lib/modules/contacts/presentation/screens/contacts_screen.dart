@@ -330,7 +330,7 @@ class _GroupsTabState extends ConsumerState<_GroupsTab> {
     if (contacts.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Add contacts first to create a group.'),
+          content: Text('Add friends first to create a group.'),
           behavior: SnackBarBehavior.floating,
           backgroundColor: AppColors.textPrimary,
         ),
@@ -459,8 +459,9 @@ class _GroupsTabState extends ConsumerState<_GroupsTab> {
                 ),
               ),
               data: (groups) {
-                final freeGroupCount =
-                    groups.where((g) => !g.requiresPremium).length;
+                final freeGroupCount = groups
+                    .where((g) => !g.requiresPremium)
+                    .length;
                 final filtered = groups
                     .where((g) => !_dismissedIds.contains(g.id))
                     .where(
@@ -488,10 +489,7 @@ class _GroupsTabState extends ConsumerState<_GroupsTab> {
                 return Column(
                   children: [
                     if (!isPremium) ...[
-                      _GroupUsageBanner(
-                        used: freeGroupCount,
-                        limit: 2,
-                      ),
+                      _GroupUsageBanner(used: freeGroupCount, limit: 2),
                       const SizedBox(height: AppSpacing.sm),
                     ],
                     Expanded(
@@ -505,25 +503,24 @@ class _GroupsTabState extends ConsumerState<_GroupsTab> {
                             const SizedBox(height: AppSpacing.sm),
                         itemBuilder: (context, index) {
                           final group = filtered[index];
-                          final isLocked =
-                              !isPremium && group.requiresPremium;
+                          final isLocked = !isPremium && group.requiresPremium;
                           return _GroupTile(
                             group: group,
                             isLocked: isLocked,
-                            onDelete: () =>
-                                _handleDelete(group.id, group.name),
+                            onDelete: () => _handleDelete(group.id, group.name),
                             onTap: isLocked
                                 ? () => showModalBottomSheet<void>(
-                                      context: context,
-                                      backgroundColor: Colors.transparent,
-                                      builder: (_) => const UpgradeSheet(
-                                        title: 'Premium group',
-                                        description:
-                                            'This group was created with Premium. Upgrade to unlock it.',
-                                      ),
-                                    )
-                                : () => context
-                                    .push('$groupDetailRoute/${group.id}'),
+                                    context: context,
+                                    backgroundColor: Colors.transparent,
+                                    builder: (_) => const UpgradeSheet(
+                                      title: 'Premium group',
+                                      description:
+                                          'This group was created with Premium. Upgrade to unlock it.',
+                                    ),
+                                  )
+                                : () => context.push(
+                                    '$groupDetailRoute/${group.id}',
+                                  ),
                           );
                         },
                       ),
@@ -626,8 +623,7 @@ class _GroupTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = hexToColor(group.color);
-    final effectiveColor =
-        isLocked ? color.withValues(alpha: 0.35) : color;
+    final effectiveColor = isLocked ? color.withValues(alpha: 0.35) : color;
     final memberNames = group.members.map((m) => m.displayName).join(', ');
 
     return Opacity(
@@ -670,7 +666,11 @@ class _GroupTile extends StatelessWidget {
                     color: effectiveColor.withValues(alpha: 0.15),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(Icons.group_rounded, size: 18, color: effectiveColor),
+                  child: Icon(
+                    Icons.group_rounded,
+                    size: 18,
+                    color: effectiveColor,
+                  ),
                 ),
                 const SizedBox(width: AppSpacing.lg),
                 Expanded(
@@ -719,7 +719,9 @@ class _GroupTile extends StatelessWidget {
                     child: const Text(
                       'Premium',
                       style: TextStyle(
-                          fontSize: 11, color: AppColors.textTertiary),
+                        fontSize: 11,
+                        color: AppColors.textTertiary,
+                      ),
                     ),
                   )
                 else
@@ -752,12 +754,7 @@ class _GroupUsageBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final remaining = limit - used;
     return Container(
-      margin: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        0,
-        AppSpacing.xl,
-        0,
-      ),
+      margin: const EdgeInsets.fromLTRB(AppSpacing.xl, 0, AppSpacing.xl, 0),
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.lg,
         vertical: AppSpacing.md,

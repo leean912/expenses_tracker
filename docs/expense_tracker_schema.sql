@@ -49,7 +49,6 @@ create table contacts (
   friend_id uuid not null references profiles(id) on delete cascade,
   nickname text,
   created_at timestamptz not null default now(),
-  deleted_at timestamptz,
   unique(owner_id, friend_id),
   check (owner_id <> friend_id)
 );
