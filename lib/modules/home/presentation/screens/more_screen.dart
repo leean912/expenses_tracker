@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/routes/routes.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/widgets/upgrade_sheet.dart';
 import '../../../auth/providers/auth_provider.dart';
 import '../../../subscription/providers/subscription_provider.dart';
 import '../../../../service_locator.dart';
@@ -158,6 +159,41 @@ class MoreScreen extends ConsumerWidget {
                 color: AppColors.textTertiary,
               ),
               onTap: () => context.push(budgetsRoute),
+            ),
+            const Divider(height: 1, indent: 56, color: AppColors.border),
+            ListTile(
+              leading: const Icon(
+                Icons.picture_as_pdf_rounded,
+                color: AppColors.textSecondary,
+              ),
+              title: const Text(
+                'Export PDF / Excel',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              subtitle: const Text(
+                'Export your transactions as PDF or Excel',
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              ),
+              trailing: const Icon(
+                Icons.chevron_right_rounded,
+                color: AppColors.textTertiary,
+              ),
+              onTap: () {
+                if (!isPremium) {
+                  UpgradeSheet.show(
+                    context,
+                    title: 'Export PDF is a Pro feature',
+                    description:
+                        'Upgrade to Spendz Pro to export your transactions as a PDF report.',
+                  );
+                  return;
+                }
+                context.push(exportPdfRoute);
+              },
             ),
             const Divider(height: 1, color: AppColors.border),
             const SizedBox(height: AppSpacing.xl),

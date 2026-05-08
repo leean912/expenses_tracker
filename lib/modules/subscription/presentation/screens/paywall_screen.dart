@@ -33,8 +33,8 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
     (Icons.repeat_rounded, 'Unlimited recurring expenses'),
     (Icons.repeat_one_rounded, 'Unlimited recurring split bills'),
     (Icons.tune_rounded, 'Year & custom filters in analysis'),
-    (Icons.download_rounded, 'Data export (CSV & PDF)'),
-    (Icons.photo_camera_rounded, 'Receipt photo storage'),
+    (Icons.download_rounded, 'Data export (PDF & Excel)'),
+    (Icons.photo_camera_rounded, 'Attach & Save Receipts'),
     // (Icons.document_scanner_rounded, 'Receipt OCR scanning'),
     // (Icons.currency_exchange_rounded, 'Live FX rates'),
   ];
@@ -309,12 +309,14 @@ class _FeatureRow extends StatelessWidget {
             child: Icon(icon, size: 16, color: AppColors.positiveDark),
           ),
           const SizedBox(width: AppSpacing.lg),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 14,
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.w500,
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 14,
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
         ],

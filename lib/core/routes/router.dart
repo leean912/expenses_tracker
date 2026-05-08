@@ -3,29 +3,30 @@ import 'package:go_router/go_router.dart';
 
 import '../../main.dart';
 import '../../modules/analysis/presentation/screens/analysis_screen.dart';
+import '../../modules/auth/presentation/screens/referral_onboarding_screen.dart';
 import '../../modules/auth/presentation/screens/splash_screen.dart';
 import '../../modules/auth/presentation/screens/user_name_screen.dart';
-import '../../modules/contacts/presentation/screens/contacts_screen.dart';
-import '../../modules/contacts/presentation/screens/group_detail_screen.dart';
 import '../../modules/collabs/presentation/screens/collab_detail_screen.dart';
 import '../../modules/collabs/presentation/screens/collab_members_screen.dart';
+import '../../modules/contacts/presentation/screens/contacts_screen.dart';
+import '../../modules/contacts/presentation/screens/group_detail_screen.dart';
+import '../../modules/export/presentation/screens/export_pdf_screen.dart';
 import '../../modules/home/presentation/screens/collabs_screen.dart';
 import '../../modules/home/presentation/screens/home_screen.dart';
 import '../../modules/home/presentation/screens/more_screen.dart';
+import '../../modules/recurring/data/models/recurring_expense_model.dart';
+import '../../modules/recurring/data/models/recurring_split_bill_model.dart';
+import '../../modules/recurring/presentation/screens/recurring_expense_form_screen.dart';
+import '../../modules/recurring/presentation/screens/recurring_list_screen.dart';
+import '../../modules/recurring/presentation/screens/recurring_split_bill_form_screen.dart';
+import '../../modules/referral/presentation/screens/referral_screen.dart';
 import '../../modules/settings/accounts/presentation/screens/accounts_screen.dart';
 import '../../modules/settings/budget/presentation/screens/budget_list_screen.dart';
 import '../../modules/settings/categories/presentation/screens/categories_screen.dart';
 import '../../modules/split_bills/presentation/screens/friend_split_detail_screen.dart';
 import '../../modules/split_bills/presentation/screens/split_bill_detail_screen.dart';
 import '../../modules/split_bills/presentation/screens/split_bills_screen.dart';
-import '../../modules/recurring/data/models/recurring_expense_model.dart';
-import '../../modules/recurring/data/models/recurring_split_bill_model.dart';
-import '../../modules/recurring/presentation/screens/recurring_expense_form_screen.dart';
-import '../../modules/recurring/presentation/screens/recurring_list_screen.dart';
-import '../../modules/recurring/presentation/screens/recurring_split_bill_form_screen.dart';
 import '../../modules/subscription/presentation/screens/paywall_screen.dart';
-import '../../modules/referral/presentation/screens/referral_screen.dart';
-import '../../modules/auth/presentation/screens/referral_onboarding_screen.dart';
 import 'app_shell.dart';
 
 final router = GoRouter(
@@ -40,9 +41,8 @@ final router = GoRouter(
       routes: [
         GoRoute(
           path: 'groups/:id',
-          builder: (context, state) => GroupDetailScreen(
-            groupId: state.pathParameters['id']!,
-          ),
+          builder: (context, state) =>
+              GroupDetailScreen(groupId: state.pathParameters['id']!),
         ),
       ],
     ),
@@ -77,6 +77,10 @@ final router = GoRouter(
     GoRoute(
       path: referralOnboardingRoute,
       builder: (context, state) => const ReferralOnboardingScreen(),
+    ),
+    GoRoute(
+      path: exportPdfRoute,
+      builder: (context, state) => const ExportScreen(),
     ),
     GoRoute(
       path: recurringExpenseFormRoute,
@@ -132,9 +136,8 @@ final router = GoRouter(
               routes: [
                 GoRoute(
                   path: ':id',
-                  builder: (context, state) => CollabDetailScreen(
-                    collabId: state.pathParameters['id']!,
-                  ),
+                  builder: (context, state) =>
+                      CollabDetailScreen(collabId: state.pathParameters['id']!),
                   routes: [
                     GoRoute(
                       path: 'members',
