@@ -4,6 +4,7 @@ const String loginRoute = '/login';
 const String userNameRoute = '/username';
 const String contactsRoute = '/contacts';
 const String splitBillsRoute = '/split-bills';
+const String splitBillsFriendRoute = '/split-bills/friend';
 const String analysisRoute = '/analysis';
 const String collabsRoute = '/collabs';
 const String moreRoute = '/more';

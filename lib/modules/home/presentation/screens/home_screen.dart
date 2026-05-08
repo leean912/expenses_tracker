@@ -12,6 +12,7 @@ import '../../../auth/providers/states/auth_state.dart';
 import '../../../subscription/providers/subscription_provider.dart';
 import '../../providers/home/home_provider.dart';
 import '../../providers/home/home_state.dart';
+import '../../../expenses/presentation/widgets/edit_expense_sheet.dart';
 import '../widgets/analytics_banner.dart';
 import '../widgets/budget_grid.dart';
 import '../widgets/expense_tile.dart';
@@ -281,8 +282,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       child: ExpenseListCard(
                         expenses: homeData.expenses,
                         timePeriod: _selectedPeriod,
-                        onTileTap: (e) =>
-                            debugPrint('Expense tapped: ${e.title}'),
+                        onTileTap: (e) {
+                          showModalBottomSheet<void>(
+                            context: context,
+                            isScrollControlled: true,
+                            backgroundColor: Colors.transparent,
+                            builder: (_) => EditExpenseSheet(
+                              expenseId: e.id,
+                              onSaved: () =>
+                                  ref.invalidate(homeDataProvider(_filter)),
+                            ),
+                          );
+                        },
                         onDelete: _deleteExpense,
                       ),
                     ),

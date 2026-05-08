@@ -55,6 +55,7 @@ final homeDataProvider = FutureProvider.family<HomeData, HomeFilter>((
         .from('expenses')
         .select(
           'id, note, home_amount_cents, type, expense_date, category_id, '
+          'currency, collab_id, source_split_bill_id, source_recurring_expense_id, '
           'category:categories(name, color), account:accounts(name)',
         )
         .eq('user_id', userId)
@@ -203,6 +204,7 @@ final homeDataProvider = FutureProvider.family<HomeData, HomeFilter>((
     final color =
         _hexToColor(catMap?['color'] as String?) ?? const Color(0xFF888780);
 
+    final currency = row['currency'] as String?;
     return ExpenseTileData(
       id: row['id'] as String,
       title: row['note'] as String? ?? '',
@@ -214,6 +216,10 @@ final homeDataProvider = FutureProvider.family<HomeData, HomeFilter>((
       date: DateTime.parse(row['expense_date'] as String),
       accountName:
           (row['account'] as Map<String, dynamic>?)?['name'] as String?,
+      isCollab: row['collab_id'] != null,
+      isSplitBill: row['source_split_bill_id'] != null,
+      isRecurring: row['source_recurring_expense_id'] != null,
+      currencyCode: (currency != null && currency != 'MYR') ? currency : null,
     );
   }).toList();
 

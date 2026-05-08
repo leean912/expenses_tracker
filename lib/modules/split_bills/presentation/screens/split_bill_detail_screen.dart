@@ -375,8 +375,8 @@ class _SettleSheetState extends ConsumerState<_SettleSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final categoriesAsync = ref.watch(categoriesProvider);
-    final accountsAsync = ref.watch(accountsProvider);
+    final categoriesAsync = ref.watch(pickerCategoriesProvider);
+    final accountsAsync = ref.watch(pickerAccountsProvider);
     final canConfirm = _category != null && _account != null && !_loading;
 
     return Padding(
@@ -390,7 +390,9 @@ class _SettleSheetState extends ConsumerState<_SettleSheet> {
           AppSpacing.xl,
           AppSpacing.xl,
         ),
-        padding: const EdgeInsets.all(AppSpacing.xl),
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * 0.85,
+        ),
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(AppRadius.xxl),
@@ -399,83 +401,102 @@ class _SettleSheetState extends ConsumerState<_SettleSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Mark as Settled',
-              style: TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.xs),
-            Text(
-              _fmtAmount(widget.share.shareCents, widget.currency),
-              style: const TextStyle(
-                fontSize: 26,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.xxl),
-            const _SectionLabel('CATEGORY'),
-            const SizedBox(height: AppSpacing.md),
-            categoriesAsync.when(
-              loading: () => const _PickerSkeleton(),
-              error: (_, _) => const Text(
-                'Failed to load',
-                style: TextStyle(color: AppColors.textSecondary),
-              ),
-              data: (cats) => _CategoryChipPicker(
-                categories: cats,
-                selected: _category,
-                onSelect: (c) => setState(() => _category = c),
-              ),
-            ),
-            const SizedBox(height: AppSpacing.xl),
-            const _SectionLabel('ACCOUNT'),
-            const SizedBox(height: AppSpacing.md),
-            accountsAsync.when(
-              loading: () => const _PickerSkeleton(),
-              error: (_, _) => const Text(
-                'Failed to load',
-                style: TextStyle(color: AppColors.textSecondary),
-              ),
-              data: (accounts) => _AccountChipPicker(
-                accounts: accounts,
-                selected: _account,
-                onSelect: (a) => setState(() => _account = a),
-              ),
-            ),
-            const SizedBox(height: AppSpacing.xxl),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.accent,
-                  foregroundColor: AppColors.accentText,
-                  disabledBackgroundColor: AppColors.surfaceMuted,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppRadius.pill),
-                  ),
-                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
-                ),
-                onPressed: canConfirm ? _confirm : null,
-                child: _loading
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: AppColors.accentText,
-                        ),
-                      )
-                    : const Text(
-                        'Confirm',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                        ),
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(AppSpacing.xl),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Mark as Settled',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
                       ),
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(
+                      _fmtAmount(widget.share.shareCents, widget.currency),
+                      style: const TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.xxl),
+                    const _SectionLabel('CATEGORY'),
+                    const SizedBox(height: AppSpacing.md),
+                    categoriesAsync.when(
+                      loading: () => const _PickerSkeleton(),
+                      error: (_, _) => const Text(
+                        'Failed to load',
+                        style: TextStyle(color: AppColors.textSecondary),
+                      ),
+                      data: (cats) => _CategoryChipPicker(
+                        categories: cats,
+                        selected: _category,
+                        onSelect: (c) => setState(() => _category = c),
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.xl),
+                    const _SectionLabel('ACCOUNT'),
+                    const SizedBox(height: AppSpacing.md),
+                    accountsAsync.when(
+                      loading: () => const _PickerSkeleton(),
+                      error: (_, _) => const Text(
+                        'Failed to load',
+                        style: TextStyle(color: AppColors.textSecondary),
+                      ),
+                      data: (accounts) => _AccountChipPicker(
+                        accounts: accounts,
+                        selected: _account,
+                        onSelect: (a) => setState(() => _account = a),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.xl,
+                0,
+                AppSpacing.xl,
+                AppSpacing.xl,
+              ),
+              child: SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.accent,
+                    foregroundColor: AppColors.accentText,
+                    disabledBackgroundColor: AppColors.surfaceMuted,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppRadius.pill),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: AppSpacing.lg,
+                    ),
+                  ),
+                  onPressed: canConfirm ? _confirm : null,
+                  child: _loading
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.accentText,
+                          ),
+                        )
+                      : const Text(
+                          'Confirm',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                ),
               ),
             ),
           ],
@@ -532,11 +553,17 @@ class _PickerSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 46,
-      decoration: BoxDecoration(
-        color: AppColors.surfaceMuted,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
+    return const SizedBox(
+      height: 40,
+      child: Center(
+        child: SizedBox(
+          width: 18,
+          height: 18,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: AppColors.textTertiary,
+          ),
+        ),
       ),
     );
   }
@@ -555,54 +582,50 @@ class _CategoryChipPicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: categories.map((cat) {
-          final isSelected = cat.id == selected?.id;
-          final color = _hexToColor(cat.color);
-          return Padding(
-            padding: const EdgeInsets.only(right: AppSpacing.sm),
-            child: GestureDetector(
-              onTap: () => onSelect(isSelected ? null : cat),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.lg,
-                  vertical: AppSpacing.md,
-                ),
-                decoration: BoxDecoration(
-                  color: isSelected ? color : color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(AppRadius.pill),
-                  border: Border.all(
-                    color: isSelected ? color : Colors.transparent,
-                    width: 1.5,
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      _iconForName(cat.icon),
-                      size: 14,
-                      color: isSelected ? Colors.white : color,
-                    ),
-                    const SizedBox(width: 5),
-                    Text(
-                      cat.name,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: isSelected ? Colors.white : color,
-                      ),
-                    ),
-                  ],
-                ),
+    return Wrap(
+      spacing: AppSpacing.sm,
+      runSpacing: AppSpacing.sm,
+      children: categories.map((cat) {
+        final isSelected = cat.id == selected?.id;
+        final color = _hexToColor(cat.color);
+        return GestureDetector(
+          onTap: () => onSelect(isSelected ? null : cat),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.lg,
+              vertical: AppSpacing.md,
+            ),
+            decoration: BoxDecoration(
+              color: isSelected ? color : color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(AppRadius.pill),
+              border: Border.all(
+                color: isSelected ? color : Colors.transparent,
+                width: 1.5,
               ),
             ),
-          );
-        }).toList(),
-      ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  _iconForName(cat.icon),
+                  size: 14,
+                  color: isSelected ? Colors.white : color,
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  cat.name,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: isSelected ? Colors.white : color,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }).toList(),
     );
   }
 }
@@ -620,59 +643,50 @@ class _AccountChipPicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      clipBehavior: Clip.none,
-      child: Row(
-        children: accounts.map((acc) {
-          final isSelected = acc.id == selected?.id;
-          return Padding(
-            padding: const EdgeInsets.only(right: AppSpacing.sm),
-            child: GestureDetector(
-              onTap: () => onSelect(isSelected ? null : acc),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.lg,
-                  vertical: AppSpacing.md,
-                ),
-                decoration: BoxDecoration(
-                  color: isSelected ? AppColors.accent : AppColors.surface,
-                  borderRadius: BorderRadius.circular(AppRadius.pill),
-                  border: Border.all(
-                    color: isSelected
-                        ? AppColors.accent
-                        : AppColors.borderDashed,
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      _iconForName(acc.icon),
-                      size: 14,
-                      color: isSelected
-                          ? AppColors.accentText
-                          : AppColors.textSecondary,
-                    ),
-                    const SizedBox(width: 5),
-                    Text(
-                      acc.name,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: isSelected
-                            ? AppColors.accentText
-                            : AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
+    return Wrap(
+      spacing: AppSpacing.sm,
+      runSpacing: AppSpacing.sm,
+      children: accounts.map((acc) {
+        final isSelected = acc.id == selected?.id;
+        final color = _hexToColor(acc.color);
+        return GestureDetector(
+          onTap: () => onSelect(isSelected ? null : acc),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.lg,
+              vertical: AppSpacing.md,
+            ),
+            decoration: BoxDecoration(
+              color: isSelected ? color : color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(AppRadius.pill),
+              border: Border.all(
+                color: isSelected ? color : Colors.transparent,
+                width: 1.5,
               ),
             ),
-          );
-        }).toList(),
-      ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  _iconForName(acc.icon),
+                  size: 14,
+                  color: isSelected ? Colors.white : color,
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  acc.name,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: isSelected ? Colors.white : color,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }).toList(),
     );
   }
 }

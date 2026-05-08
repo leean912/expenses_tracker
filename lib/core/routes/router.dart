@@ -15,6 +15,7 @@ import '../../modules/home/presentation/screens/more_screen.dart';
 import '../../modules/settings/accounts/presentation/screens/accounts_screen.dart';
 import '../../modules/settings/budget/presentation/screens/budget_list_screen.dart';
 import '../../modules/settings/categories/presentation/screens/categories_screen.dart';
+import '../../modules/split_bills/presentation/screens/friend_split_detail_screen.dart';
 import '../../modules/split_bills/presentation/screens/split_bill_detail_screen.dart';
 import '../../modules/split_bills/presentation/screens/split_bills_screen.dart';
 import '../../modules/recurring/data/models/recurring_expense_model.dart';
@@ -107,6 +108,12 @@ final router = GoRouter(
               path: splitBillsRoute,
               builder: (context, state) => const SplitBillsScreen(),
               routes: [
+                GoRoute(
+                  path: 'friend/:friendId',
+                  builder: (context, state) => FriendSplitDetailScreen(
+                    friendId: state.pathParameters['friendId']!,
+                  ),
+                ),
                 GoRoute(
                   path: ':id',
                   builder: (context, state) => SplitBillDetailScreen(

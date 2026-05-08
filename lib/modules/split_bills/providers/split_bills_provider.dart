@@ -26,7 +26,8 @@ class SplitBillsNotifier extends AsyncNotifier<SplitBillsData> {
         )
         .eq('created_by', userId)
         .isFilter('deleted_at', null)
-        .order('expense_date', ascending: false);
+        .order('expense_date', ascending: false)
+        .limit(1000);
 
     final myBills = (billsRaw as List)
         .map((r) => SplitBillModel.fromJson(r as Map<String, dynamic>))
@@ -39,7 +40,8 @@ class SplitBillsNotifier extends AsyncNotifier<SplitBillsData> {
         )
         .eq('user_id', userId)
         .isFilter('archived_at', null)
-        .order('created_at', ascending: false);
+        .order('created_at', ascending: false)
+        .limit(1000);
 
     final myShares = (sharesRaw as List)
         .map((r) => r as Map<String, dynamic>)

@@ -650,7 +650,7 @@ class _GroupSplitBillSheetState extends ConsumerState<GroupSplitBillSheet> {
                               ),
                               SizedBox(width: AppSpacing.sm),
                               Text(
-                                'Add person',
+                                'Add friend',
                                 style: TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w500,
@@ -920,7 +920,7 @@ class _ContactPickerSheet extends ConsumerWidget {
               AppSpacing.lg,
             ),
             child: const Text(
-              'Add person',
+              'Add friend',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,

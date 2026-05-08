@@ -12,6 +12,42 @@ class ExpenseTile extends StatelessWidget {
   final ExpenseTileData expense;
   final VoidCallback? onTap;
 
+  bool _hasBadges(ExpenseTileData expense) =>
+      expense.isCollab ||
+      expense.isSplitBill ||
+      expense.isRecurring ||
+      expense.isForeignCurrency;
+
+  List<Widget> _buildBadges(ExpenseTileData expense) {
+    final badges = <Widget>[];
+    if (expense.isCollab) {
+      badges.add(
+        _Badge(icon: Icons.group_outlined, label: 'Collab'),
+      );
+    }
+    if (expense.isSplitBill) {
+      badges.add(
+        _Badge(icon: Icons.call_split_rounded, label: 'Split bill'),
+      );
+    }
+    if (expense.isRecurring) {
+      badges.add(
+        _Badge(icon: Icons.repeat_rounded, label: 'Recurring'),
+      );
+    }
+    if (expense.isForeignCurrency) {
+      badges.add(
+        _Badge(icon: Icons.language_rounded, label: expense.currencyCode!),
+      );
+    }
+    return [
+      for (int i = 0; i < badges.length; i++) ...[
+        if (i > 0) const SizedBox(width: AppSpacing.sm),
+        badges[i],
+      ],
+    ];
+  }
+
   String _fmtAmount(int cents, {required bool isIncome}) {
     final value = (cents / 100).abs();
     final whole = value.toStringAsFixed(2);
@@ -51,6 +87,12 @@ class ExpenseTile extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: AppSpacing.xs),
+                  if (_hasBadges(expense)) ...[
+                    Row(
+                      children: _buildBadges(expense),
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                  ],
                   Row(
                     children: [
                       Container(
@@ -103,6 +145,32 @@ class ExpenseTile extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _Badge extends StatelessWidget {
+  const _Badge({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 11, color: AppColors.textTertiary),
+        const SizedBox(width: 3),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 11,
+            color: AppColors.textTertiary,
+            fontWeight: FontWeight.w400,
+          ),
+        ),
+      ],
     );
   }
 }

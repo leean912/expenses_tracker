@@ -182,6 +182,10 @@ class ExpenseTileData {
     required this.categoryDark,
     required this.date,
     this.accountName,
+    this.isCollab = false,
+    this.isSplitBill = false,
+    this.isRecurring = false,
+    this.currencyCode,
   });
 
   final String id;
@@ -193,4 +197,12 @@ class ExpenseTileData {
   final Color categoryDark;
   final DateTime date;
   final String? accountName;
+  final bool isCollab;
+  final bool isSplitBill;
+  final bool isRecurring;
+
+  /// Non-null when the expense was recorded in a foreign currency (not MYR).
+  final String? currencyCode;
+
+  bool get isForeignCurrency => currencyCode != null;
 }
