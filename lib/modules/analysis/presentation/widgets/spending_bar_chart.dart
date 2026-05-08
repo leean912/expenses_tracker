@@ -11,8 +11,16 @@ class SpendingBarChart extends StatelessWidget {
 
   String _fmt(double cents) {
     final rm = cents / 100;
-    if (rm >= 1000) return 'RM${(rm / 1000).toStringAsFixed(1)}K';
-    return 'RM${rm.toStringAsFixed(0)}';
+    final abs = rm.abs();
+    final formatted = abs.toStringAsFixed(0);
+    final buf = StringBuffer();
+    final chars = formatted.split('').reversed.toList();
+    for (var i = 0; i < chars.length; i++) {
+      if (i > 0 && i % 3 == 0) buf.write(',');
+      buf.write(chars[i]);
+    }
+    final result = buf.toString().split('').reversed.join();
+    return rm < 0 ? '-RM $result' : 'RM $result';
   }
 
   @override
@@ -30,7 +38,7 @@ class SpendingBarChart extends StatelessWidget {
     }
 
     final maxVal = buckets
-        .map((b) => b.spendCents)
+        .map((b) => b.spendCents - b.incomeCents)
         .reduce((a, b) => a > b ? a : b)
         .toDouble();
     final adjustedMax = maxVal == 0 ? 10000.0 : maxVal * 1.3;
@@ -43,7 +51,7 @@ class SpendingBarChart extends StatelessWidget {
         x: i,
         barRods: [
           BarChartRodData(
-            toY: b.spendCents.toDouble(),
+            toY: (b.spendCents - b.incomeCents).toDouble(),
             gradient: LinearGradient(
               colors: [
                 const Color(0xFFD84040),
@@ -86,7 +94,7 @@ class SpendingBarChart extends StatelessWidget {
                 leftTitles: AxisTitles(
                   sideTitles: SideTitles(
                     showTitles: true,
-                    reservedSize: 54,
+                    reservedSize: 68,
                     interval: yInterval,
                     getTitlesWidget: (value, meta) {
                       if (value == 0 || value == adjustedMax) {

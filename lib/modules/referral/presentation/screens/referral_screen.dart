@@ -35,17 +35,16 @@ class ReferralScreen extends ConsumerWidget {
         error: (e, _) => const Center(
           child: Text('Failed to load referral data', style: TextStyle(color: AppColors.textSecondary)),
         ),
-        data: (stats) => _ReferralContent(stats: stats, ref: ref),
+        data: (stats) => _ReferralContent(stats: stats),
       ),
     );
   }
 }
 
 class _ReferralContent extends StatelessWidget {
-  const _ReferralContent({required this.stats, required this.ref});
+  const _ReferralContent({required this.stats});
 
   final ReferralStats stats;
-  final WidgetRef ref;
 
   void _copyCode(BuildContext context) {
     Clipboard.setData(ClipboardData(text: stats.referralCode));
@@ -66,19 +65,12 @@ class _ReferralContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final entryState = ref.watch(referralCodeEntryProvider);
-    final showEntry = !stats.hasUsedReferral && !entryState.submitted;
-
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [
         _CodeCard(stats: stats, onCopy: () => _copyCode(context), onShare: _shareCode),
         const SizedBox(height: 24),
         _StatsCard(stats: stats),
-        if (showEntry) ...[
-          const SizedBox(height: 24),
-          _EnterReferralCard(ref: ref, entryState: entryState),
-        ],
         const SizedBox(height: 24),
         _HowItWorksCard(),
       ],
@@ -286,180 +278,6 @@ class _StatItem extends StatelessWidget {
           textAlign: TextAlign.center,
         ),
       ],
-    );
-  }
-}
-
-class _EnterReferralCard extends StatefulWidget {
-  const _EnterReferralCard({required this.ref, required this.entryState});
-
-  final WidgetRef ref;
-  final ReferralCodeEntryState entryState;
-
-  @override
-  State<_EnterReferralCard> createState() => _EnterReferralCardState();
-}
-
-class _EnterReferralCardState extends State<_EnterReferralCard> {
-  final _controller = TextEditingController();
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final entryState = widget.entryState;
-    final notifier = widget.ref.read(referralCodeEntryProvider.notifier);
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Enter a referral code',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: AppColors.textSecondary,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.5,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Have a friend\'s referral code? Enter it to reward them.',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    TextField(
-                      controller: _controller,
-                      onChanged: notifier.onCodeChanged,
-                      autocorrect: false,
-                      enableSuggestions: false,
-                      textCapitalization: TextCapitalization.characters,
-                      maxLength: 8,
-                      textInputAction: TextInputAction.done,
-                      onSubmitted: (_) => notifier.submit(),
-                      style: const TextStyle(
-                        color: AppColors.textPrimary,
-                        letterSpacing: 2,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
-                      ),
-                      decoration: InputDecoration(
-                        hintText: 'e.g. AB3X7K2M',
-                        hintStyle: const TextStyle(
-                          color: AppColors.textTertiary,
-                          letterSpacing: 1,
-                          fontWeight: FontWeight.normal,
-                          fontSize: 14,
-                        ),
-                        counterText: '',
-                        filled: true,
-                        fillColor: AppColors.background,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 12,
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(AppRadius.sm),
-                          borderSide: const BorderSide(color: AppColors.border),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(AppRadius.sm),
-                          borderSide: BorderSide(
-                            color: (entryState.isPartial || entryState.error != null)
-                                ? Colors.red
-                                : AppColors.border,
-                          ),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(AppRadius.sm),
-                          borderSide: BorderSide(
-                            color: (entryState.isPartial || entryState.error != null)
-                                ? Colors.red
-                                : AppColors.accent,
-                            width: 1.5,
-                          ),
-                        ),
-                      ),
-                    ),
-                    if (entryState.isPartial) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        'Must be exactly 8 letters and numbers',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Colors.red,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ] else if (entryState.error != null) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        entryState.error!,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Colors.red,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(width: 10),
-              SizedBox(
-                height: 44,
-                child: FilledButton(
-                  onPressed: entryState.isValid && !entryState.isSubmitting
-                      ? notifier.submit
-                      : null,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.accent,
-                    disabledBackgroundColor: AppColors.surfaceMuted,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppRadius.sm),
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                  ),
-                  child: entryState.isSubmitting
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Text(
-                          'Apply',
-                          style: TextStyle(
-                            color: AppColors.accentText,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
-                          ),
-                        ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
     );
   }
 }

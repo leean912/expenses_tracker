@@ -21,17 +21,16 @@ class CategoryPieChart extends StatefulWidget {
 class _CategoryPieChartState extends State<CategoryPieChart> {
   int _touchedIndex = -1;
 
-  String _fmtTotal(int cents) {
+  String _fmtCents(int cents) {
     final rm = cents / 100;
-    if (rm >= 1000) {
-      return 'RM ${(rm / 1000).toStringAsFixed(1)}K';
+    final formatted = rm.toStringAsFixed(0);
+    final buf = StringBuffer();
+    final chars = formatted.split('').reversed.toList();
+    for (var i = 0; i < chars.length; i++) {
+      if (i > 0 && i % 3 == 0) buf.write(',');
+      buf.write(chars[i]);
     }
-    return 'RM ${rm.toStringAsFixed(0)}';
-  }
-
-  String _fmtAmount(int cents) {
-    final rm = cents / 100;
-    return 'RM ${rm.toStringAsFixed(2)}';
+    return 'RM ${buf.toString().split('').reversed.join()}';
   }
 
   @override
@@ -126,7 +125,7 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
                           ),
                         ),
                         Text(
-                          _fmtAmount(touched.totalCents),
+                          _fmtCents(touched.totalCents),
                           style: const TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w600,
@@ -146,7 +145,7 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          _fmtTotal(widget.totalCents),
+                          _fmtCents(widget.totalCents),
                           style: const TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w600,

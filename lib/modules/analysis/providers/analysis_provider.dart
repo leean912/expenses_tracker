@@ -14,34 +14,33 @@ final analysisDataProvider = FutureProvider.family<AnalysisData, AnalysisFilter>
   final endDate = DateTime.parse(end);
   final budgetPeriod = filter.period.budgetPeriod;
 
-  final results = await Future.wait([
-    () {
-      var q = supabase
-          .from('expenses')
-          .select(
-            'home_amount_cents, type, expense_date, category_id, account_id, '
-            'category:categories(name, color), account:accounts(name)',
-          )
-          .eq('user_id', userId)
-          .gte('expense_date', start)
-          .lte('expense_date', end)
-          .isFilter('deleted_at', null)
-          .isFilter('archived_at', null);
-      if (!filter.includeCollabExpenses) {
-        q = q.isFilter('collab_id', null);
-      }
-      return q.order('expense_date', ascending: true);
-    }(),
-    supabase
-        .from('budgets')
-        .select('limit_cents, category_id, category:categories(name, color)')
+  final expensesFuture = () {
+    var q = supabase
+        .from('expenses')
+        .select(
+          'home_amount_cents, type, expense_date, category_id, account_id, '
+          'category:categories(name, color), account:accounts(name)',
+        )
         .eq('user_id', userId)
-        .eq('period', budgetPeriod)
-        .isFilter('deleted_at', null),
-  ]);
+        .gte('expense_date', start)
+        .lte('expense_date', end)
+        .isFilter('deleted_at', null)
+        .isFilter('archived_at', null);
+    if (!filter.includeCollabExpenses) {
+      q = q.isFilter('collab_id', null);
+    }
+    return q.order('expense_date', ascending: true);
+  }();
 
-  final expenseRows = results[0] as List<dynamic>;
-  final budgetRows = results[1] as List<dynamic>;
+  final expenseRows = await expensesFuture as List<dynamic>;
+  final budgetRows = budgetPeriod == null
+      ? <dynamic>[]
+      : await supabase
+            .from('budgets')
+            .select('limit_cents, category_id, category:categories(name, color)')
+            .eq('user_id', userId)
+            .eq('period', budgetPeriod)
+            .isFilter('deleted_at', null) as List<dynamic>;
 
   // ── Category breakdown ─────────────────────────────────────────────────────
 
@@ -64,6 +63,17 @@ final analysisDataProvider = FutureProvider.family<AnalysisData, AnalysisFilter>
 
     if (isIncome) {
       totalIncomeCents += cents;
+      final existing = catMap[catId];
+      catMap[catId] = (
+        cents: (existing?.cents ?? 0) - cents,
+        name: catName,
+        colorHex: colorHex ?? existing?.colorHex,
+      );
+      final existingAcc = accountMap[accountId];
+      accountMap[accountId] = (
+        cents: (existingAcc?.cents ?? 0) - cents,
+        name: accountName,
+      );
     } else {
       totalSpentCents += cents;
       final existing = catMap[catId];
@@ -80,20 +90,28 @@ final analysisDataProvider = FutureProvider.family<AnalysisData, AnalysisFilter>
     }
   }
 
-  final categoryBreakdown = catMap.entries.map((e) {
-    final color = _hexToColor(e.value.colorHex) ?? const Color(0xFF888780);
-    return CategorySpend(
-      categoryId: e.key,
-      categoryName: e.value.name,
-      color: color,
-      totalCents: e.value.cents,
-      percentage: totalSpentCents == 0
-          ? 0
-          : e.value.cents / totalSpentCents * 100,
-    );
-  }).toList()..sort((a, b) => b.totalCents.compareTo(a.totalCents));
+  final netSpentCents = totalSpentCents - totalIncomeCents;
 
-  final sortedAccounts = accountMap.entries.toList()
+  final categoryBreakdown = catMap.entries
+      .where((e) => e.value.cents > 0)
+      .map((e) {
+        final color = _hexToColor(e.value.colorHex) ?? const Color(0xFF888780);
+        return CategorySpend(
+          categoryId: e.key,
+          categoryName: e.value.name,
+          color: color,
+          totalCents: e.value.cents,
+          percentage: netSpentCents <= 0
+              ? 0
+              : e.value.cents / netSpentCents * 100,
+        );
+      })
+      .toList()
+    ..sort((a, b) => b.totalCents.compareTo(a.totalCents));
+
+  final sortedAccounts = accountMap.entries
+      .where((e) => e.value.cents > 0)
+      .toList()
     ..sort((a, b) => b.value.cents.compareTo(a.value.cents));
   final accountBreakdown = sortedAccounts.indexed.map((entry) {
     final (i, e) = entry;
@@ -102,9 +120,9 @@ final analysisDataProvider = FutureProvider.family<AnalysisData, AnalysisFilter>
       categoryName: e.value.name,
       color: _accountPalette[i % _accountPalette.length],
       totalCents: e.value.cents,
-      percentage: totalSpentCents == 0
+      percentage: netSpentCents <= 0
           ? 0
-          : e.value.cents / totalSpentCents * 100,
+          : e.value.cents / netSpentCents * 100,
     );
   }).toList();
 
@@ -175,7 +193,9 @@ final analysisDataProvider = FutureProvider.family<AnalysisData, AnalysisFilter>
     final color =
         _hexToColor(catData?['color'] as String?) ?? const Color(0xFFBA7517);
     final limitCents = row['limit_cents'] as int;
-    final spentCents = catId == null ? totalSpentCents : (catMap[catId]?.cents ?? 0);
+    final spentCents = catId == null
+        ? (totalSpentCents - totalIncomeCents).clamp(0, totalSpentCents)
+        : (catMap[catId]?.cents ?? 0);
     return BudgetProgress(
       label: label,
       spentCents: spentCents,

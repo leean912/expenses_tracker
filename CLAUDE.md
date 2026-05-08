@@ -2,6 +2,20 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## App Direction
+
+**Spendz** is a financial habits app built for Malaysians, not just an expense tracker. The goal is to help Malaysians understand their spending patterns and build healthier financial habits over time. WE MALAYSIAN CAN SAVE BETTER!
+
+**What makes Spendz different:**
+- **Awareness over accounting** — we show users what they spent and help them reflect, not just log numbers
+- **Split bills** — collaborative expense splitting with friends, not just personal finance
+- **Collabs** — shared trip/event budgets where multiple people track spending together
+- **Recurring expenses & recurring split bills** — set-and-forget tracking for regular costs
+- **Simple and minimal** — no clutter, no overwhelming dashboards; clarity is a feature
+- **Cloud-synced** — Supabase backend means data is safe and available on all devices, no local-only risk
+
+When building features, ask: does this help the user understand their finances better, or does it add friction? Favor clarity and simplicity over completeness.
+
 ## Commands
 
 This project uses FVM (Flutter Version Manager) pinned to Flutter 3.38.5 (`.fvmrc`). Prefix Flutter commands with `fvm` if FVM is active.

@@ -51,10 +51,12 @@ extension AnalysisPeriodLabel on AnalysisPeriod {
         AnalysisPeriod.custom => 'Custom',
       };
 
-  String get budgetPeriod => switch (this) {
+  String? get budgetPeriod => switch (this) {
+        AnalysisPeriod.day => 'daily',
         AnalysisPeriod.week => 'weekly',
+        AnalysisPeriod.month => 'monthly',
         AnalysisPeriod.year => 'yearly',
-        _ => 'monthly',
+        _ => null,
       };
 }
 

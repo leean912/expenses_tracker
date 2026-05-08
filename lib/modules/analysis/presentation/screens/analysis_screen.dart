@@ -248,7 +248,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                       'Where your money goes — tap a slice to see the exact amount and share for each category.',
                   child: CategoryPieChart(
                     categories: data.categoryBreakdown,
-                    totalCents: data.totalSpentCents,
+                    totalCents: data.totalSpentCents - data.totalIncomeCents,
                   ),
                 ),
 
@@ -258,7 +258,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                       'Which account you spend from the most — tap a slice to see amount and share.',
                   child: CategoryPieChart(
                     categories: data.accountBreakdown,
-                    totalCents: data.totalSpentCents,
+                    totalCents: data.totalSpentCents - data.totalIncomeCents,
                   ),
                 ),
 
@@ -278,6 +278,9 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                     title: 'Budget vs Actual',
                     description:
                         'Compare your set budget limits against real spending. Red means over budget.',
+                    showToggle:
+                        _selectedPeriod != AnalysisPeriod.day &&
+                        _selectedPeriod != AnalysisPeriod.custom,
                     collapsedChild: BudgetVsActualCard(
                       budgets: data.budgetProgress,
                       isPremium: isPremium,
@@ -305,12 +308,14 @@ class _ChartSection extends StatefulWidget {
     required this.description,
     required this.child,
     this.collapsedChild,
+    this.showToggle = true,
   });
 
   final String title;
   final String description;
   final Widget child;
   final Widget? collapsedChild;
+  final bool showToggle;
 
   @override
   State<_ChartSection> createState() => _ChartSectionState();
@@ -352,18 +357,19 @@ class _ChartSectionState extends State<_ChartSection> {
                       ),
                     ),
                   ),
-                  GestureDetector(
-                    onTap: () => setState(() => _expanded = !_expanded),
-                    child: AnimatedRotation(
-                      turns: _expanded ? 0 : 0.5,
-                      duration: const Duration(milliseconds: 200),
-                      child: const Icon(
-                        Icons.keyboard_arrow_up_rounded,
-                        size: 20,
-                        color: AppColors.textTertiary,
+                  if (widget.showToggle)
+                    GestureDetector(
+                      onTap: () => setState(() => _expanded = !_expanded),
+                      child: AnimatedRotation(
+                        turns: _expanded ? 0 : 0.5,
+                        duration: const Duration(milliseconds: 200),
+                        child: const Icon(
+                          Icons.keyboard_arrow_up_rounded,
+                          size: 20,
+                          color: AppColors.textTertiary,
+                        ),
                       ),
                     ),
-                  ),
                 ],
               ),
               const SizedBox(height: AppSpacing.xs),
@@ -378,7 +384,7 @@ class _ChartSectionState extends State<_ChartSection> {
               AnimatedSize(
                 duration: const Duration(milliseconds: 250),
                 curve: Curves.easeInOut,
-                child: _expanded
+                child: (_expanded || !widget.showToggle)
                     ? Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
