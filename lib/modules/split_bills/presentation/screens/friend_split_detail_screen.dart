@@ -68,10 +68,13 @@ class _FriendSplitDetailScreenState
                     ),
                   ),
                   Expanded(
-                    child: async.whenOrNull(
+                    child:
+                        async.whenOrNull(
                           data: (data) {
-                            final summaries =
-                                FriendSplitSummary.fromData(data, currentUserId);
+                            final summaries = FriendSplitSummary.fromData(
+                              data,
+                              currentUserId,
+                            );
                             final summary = summaries
                                 .where((s) => s.friend.id == widget.friendId)
                                 .firstOrNull;
@@ -122,8 +125,7 @@ class _FriendSplitDetailScreenState
             const SizedBox(height: AppSpacing.md),
             Expanded(
               child: async.when(
-                loading: () =>
-                    const Center(child: CircularProgressIndicator()),
+                loading: () => const Center(child: CircularProgressIndicator()),
                 error: (e, _) => Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -141,8 +143,10 @@ class _FriendSplitDetailScreenState
                   ),
                 ),
                 data: (data) {
-                  final summaries =
-                      FriendSplitSummary.fromData(data, currentUserId);
+                  final summaries = FriendSplitSummary.fromData(
+                    data,
+                    currentUserId,
+                  );
                   final summary = summaries
                       .where((s) => s.friend.id == widget.friendId)
                       .firstOrNull;
@@ -231,10 +235,7 @@ class _TheyOweYouTab extends StatelessWidget {
 // ── Tab: You Owe Them ──────────────────────────────────────────────────────────
 
 class _YouOweThemTab extends StatelessWidget {
-  const _YouOweThemTab({
-    required this.shares,
-    required this.onRefresh,
-  });
+  const _YouOweThemTab({required this.shares, required this.onRefresh});
   final List<MyShareItem> shares;
   final Future<void> Function() onRefresh;
 
@@ -289,8 +290,9 @@ class _IPaidCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final friendShare =
-        bill.shares.where((s) => s.userId == friendId).firstOrNull;
+    final friendShare = bill.shares
+        .where((s) => s.userId == friendId)
+        .firstOrNull;
     final isPending = friendShare?.isPending ?? false;
 
     return GestureDetector(
@@ -368,7 +370,7 @@ class _IOweCard extends StatelessWidget {
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(AppRadius.xl),
           border: Border.all(
-            color: isPending ? AppColors.borderDashed : AppColors.border,
+            color: isPending ? AppColors.pendingStatus : AppColors.border,
           ),
         ),
         child: Column(
@@ -432,7 +434,7 @@ class _StatusBadge extends StatelessWidget {
         vertical: AppSpacing.xs,
       ),
       decoration: BoxDecoration(
-        color: isPending ? AppColors.surfaceMuted : AppColors.positiveLight,
+        color: isPending ? AppColors.pendingStatus : AppColors.positiveLight,
         borderRadius: BorderRadius.circular(AppRadius.pill),
       ),
       child: Text(
@@ -440,7 +442,7 @@ class _StatusBadge extends StatelessWidget {
         style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w500,
-          color: isPending ? AppColors.textSecondary : AppColors.positiveDark,
+          color: isPending ? AppColors.accentText : AppColors.positiveDark,
         ),
       ),
     );

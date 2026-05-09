@@ -9,11 +9,11 @@ import '../../../../core/services/receipt_upload_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/receipt_viewer.dart';
 import '../../../../service_locator.dart';
-import '../../../subscription/providers/subscription_provider.dart';
 import '../../../expenses/data/models/account_model.dart';
 import '../../../expenses/data/models/category_model.dart';
 import '../../../expenses/providers/accounts_provider.dart';
 import '../../../expenses/providers/categories_provider.dart';
+import '../../../subscription/providers/subscription_provider.dart';
 import '../../data/models/split_bill_model.dart';
 import '../../data/models/split_share_model.dart';
 import '../../providers/split_bill_detail_provider.dart';
@@ -186,7 +186,8 @@ class _ReceiptSectionState extends ConsumerState<_ReceiptSection> {
     await ReceiptUploadService.deleteByUrl(widget.receiptUrl);
     await supabase
         .from('split_bills')
-        .update({'receipt_url': null}).eq('id', widget.billId);
+        .update({'receipt_url': null})
+        .eq('id', widget.billId);
     if (mounted) {
       ref.invalidate(splitBillDetailProvider(widget.billId));
     }
@@ -258,34 +259,34 @@ class _ReceiptSectionState extends ConsumerState<_ReceiptSection> {
             GestureDetector(
               onTap: () => showReceiptViewer(context, widget.receiptUrl),
               child: ClipRRect(
-              borderRadius: const BorderRadius.vertical(
-                bottom: Radius.circular(AppRadius.xl),
-              ),
-              child: CachedNetworkImage(
-                imageUrl: widget.receiptUrl,
-                width: double.infinity,
-                fit: BoxFit.fitWidth,
-                placeholder: (context2, p) => const SizedBox(
-                  height: 160,
-                  child: Center(
-                    child: SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                borderRadius: const BorderRadius.vertical(
+                  bottom: Radius.circular(AppRadius.xl),
+                ),
+                child: CachedNetworkImage(
+                  imageUrl: widget.receiptUrl,
+                  width: double.infinity,
+                  fit: BoxFit.fitWidth,
+                  placeholder: (context2, p) => const SizedBox(
+                    height: 160,
+                    child: Center(
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ),
+                  ),
+                  errorWidget: (context2, url, err) => const SizedBox(
+                    height: 80,
+                    child: Center(
+                      child: Icon(
+                        Icons.broken_image_rounded,
+                        color: AppColors.textTertiary,
+                      ),
                     ),
                   ),
                 ),
-                errorWidget: (context2, url, err) => const SizedBox(
-                  height: 80,
-                  child: Center(
-                    child: Icon(
-                      Icons.broken_image_rounded,
-                      color: AppColors.textTertiary,
-                    ),
-                  ),
-                ),
               ),
-            ),
             ),
             if (canDelete)
               Padding(
@@ -492,7 +493,7 @@ class _StatusChip extends StatelessWidget {
         vertical: AppSpacing.xs,
       ),
       decoration: BoxDecoration(
-        color: isSettled ? AppColors.positiveLight : AppColors.surfaceMuted,
+        color: isSettled ? AppColors.positiveLight : AppColors.pendingStatus,
         borderRadius: BorderRadius.circular(AppRadius.pill),
       ),
       child: Text(
@@ -500,7 +501,7 @@ class _StatusChip extends StatelessWidget {
         style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w500,
-          color: isSettled ? AppColors.positiveDark : AppColors.textSecondary,
+          color: isSettled ? AppColors.positiveDark : AppColors.accentText,
         ),
       ),
     );

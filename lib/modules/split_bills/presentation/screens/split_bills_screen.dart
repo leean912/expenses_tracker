@@ -123,8 +123,10 @@ class _SplitBillsScreenState extends ConsumerState<SplitBillsScreen>
                   ),
                   data: (data) {
                     final currentUserId = supabase.auth.currentUser!.id;
-                    final summaries =
-                        FriendSplitSummary.fromData(data, currentUserId);
+                    final summaries = FriendSplitSummary.fromData(
+                      data,
+                      currentUserId,
+                    );
                     return _ByFriendsTab(summaries: summaries);
                   },
                 ),
@@ -505,7 +507,7 @@ class _ShareCard extends StatelessWidget {
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(AppRadius.xl),
           border: Border.all(
-            color: isPending ? AppColors.borderDashed : AppColors.border,
+            color: isPending ? AppColors.pendingStatus : AppColors.border,
           ),
         ),
         child: Column(
@@ -566,7 +568,7 @@ class _StatusBadge extends StatelessWidget {
         vertical: AppSpacing.xs,
       ),
       decoration: BoxDecoration(
-        color: isPending ? AppColors.surfaceMuted : AppColors.positiveLight,
+        color: isPending ? AppColors.pendingStatus : AppColors.positiveLight,
         borderRadius: BorderRadius.circular(AppRadius.pill),
       ),
       child: Text(
@@ -574,7 +576,7 @@ class _StatusBadge extends StatelessWidget {
         style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w500,
-          color: isPending ? AppColors.textSecondary : AppColors.positiveDark,
+          color: isPending ? AppColors.accentText : AppColors.positiveDark,
         ),
       ),
     );
@@ -592,9 +594,7 @@ class _FriendCard extends StatelessWidget {
     final hasPending = summary.totalPendingBills > 0;
 
     return GestureDetector(
-      onTap: () => context.push(
-        '$splitBillsFriendRoute/${summary.friend.id}',
-      ),
+      onTap: () => context.push('$splitBillsFriendRoute/${summary.friend.id}'),
       child: Container(
         padding: const EdgeInsets.all(AppSpacing.xl),
         decoration: BoxDecoration(
@@ -632,7 +632,9 @@ class _FriendCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    summary.friend.displayName ?? summary.friend.username ?? 'Unknown',
+                    summary.friend.displayName ??
+                        summary.friend.username ??
+                        'Unknown',
                     style: const TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w500,
