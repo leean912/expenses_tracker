@@ -74,6 +74,19 @@ class SplitBillsNotifier extends AsyncNotifier<SplitBillsData> {
     return SplitBillsData(myBills: myBills, myShares: myShares);
   }
 
+  Future<String?> deleteSplitBill(String billId) async {
+    try {
+      await supabase
+          .from('split_bills')
+          .update({'deleted_at': DateTime.now().toIso8601String()})
+          .eq('id', billId);
+      ref.invalidateSelf();
+      return null;
+    } catch (e) {
+      return 'Failed to delete. Please try again.';
+    }
+  }
+
   Future<String?> settleShare({
     required String shareId,
     required String categoryId,

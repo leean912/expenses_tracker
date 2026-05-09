@@ -26,6 +26,7 @@ class SplitBillDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(splitBillDetailProvider(billId));
+    final currentUserId = supabase.auth.currentUser?.id ?? '';
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -41,6 +42,11 @@ class SplitBillDetailScreen extends ConsumerWidget {
             color: AppColors.textPrimary,
           ),
         ),
+        actions: [
+          if (async.valueOrNull case final bill?
+              when bill.createdBy == currentUserId)
+            _DeleteButton(billId: billId, bill: bill),
+        ],
       ),
       body: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -63,6 +69,100 @@ class SplitBillDetailScreen extends ConsumerWidget {
         ),
         data: (bill) => _BillDetail(bill: bill, billId: billId),
       ),
+    );
+  }
+}
+
+// ─── Delete button ────────────────────────────────────────────────────────────
+
+class _DeleteButton extends ConsumerStatefulWidget {
+  const _DeleteButton({required this.billId, required this.bill});
+  final String billId;
+  final SplitBillModel bill;
+
+  @override
+  ConsumerState<_DeleteButton> createState() => _DeleteButtonState();
+}
+
+class _DeleteButtonState extends ConsumerState<_DeleteButton> {
+  bool _loading = false;
+
+  Future<void> _onTap() async {
+    final hasSettledOthers = widget.bill.shares.any(
+      (s) => s.userId != widget.bill.createdBy && s.isSettled,
+    );
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Delete split bill?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Your personal expense record will not be removed — it stays in your history.',
+            ),
+            if (hasSettledOthers) ...[
+              const SizedBox(height: 12),
+              const Text(
+                'Some participants have already settled their share. Their payments cannot be reversed.',
+                style: TextStyle(fontWeight: FontWeight.w500),
+              ),
+            ],
+            const SizedBox(height: 12),
+            const Text('This action cannot be undone.'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => context.pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => context.pop(true),
+            child: const Text(
+              'Delete',
+              style: TextStyle(color: Color(0xFFE24B4A)),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _loading = true);
+    final error = await ref
+        .read(splitBillsProvider.notifier)
+        .deleteSplitBill(widget.billId);
+    if (!mounted) return;
+    setState(() => _loading = false);
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error), behavior: SnackBarBehavior.floating),
+      );
+      return;
+    }
+    context.pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(right: AppSpacing.md),
+      child: _loading
+          ? const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : IconButton(
+              icon: const Icon(
+                Icons.delete_outline_rounded,
+                color: AppColors.textTertiary,
+              ),
+              onPressed: _onTap,
+            ),
     );
   }
 }

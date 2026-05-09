@@ -1,12 +1,11 @@
 import 'package:envied/envied.dart';
+import 'package:flutter/foundation.dart';
 
 part 'env.g.dart';
 
 @Envied(path: 'env/.env.prod', name: 'ProductionEnv', obfuscate: true)
 @Envied(path: 'env/.env.dev', name: 'DebugEnv', obfuscate: true)
 final class Env {
-  static const bool kDebugMode = true;
-
   factory Env() => _instance;
 
   static final Env _instance = switch (kDebugMode) {
