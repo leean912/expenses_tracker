@@ -44,12 +44,16 @@ class GreetingHeader extends StatelessWidget {
                         color: AppColors.textSecondary,
                       ),
                     ),
-                    Text(
-                      '$displayName',
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.textPrimary,
+                    Flexible(
+                      child: Text(
+                        '$displayName',
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.textPrimary,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     if (isPremium) ...[

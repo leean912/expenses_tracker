@@ -6,6 +6,7 @@ import '../../../../core/routes/routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/upgrade_sheet.dart';
 import '../../../auth/providers/auth_provider.dart';
+import '../../../auth/providers/states/auth_state.dart';
 import '../../../subscription/providers/subscription_provider.dart';
 import '../../../../service_locator.dart';
 
@@ -15,12 +16,26 @@ class MoreScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isPremium = ref.watch(isPremiumProvider);
+    final user = ref.watch(authProvider).maybeWhen(
+      authenticated: (user) => user,
+      orElse: () => null,
+    );
 
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: ListView(
           children: [
+            if (user != null) ...[
+              _ProfileTile(
+                displayName: user.displayName,
+                username: user.username,
+                email: user.email,
+                onTap: () => context.push(profileRoute),
+              ),
+              const Divider(height: 1, color: AppColors.border),
+              const SizedBox(height: AppSpacing.xl),
+            ],
             const _SectionHeader('Subscription'),
             ListTile(
               leading: Icon(
@@ -213,6 +228,79 @@ class MoreScreen extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _ProfileTile extends StatelessWidget {
+  const _ProfileTile({
+    required this.displayName,
+    required this.username,
+    required this.email,
+    required this.onTap,
+  });
+
+  final String? displayName;
+  final String? username;
+  final String email;
+  final VoidCallback onTap;
+
+  String _initials() {
+    final name = displayName ?? email;
+    final parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.length >= 2) {
+      return '${parts.first[0]}${parts[1][0]}'.toUpperCase();
+    }
+    return name.isNotEmpty ? name[0].toUpperCase() : '?';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.xl,
+        vertical: AppSpacing.sm,
+      ),
+      leading: Container(
+        width: 44,
+        height: 44,
+        decoration: const BoxDecoration(
+          color: AppColors.accent,
+          shape: BoxShape.circle,
+        ),
+        child: Center(
+          child: Text(
+            _initials(),
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: AppColors.accentText,
+            ),
+          ),
+        ),
+      ),
+      title: Text(
+        displayName ?? email,
+        style: const TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+          color: AppColors.textPrimary,
+        ),
+      ),
+      subtitle: username != null
+          ? Text(
+              '@$username',
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.textSecondary,
+              ),
+            )
+          : null,
+      trailing: const Icon(
+        Icons.chevron_right_rounded,
+        color: AppColors.textTertiary,
+      ),
+      onTap: onTap,
     );
   }
 }

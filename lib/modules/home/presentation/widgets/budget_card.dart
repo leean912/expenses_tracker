@@ -106,10 +106,6 @@ class AddBudgetCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 130,
-        height: 90,
-        constraints: const BoxConstraints(minHeight: 56),
-        padding: const EdgeInsets.all(9),
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(AppRadius.lg),

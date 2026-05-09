@@ -33,7 +33,7 @@ class HomeData {
 ///
 /// Budget spend is computed from the expense rows already in memory — no
 /// extra round-trip.
-final homeDataProvider = FutureProvider.autoDispose.family<HomeData, HomeFilter>((
+final homeDataProvider = FutureProvider.family<HomeData, HomeFilter>((
   ref,
   filter,
 ) async {

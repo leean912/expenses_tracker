@@ -26,6 +26,7 @@ import '../../modules/settings/categories/presentation/screens/categories_screen
 import '../../modules/split_bills/presentation/screens/friend_split_detail_screen.dart';
 import '../../modules/split_bills/presentation/screens/split_bill_detail_screen.dart';
 import '../../modules/split_bills/presentation/screens/split_bills_screen.dart';
+import '../../modules/profile/presentation/screens/profile_screen.dart';
 import '../../modules/subscription/presentation/screens/paywall_screen.dart';
 import 'app_shell.dart';
 
@@ -81,6 +82,10 @@ final router = GoRouter(
     GoRoute(
       path: exportPdfRoute,
       builder: (context, state) => const ExportScreen(),
+    ),
+    GoRoute(
+      path: profileRoute,
+      builder: (context, state) => const ProfileScreen(),
     ),
     GoRoute(
       path: recurringExpenseFormRoute,

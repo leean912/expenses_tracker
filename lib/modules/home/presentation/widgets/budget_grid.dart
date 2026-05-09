@@ -62,7 +62,20 @@ class BudgetGrid extends StatelessWidget {
             ),
           ),
           if (budgets.isEmpty)
-            AddBudgetCard(onTap: () => context.push(budgetsRoute))
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                crossAxisSpacing: AppSpacing.sm,
+                mainAxisSpacing: AppSpacing.sm,
+                childAspectRatio: 1.5, // tweak if cards feel too tall/short
+              ),
+              itemCount: 1,
+              itemBuilder: (context, _) {
+                return AddBudgetCard(onTap: () => context.push(budgetsRoute));
+              },
+            )
           else
             GridView.builder(
               shrinkWrap: true,

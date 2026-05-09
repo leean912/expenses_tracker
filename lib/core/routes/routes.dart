@@ -21,3 +21,4 @@ const String recurringSplitBillFormRoute = '/recurring/split-bill/form';
 const String referralRoute = '/referral';
 const String referralOnboardingRoute = '/referral-onboarding';
 const String exportPdfRoute = '/export';
+const String profileRoute = '/profile';

@@ -6,6 +6,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../service_locator.dart';
+import '../../home/providers/home/home_provider.dart';
 import '../../subscription/providers/subscription_provider.dart';
 import '../data/models/user_model.dart';
 import 'states/auth_state.dart';
@@ -73,6 +74,7 @@ class AuthNotifier extends Notifier<AppAuthState> {
 
       unawaited(paymentService.identify(profile.id));
       unawaited(syncSubscriptionTier(profile.id));
+      ref.invalidate(homeDataProvider);
       state = AppAuthState.authenticated(profile);
     } catch (e) {
       debugPrint('login error: $e');
@@ -144,6 +146,23 @@ class AuthNotifier extends Notifier<AppAuthState> {
     );
 
     return supabase.auth.currentUser;
+  }
+
+  Future<void> updateDisplayName(String displayName) async {
+    final current = state.maybeWhen(
+      authenticated: (user) => user,
+      orElse: () => null,
+    );
+    if (current == null) return;
+
+    await supabase
+        .from('profiles')
+        .update({'display_name': displayName})
+        .eq('id', current.id);
+
+    state = AppAuthState.authenticated(
+      current.copyWith(displayName: displayName),
+    );
   }
 
   void logout() async {
