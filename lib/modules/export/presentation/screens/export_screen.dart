@@ -9,7 +9,7 @@ import '../../../expenses/data/models/category_model.dart';
 import '../../../expenses/providers/accounts_provider.dart';
 import '../../../expenses/providers/categories_provider.dart';
 import '../../../expenses/utils/expense_ui_helpers.dart';
-import '../../providers/export_pdf_provider.dart';
+import '../../providers/export_provider.dart';
 
 class ExportScreen extends ConsumerStatefulWidget {
   const ExportScreen({super.key});
