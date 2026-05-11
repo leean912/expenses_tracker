@@ -1,7 +1,7 @@
-name: expenses_tracker_new
-description: "A new Flutter project."
+name: jomspendz
+description: "JomSpendz — Financial habits app for Malaysians."
 publish_to: 'none'
-version: 0.1.0+20
+version: 0.1.0+23
 
 environment:
   sdk: ^3.10.4

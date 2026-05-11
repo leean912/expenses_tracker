@@ -1,6 +1,6 @@
-import 'package:expenses_tracker_new/core/routes/routes.dart';
-import 'package:expenses_tracker_new/modules/auth/providers/auth_provider.dart';
-import 'package:expenses_tracker_new/service_locator.dart';
+import 'package:jomspendz/core/routes/routes.dart';
+import 'package:jomspendz/modules/auth/providers/auth_provider.dart';
+import 'package:jomspendz/service_locator.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

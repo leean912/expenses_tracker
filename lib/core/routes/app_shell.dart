@@ -1,7 +1,7 @@
-import 'package:expenses_tracker_new/modules/auth/providers/states/auth_state.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:jomspendz/modules/auth/providers/states/auth_state.dart';
 
 import '../../modules/auth/providers/auth_provider.dart';
 import '../../modules/expenses/presentation/widgets/add_expense_sheet.dart';

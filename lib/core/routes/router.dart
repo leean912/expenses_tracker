@@ -1,4 +1,4 @@
-import 'package:expenses_tracker_new/core/routes/routes.dart';
+import 'package:jomspendz/core/routes/routes.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../main.dart';

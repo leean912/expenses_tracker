@@ -568,7 +568,7 @@ begin
   -- ── Recurring expenses ───────────────────────────────────────────
   for v_rec in
     select * from recurring_expenses
-    where is_active = true and deleted_at is null and next_run_at <= current_date
+    where is_active = true and deleted_at is null and next_run_at <= (now() at time zone 'Asia/Kuala_Lumpur')::date
     order by next_run_at
   loop
     insert into expenses (
@@ -581,7 +581,7 @@ begin
       v_rec.amount_cents, 'MYR',
       v_rec.amount_cents, 'MYR', 1,
       v_rec.category_id, v_rec.account_id,
-      coalesce(v_rec.note, v_rec.title), current_date
+      coalesce(v_rec.note, v_rec.title), (now() at time zone 'Asia/Kuala_Lumpur')::date
     );
 
     update recurring_expenses set next_run_at = case v_rec.frequency
@@ -597,7 +597,7 @@ begin
   -- ── Recurring split bills ────────────────────────────────────────
   for v_rsb in
     select * from recurring_split_bills
-    where is_active = true and deleted_at is null and next_run_at <= current_date
+    where is_active = true and deleted_at is null and next_run_at <= (now() at time zone 'Asia/Kuala_Lumpur')::date
     order by next_run_at
   loop
     select count(*) into v_participant_cnt
@@ -612,7 +612,7 @@ begin
       v_rsb.user_id, v_rsb.user_id,
       v_rsb.amount_cents, 'MYR',
       v_rsb.amount_cents, 'MYR', 1,
-      coalesce(v_rsb.note, v_rsb.title), current_date, v_rsb.category_id
+      coalesce(v_rsb.note, v_rsb.title), (now() at time zone 'Asia/Kuala_Lumpur')::date, v_rsb.category_id
     ) returning id into v_bill_id;
 
     if v_rsb.split_method = 'equal' then
@@ -659,7 +659,7 @@ begin
       v_rsb.user_id, 'expense', 'recurring', v_bill_id, v_rsb.id,
       v_rsb.amount_cents, 'MYR',
       v_rsb.amount_cents, 'MYR', 1,
-      v_rsb.category_id, v_rsb.account_id, coalesce(v_rsb.note, v_rsb.title), current_date
+      v_rsb.category_id, v_rsb.account_id, coalesce(v_rsb.note, v_rsb.title), (now() at time zone 'Asia/Kuala_Lumpur')::date
     );
 
     update recurring_split_bills set next_run_at = case v_rsb.frequency
