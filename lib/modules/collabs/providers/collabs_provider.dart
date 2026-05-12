@@ -1,11 +1,15 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../service_locator.dart';
+import '../../auth/providers/auth_provider.dart';
 import '../data/models/collab_model.dart';
 
 class CollabsNotifier extends AsyncNotifier<List<CollabModel>> {
   @override
-  Future<List<CollabModel>> build() => _fetch();
+  Future<List<CollabModel>> build() {
+    ref.watch(currentUserIdProvider);
+    return _fetch();
+  }
 
   Future<List<CollabModel>> _fetch() async {
     final rows = await supabase

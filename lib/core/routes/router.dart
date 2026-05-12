@@ -26,15 +26,17 @@ import '../../modules/settings/categories/presentation/screens/categories_screen
 import '../../modules/split_bills/presentation/screens/friend_split_detail_screen.dart';
 import '../../modules/split_bills/presentation/screens/split_bill_detail_screen.dart';
 import '../../modules/split_bills/presentation/screens/split_bills_screen.dart';
+import '../../modules/auth/presentation/screens/login_screen.dart';
 import '../../modules/profile/presentation/screens/profile_screen.dart';
 import '../../modules/subscription/presentation/screens/paywall_screen.dart';
+import '../presentation/screens/web_view_screen.dart';
 import 'app_shell.dart';
 
 final router = GoRouter(
   initialLocation: rootRoute,
   routes: [
     GoRoute(path: rootRoute, builder: (context, state) => SplashScreen()),
-    GoRoute(path: loginRoute, builder: (context, state) => TestingLogin()),
+    GoRoute(path: loginRoute, builder: (context, state) => const LoginScreen()),
     GoRoute(path: userNameRoute, builder: (context, state) => UserNameScreen()),
     GoRoute(
       path: contactsRoute,
@@ -86,6 +88,13 @@ final router = GoRouter(
     GoRoute(
       path: profileRoute,
       builder: (context, state) => const ProfileScreen(),
+    ),
+    GoRoute(
+      path: privacyPolicyRoute,
+      builder: (context, state) => const WebViewScreen(
+        title: 'Privacy Policy',
+        url: 'https://leean912.github.io/jomspendz-privacy-policy/privacy-policy.html',
+      ),
     ),
     GoRoute(
       path: recurringExpenseFormRoute,

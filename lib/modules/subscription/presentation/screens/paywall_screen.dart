@@ -377,6 +377,8 @@ class _PackageCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isAnnual = package.packageType == PackageType.annual;
     final isLifetime = package.packageType == PackageType.lifetime;
+    final introPrice = package.storeProduct.introductoryPrice;
+    final hasIntro = introPrice != null;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.md),
@@ -425,6 +427,13 @@ class _PackageCard extends StatelessWidget {
                             color: AppColors.premiumStatus,
                           ),
                         ],
+                        if (hasIntro) ...[
+                          const SizedBox(width: AppSpacing.md),
+                          _Badge(
+                            label: 'Intro offer',
+                            color: AppColors.positiveDark,
+                          ),
+                        ],
                       ],
                     ),
                     const SizedBox(height: 2),
@@ -440,15 +449,52 @@ class _PackageCard extends StatelessWidget {
                   ],
                 ),
               ),
-              Text(
-                package.storeProduct.priceString,
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 16,
-                  color: isSelected
-                      ? AppColors.accentText
-                      : AppColors.textPrimary,
-                ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  if (hasIntro) ...[
+                    Text(
+                      introPrice.priceString,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                        color: isSelected
+                            ? AppColors.accentText
+                            : AppColors.textPrimary,
+                      ),
+                    ),
+                    Text(
+                      package.storeProduct.priceString,
+                      style: TextStyle(
+                        fontSize: 12,
+                        decoration: TextDecoration.lineThrough,
+                        color: isSelected
+                            ? AppColors.accentText.withValues(alpha: 0.55)
+                            : AppColors.textSecondary,
+                      ),
+                    ),
+                  ] else
+                    Text(
+                      package.storeProduct.priceString,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                        color: isSelected
+                            ? AppColors.accentText
+                            : AppColors.textPrimary,
+                      ),
+                    ),
+                  if (isAnnual && _monthlyEquivalent != null)
+                    Text(
+                      _monthlyEquivalent!,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: isSelected
+                            ? AppColors.accentText.withValues(alpha: 0.65)
+                            : AppColors.textSecondary,
+                      ),
+                    ),
+                ],
               ),
             ],
           ),
@@ -470,6 +516,14 @@ class _PackageCard extends StatelessWidget {
     PackageType.lifetime => 'One-time payment',
     _ => '',
   };
+
+  String? get _monthlyEquivalent {
+    if (package.packageType != PackageType.annual) return null;
+    final monthly = package.storeProduct.price / 12;
+    final priceStr = package.storeProduct.priceString;
+    final prefix = RegExp(r'^[^\d]+').firstMatch(priceStr)?.group(0) ?? '';
+    return '~$prefix${monthly.toStringAsFixed(2)}/mo';
+  }
 }
 
 class _Badge extends StatelessWidget {

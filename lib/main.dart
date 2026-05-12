@@ -1,16 +1,12 @@
-import 'package:jomspendz/core/routes/routes.dart';
-import 'package:jomspendz/modules/auth/providers/auth_provider.dart';
-import 'package:jomspendz/service_locator.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
+import 'package:jomspendz/service_locator.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/routes/router.dart';
 import 'core/theme/app_colors.dart';
 import 'firebase_options.dart';
-import 'modules/auth/providers/states/auth_state.dart';
 
 Future<void> main() async {
   await Supabase.initialize(
@@ -43,38 +39,6 @@ class MainApp extends StatelessWidget {
         ),
       ),
       routerConfig: router,
-    );
-  }
-}
-
-class TestingLogin extends ConsumerWidget {
-  const TestingLogin({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    ref.listen(authProvider, (prev, next) {
-      if (prev != next) {
-        next.whenOrNull(
-          authenticated: (user) {
-            if (user.username == null) {
-              context.pushReplacement(userNameRoute);
-            } else {
-              context.pushReplacement(homeRoute);
-            }
-          },
-        );
-      }
-    });
-
-    return Scaffold(
-      body: Center(
-        child: ElevatedButton(
-          onPressed: () async {
-            ref.read(authProvider.notifier).login();
-          },
-          child: const Text('Login with Google'),
-        ),
-      ),
     );
   }
 }

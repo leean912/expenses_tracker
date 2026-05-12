@@ -16,7 +16,7 @@ create table expenses (
   -- Classification
   type text not null default 'expense' check (type in ('expense', 'income')),
   source text not null default 'manual'
-    check (source in ('manual', 'settlement', 'split_payer')),
+    check (source in ('manual', 'settlement', 'split_payer', 'recurring', 'recurring_split')),
   source_split_bill_id uuid,
   source_settlement_id uuid,
 
@@ -95,6 +95,8 @@ This tracks where each row came from:
 | `manual` | User typed it in | Direct INSERT from Flutter |
 | `split_payer` | Auto-expense for the bill creator (full amount) | `create_split_bill` RPC |
 | `settlement` | Auto-expense (settler) or auto-income (payer) | `settle_split_share` RPC |
+| `recurring` | Auto-expense from a recurring expense firing | `fire_recurring_expense` RPC |
+| `recurring_split` | Auto-expense from a recurring split bill firing | `fire_recurring_split_bill` RPC |
 
 For analytics, you can filter:
 - "My actual spending" = `where source = 'manual'`

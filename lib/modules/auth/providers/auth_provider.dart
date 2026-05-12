@@ -15,6 +15,16 @@ final authProvider = NotifierProvider<AuthNotifier, AppAuthState>(
   AuthNotifier.new,
 );
 
+/// Derived provider that exposes only the current user's ID.
+/// All data providers that are user-scoped should watch this so they
+/// automatically rebuild when the account changes.
+final currentUserIdProvider = Provider<String?>((ref) {
+  return ref.watch(authProvider).maybeWhen(
+    authenticated: (user) => user.id,
+    orElse: () => null,
+  );
+});
+
 class AuthNotifier extends Notifier<AppAuthState> {
   StreamSubscription? _streamSubscription;
 

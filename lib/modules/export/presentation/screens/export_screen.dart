@@ -4,11 +4,13 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../core/widgets/upgrade_sheet.dart';
 import '../../../expenses/data/models/account_model.dart';
 import '../../../expenses/data/models/category_model.dart';
 import '../../../expenses/providers/accounts_provider.dart';
 import '../../../expenses/providers/categories_provider.dart';
 import '../../../expenses/utils/expense_ui_helpers.dart';
+import '../../../subscription/providers/subscription_provider.dart';
 import '../../providers/export_provider.dart';
 
 class ExportScreen extends ConsumerStatefulWidget {
@@ -60,6 +62,7 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
     final filter = ref.watch(exportPdfProvider);
     final categoriesAsync = ref.watch(categoriesProvider);
     final accountsAsync = ref.watch(accountsProvider);
+    final isPremium = ref.watch(isPremiumProvider);
 
     final isPdf = filter.exportFormat == ExportFormat.pdf;
 
@@ -342,7 +345,19 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
                 data: (accs) => SizedBox(
                   width: double.infinity,
                   child: FilledButton.icon(
-                    onPressed: _exporting ? null : () => _export(cats, accs),
+                    onPressed: () {
+                      if (!isPremium) {
+                        UpgradeSheet.show(
+                          context,
+                          title: 'Export PDF is a Pro feature',
+                          description:
+                              'Upgrade to Spendz Pro to export your transactions as a PDF report.',
+                        );
+                        return;
+                      }
+
+                      _exporting ? null : _export(cats, accs);
+                    },
                     style: FilledButton.styleFrom(
                       backgroundColor: AppColors.accent,
                       foregroundColor: AppColors.accentText,

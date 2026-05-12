@@ -2,13 +2,17 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../service_locator.dart';
+import '../../auth/providers/auth_provider.dart';
 import '../../split_bills/providers/split_bills_provider.dart';
 import '../data/models/recurring_split_bill_model.dart';
 
 class RecurringSplitBillsNotifier
     extends AsyncNotifier<List<RecurringSplitBillModel>> {
   @override
-  Future<List<RecurringSplitBillModel>> build() => _fetch();
+  Future<List<RecurringSplitBillModel>> build() {
+    ref.watch(currentUserIdProvider);
+    return _fetch();
+  }
 
   Future<List<RecurringSplitBillModel>> _fetch() async {
     final data = await supabase

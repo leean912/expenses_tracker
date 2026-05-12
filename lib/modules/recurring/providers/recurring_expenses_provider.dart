@@ -1,13 +1,17 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../service_locator.dart';
+import '../../auth/providers/auth_provider.dart';
 import '../../home/providers/home/home_provider.dart';
 import '../data/models/recurring_expense_model.dart';
 
 class RecurringExpensesNotifier
     extends AsyncNotifier<List<RecurringExpenseModel>> {
   @override
-  Future<List<RecurringExpenseModel>> build() => _fetch();
+  Future<List<RecurringExpenseModel>> build() {
+    ref.watch(currentUserIdProvider);
+    return _fetch();
+  }
 
   Future<List<RecurringExpenseModel>> _fetch() async {
     final data = await supabase

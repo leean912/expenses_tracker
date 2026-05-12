@@ -4,11 +4,10 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/routes/routes.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/widgets/upgrade_sheet.dart';
+import '../../../../service_locator.dart';
 import '../../../auth/providers/auth_provider.dart';
 import '../../../auth/providers/states/auth_state.dart';
 import '../../../subscription/providers/subscription_provider.dart';
-import '../../../../service_locator.dart';
 
 class MoreScreen extends ConsumerWidget {
   const MoreScreen({super.key});
@@ -16,10 +15,9 @@ class MoreScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isPremium = ref.watch(isPremiumProvider);
-    final user = ref.watch(authProvider).maybeWhen(
-      authenticated: (user) => user,
-      orElse: () => null,
-    );
+    final user = ref
+        .watch(authProvider)
+        .maybeWhen(authenticated: (user) => user, orElse: () => null);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -198,17 +196,30 @@ class MoreScreen extends ConsumerWidget {
                 color: AppColors.textTertiary,
               ),
               onTap: () {
-                if (!isPremium) {
-                  UpgradeSheet.show(
-                    context,
-                    title: 'Export PDF is a Pro feature',
-                    description:
-                        'Upgrade to Spendz Pro to export your transactions as a PDF report.',
-                  );
-                  return;
-                }
                 context.push(exportPdfRoute);
               },
+            ),
+            const Divider(height: 1, color: AppColors.border),
+            const SizedBox(height: AppSpacing.xl),
+            const _SectionHeader('Legal'),
+            ListTile(
+              leading: const Icon(
+                Icons.privacy_tip_outlined,
+                color: AppColors.textSecondary,
+              ),
+              title: const Text(
+                'Privacy Policy',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              trailing: const Icon(
+                Icons.chevron_right_rounded,
+                color: AppColors.textTertiary,
+              ),
+              onTap: () => context.push(privacyPolicyRoute),
             ),
             const Divider(height: 1, color: AppColors.border),
             const SizedBox(height: AppSpacing.xl),

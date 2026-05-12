@@ -81,7 +81,8 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
           .select(
             'id, note, amount_cents, home_amount_cents, currency, home_currency, '
             'conversion_rate, expense_date, category_id, account_id, '
-            'source_split_bill_id, source_recurring_expense_id, collab_id, receipt_url',
+            'source_split_bill_id, source_recurring_expense_id, '
+            'source_recurring_split_bill_id, collab_id, receipt_url',
           )
           .eq('id', widget.expenseId)
           .single();
@@ -97,8 +98,10 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
         _currency = row['currency'] as String? ?? 'MYR';
         _homeCurrency = row['home_currency'] as String? ?? 'MYR';
         _receiptUrl = row['receipt_url'] as String?;
-        _isSplitBill = row['source_split_bill_id'] != null;
-        _isRecurring = row['source_recurring_expense_id'] != null;
+        _isSplitBill = row['source_split_bill_id'] != null ||
+            row['source_recurring_split_bill_id'] != null;
+        _isRecurring = row['source_recurring_expense_id'] != null ||
+            row['source_recurring_split_bill_id'] != null;
         _isCollab = row['collab_id'] != null;
         _selectedCategoryId = row['category_id'] as String?;
         _selectedAccountId = row['account_id'] as String?;

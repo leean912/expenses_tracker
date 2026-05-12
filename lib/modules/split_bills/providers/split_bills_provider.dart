@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../service_locator.dart';
+import '../../auth/providers/auth_provider.dart';
 import '../data/models/my_share_item.dart';
 import '../data/models/profile_summary.dart';
 import '../data/models/split_bill_model.dart';
@@ -14,7 +15,10 @@ class SplitBillsData {
 
 class SplitBillsNotifier extends AsyncNotifier<SplitBillsData> {
   @override
-  Future<SplitBillsData> build() => _fetch();
+  Future<SplitBillsData> build() {
+    ref.watch(currentUserIdProvider);
+    return _fetch();
+  }
 
   Future<SplitBillsData> _fetch() async {
     final userId = supabase.auth.currentUser!.id;

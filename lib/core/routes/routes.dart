@@ -22,3 +22,4 @@ const String referralRoute = '/referral';
 const String referralOnboardingRoute = '/referral-onboarding';
 const String exportPdfRoute = '/export';
 const String profileRoute = '/profile';
+const String privacyPolicyRoute = '/privacy-policy';

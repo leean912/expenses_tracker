@@ -1,7 +1,7 @@
 name: jomspendz
 description: "JomSpendz — Financial habits app for Malaysians."
 publish_to: 'none'
-version: 0.1.0+23
+version: 0.1.0+24
 
 environment:
   sdk: ^3.10.4
@@ -32,6 +32,7 @@ dependencies:
   pdf: ^3.12.0
   printing: ^5.14.3
   syncfusion_flutter_xlsio: ^33.2.5
+  webview_flutter: ^4.13.1
 
 dev_dependencies:
   flutter_test:
