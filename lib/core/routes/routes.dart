@@ -23,3 +23,5 @@ const String referralOnboardingRoute = '/referral-onboarding';
 const String exportPdfRoute = '/export';
 const String profileRoute = '/profile';
 const String privacyPolicyRoute = '/privacy-policy';
+const String consentRoute = '/consent';
+const String forceUpdateRoute = '/force-update';

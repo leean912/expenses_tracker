@@ -21,6 +21,10 @@ _UserModel _$UserModelFromJson(Map<String, dynamic> json) => _UserModel(
   referralPremiumExpiresAt: json['referral_premium_expires_at'] == null
       ? null
       : DateTime.parse(json['referral_premium_expires_at'] as String),
+  privacyPolicyAgreedAt: json['privacy_policy_agreed_at'] == null
+      ? null
+      : DateTime.parse(json['privacy_policy_agreed_at'] as String),
+  privacyPolicyVersion: (json['privacy_policy_version'] as num?)?.toInt(),
   createdAt: json['created_at'] == null
       ? null
       : DateTime.parse(json['created_at'] as String),
@@ -46,6 +50,8 @@ Map<String, dynamic> _$UserModelToJson(
   'referral_code': instance.referralCode,
   'referral_premium_expires_at': instance.referralPremiumExpiresAt
       ?.toIso8601String(),
+  'privacy_policy_agreed_at': instance.privacyPolicyAgreedAt?.toIso8601String(),
+  'privacy_policy_version': instance.privacyPolicyVersion,
   'created_at': instance.createdAt?.toIso8601String(),
   'updated_at': instance.updatedAt?.toIso8601String(),
   'deleted_at': instance.deletedAt?.toIso8601String(),

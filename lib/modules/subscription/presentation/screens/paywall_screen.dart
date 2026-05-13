@@ -167,7 +167,7 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
                 ),
                 const SizedBox(height: 12),
                 const Text(
-                  'Spendz Pro',
+                  'JomSpendz Pro',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 22,
@@ -430,7 +430,7 @@ class _PackageCard extends StatelessWidget {
                         if (hasIntro) ...[
                           const SizedBox(width: AppSpacing.md),
                           _Badge(
-                            label: 'Intro offer',
+                            label: 'Limited offer',
                             color: AppColors.positiveDark,
                           ),
                         ],

@@ -26,6 +26,8 @@ import '../../modules/settings/categories/presentation/screens/categories_screen
 import '../../modules/split_bills/presentation/screens/friend_split_detail_screen.dart';
 import '../../modules/split_bills/presentation/screens/split_bill_detail_screen.dart';
 import '../../modules/split_bills/presentation/screens/split_bills_screen.dart';
+import '../../modules/auth/presentation/screens/consent_screen.dart';
+import '../../modules/auth/presentation/screens/force_update_screen.dart';
 import '../../modules/auth/presentation/screens/login_screen.dart';
 import '../../modules/profile/presentation/screens/profile_screen.dart';
 import '../../modules/subscription/presentation/screens/paywall_screen.dart';
@@ -37,6 +39,8 @@ final router = GoRouter(
   routes: [
     GoRoute(path: rootRoute, builder: (context, state) => SplashScreen()),
     GoRoute(path: loginRoute, builder: (context, state) => const LoginScreen()),
+    GoRoute(path: consentRoute, builder: (context, state) => const ConsentScreen()),
+    GoRoute(path: forceUpdateRoute, builder: (context, state) => const ForceUpdateScreen()),
     GoRoute(path: userNameRoute, builder: (context, state) => UserNameScreen()),
     GoRoute(
       path: contactsRoute,

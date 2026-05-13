@@ -3,12 +3,14 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../service_locator.dart';
 import '../../home/providers/home/home_provider.dart';
 import '../../subscription/providers/subscription_provider.dart';
 import '../data/models/user_model.dart';
+import 'app_config_provider.dart';
 import 'states/auth_state.dart';
 
 final authProvider = NotifierProvider<AuthNotifier, AppAuthState>(
@@ -40,6 +42,30 @@ class AuthNotifier extends Notifier<AppAuthState> {
   }
 
   Future<void> _bootstrap() async {
+    // Fetch all app config keys in one query before routing.
+    try {
+      final configRows = await supabase
+          .from('app_config')
+          .select('key, value')
+          .inFilter('key', ['privacy_policy_version', 'min_app_version']);
+
+      final config = {
+        for (final r in configRows as List)
+          r['key'] as String: r['value'] as String
+      };
+
+      if (config.containsKey('privacy_policy_version')) {
+        ref.read(currentPolicyVersionProvider.notifier).state =
+            int.parse(config['privacy_policy_version']!);
+      }
+      if (config.containsKey('min_app_version')) {
+        ref.read(minAppVersionProvider.notifier).state =
+            config['min_app_version']!;
+      }
+    } catch (_) {
+      // Falls back to defaults.
+    }
+
     final currentSession = supabase.auth.currentSession;
 
     if (currentSession != null) {
@@ -82,10 +108,16 @@ class AuthNotifier extends Notifier<AppAuthState> {
         return;
       }
 
-      unawaited(paymentService.identify(profile.id));
-      unawaited(syncSubscriptionTier(profile.id));
+      // New user — write agreement since they had to tick the checkbox.
+      UserModel finalProfile = profile;
+      if (profile.privacyPolicyVersion == null) {
+        finalProfile = await _writePrivacyAgreement(profile);
+      }
+
+      unawaited(paymentService.identify(finalProfile.id));
+      unawaited(syncSubscriptionTier(finalProfile.id));
       ref.invalidate(homeDataProvider);
-      state = AppAuthState.authenticated(profile);
+      state = AppAuthState.authenticated(finalProfile);
     } catch (e) {
       debugPrint('login error: $e');
       state = AppAuthState.error('Something went wrong, please try again.');
@@ -156,6 +188,30 @@ class AuthNotifier extends Notifier<AppAuthState> {
     );
 
     return supabase.auth.currentUser;
+  }
+
+  /// Called from ConsentScreen when an existing user agrees to an updated policy.
+  Future<void> agreeToPrivacyPolicy() async {
+    final current = state.maybeWhen(
+      authenticated: (user) => user,
+      orElse: () => null,
+    );
+    if (current == null) return;
+    final updated = await _writePrivacyAgreement(current);
+    state = AppAuthState.authenticated(updated);
+  }
+
+  Future<UserModel> _writePrivacyAgreement(UserModel profile) async {
+    final version = ref.read(currentPolicyVersionProvider);
+    final now = DateTime.now();
+    await supabase.from('profiles').update({
+      'privacy_policy_agreed_at': now.toIso8601String(),
+      'privacy_policy_version': version,
+    }).eq('id', profile.id);
+    return profile.copyWith(
+      privacyPolicyAgreedAt: now,
+      privacyPolicyVersion: version,
+    );
   }
 
   Future<void> updateDisplayName(String displayName) async {

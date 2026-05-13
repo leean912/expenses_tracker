@@ -32,17 +32,19 @@ class PeriodSummaryHeader extends StatelessWidget {
     'Dec',
   ];
 
-  String _fmtDate(String iso) {
+  String _fmtDate(String iso, {bool showYear = false}) {
     final parts = iso.split('-');
     final day = int.parse(parts[2]);
     final month = _months[int.parse(parts[1])];
+    if (showYear) return '$day $month ${parts[0]}';
     return '$day $month';
   }
 
   String get _dateRangeLabel {
     final (start, end) = filter.toDateRange();
-    if (start == end) return _fmtDate(start);
-    return '${_fmtDate(start)} – ${_fmtDate(end)}';
+    final isCustom = filter.period == TimePeriod.custom;
+    if (start == end) return _fmtDate(start, showYear: isCustom);
+    return '${_fmtDate(start, showYear: isCustom)} – ${_fmtDate(end, showYear: isCustom)}';
   }
 
   @override

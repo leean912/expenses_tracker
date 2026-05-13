@@ -18,6 +18,8 @@ abstract class UserModel with _$UserModel {
     @JsonKey(name: 'subscription_expires_at') DateTime? subscriptionExpiresAt,
     @JsonKey(name: 'referral_code') String? referralCode,
     @JsonKey(name: 'referral_premium_expires_at') DateTime? referralPremiumExpiresAt,
+    @JsonKey(name: 'privacy_policy_agreed_at') DateTime? privacyPolicyAgreedAt,
+    @JsonKey(name: 'privacy_policy_version') int? privacyPolicyVersion,
     @JsonKey(name: 'created_at') DateTime? createdAt,
     @JsonKey(name: 'updated_at') DateTime? updatedAt,
     @JsonKey(name: 'deleted_at') DateTime? deletedAt,
