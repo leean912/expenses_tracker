@@ -33,7 +33,6 @@ class CollabsNotifier extends AsyncNotifier<List<CollabModel>> {
     required String currency,
     required String homeCurrency,
     double? exchangeRate,
-    int? budgetCents,
   }) async {
     try {
       final payload = <String, dynamic>{
@@ -56,7 +55,6 @@ class CollabsNotifier extends AsyncNotifier<List<CollabModel>> {
       if (currency != homeCurrency && exchangeRate != null) {
         payload['exchange_rate'] = exchangeRate;
       }
-      if (budgetCents != null) payload['budget_cents'] = budgetCents;
 
       await supabase.from('collabs').insert(payload);
       state = AsyncData(await _fetch());

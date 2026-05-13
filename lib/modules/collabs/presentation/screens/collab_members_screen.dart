@@ -293,7 +293,8 @@ class _MembersBodyState extends ConsumerState<_MembersBody> {
     // Compute per-member spending from already-loaded expenses
     final Map<String, int> spentByUser = {};
     expensesAsync.valueOrNull?.expenses.forEach((e) {
-      spentByUser[e.userId] = (spentByUser[e.userId] ?? 0) + e.homeAmountCents;
+      final delta = e.isIncome ? -e.homeAmountCents : e.homeAmountCents;
+      spentByUser[e.userId] = (spentByUser[e.userId] ?? 0) + delta;
     });
 
     return Scaffold(

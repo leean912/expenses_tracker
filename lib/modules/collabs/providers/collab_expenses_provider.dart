@@ -19,6 +19,10 @@ class CollabExpense {
     required this.ownerDisplayName,
     this.ownerUsername,
     this.ownerAvatarUrl,
+    this.isIncome = false,
+    this.isSplitBill = false,
+    this.hasReceipt = false,
+    this.accountName,
   });
 
   final String id;
@@ -36,10 +40,16 @@ class CollabExpense {
   final String ownerDisplayName;
   final String? ownerUsername;
   final String? ownerAvatarUrl;
+  final bool isIncome;
+  final bool isSplitBill;
+  final bool hasReceipt;
+  final String? accountName;
 
   factory CollabExpense.fromJson(Map<String, dynamic> json) {
     final owner = json['owner'] as Map<String, dynamic>? ?? {};
     final category = json['category'] as Map<String, dynamic>?;
+    final account = json['account'] as Map<String, dynamic>?;
+    final source = json['source'] as String? ?? 'manual';
     return CollabExpense(
       id: json['id'] as String,
       userId: json['user_id'] as String,
@@ -58,6 +68,10 @@ class CollabExpense {
       ownerDisplayName: owner['display_name'] as String? ?? '',
       ownerUsername: owner['username'] as String?,
       ownerAvatarUrl: owner['avatar_url'] as String?,
+      isIncome: json['type'] == 'income',
+      isSplitBill: source == 'split_payer' || source == 'settlement',
+      hasReceipt: (json['receipt_url'] as String?)?.isNotEmpty == true,
+      accountName: account?['name'] as String?,
     );
   }
 }
@@ -85,7 +99,7 @@ class CollabExpensesNotifier
     final rows = await supabase
         .from('expenses')
         .select(
-          'id, user_id, amount_cents, currency, home_amount_cents, home_currency, conversion_rate, note, expense_date, owner:profiles!user_id(id, username, display_name, avatar_url), category:categories(name, icon, color)',
+          'id, user_id, type, source, amount_cents, currency, home_amount_cents, home_currency, conversion_rate, note, expense_date, receipt_url, owner:profiles!user_id(id, username, display_name, avatar_url), category:categories(name, icon, color), account:accounts(name)',
         )
         .eq('collab_id', collabId)
         .isFilter('deleted_at', null)
@@ -96,7 +110,10 @@ class CollabExpensesNotifier
         .map((r) => CollabExpense.fromJson(r as Map<String, dynamic>))
         .toList();
 
-    final total = expenses.fold<int>(0, (sum, e) => sum + e.homeAmountCents);
+    final total = expenses.fold<int>(
+      0,
+      (sum, e) => e.isIncome ? sum - e.homeAmountCents : sum + e.homeAmountCents,
+    );
 
     return CollabExpensesState(expenses: expenses, totalHomeAmountCents: total);
   }

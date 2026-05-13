@@ -22,19 +22,13 @@ class ExpenseTile extends StatelessWidget {
   List<Widget> _buildBadges(ExpenseTileData expense) {
     final badges = <Widget>[];
     if (expense.isCollab) {
-      badges.add(
-        _Badge(icon: Icons.group_outlined, label: 'Collab'),
-      );
+      badges.add(_Badge(icon: Icons.group_outlined, label: 'Collab'));
     }
     if (expense.isSplitBill) {
-      badges.add(
-        _Badge(icon: Icons.call_split_rounded, label: 'Split bill'),
-      );
+      badges.add(_Badge(icon: Icons.call_split_rounded, label: 'Split bill'));
     }
     if (expense.isRecurring) {
-      badges.add(
-        _Badge(icon: Icons.repeat_rounded, label: 'Recurring'),
-      );
+      badges.add(_Badge(icon: Icons.repeat_rounded, label: 'Recurring'));
     }
     if (expense.isForeignCurrency) {
       badges.add(
@@ -42,9 +36,7 @@ class ExpenseTile extends StatelessWidget {
       );
     }
     if (expense.hasReceipt) {
-      badges.add(
-        _Badge(icon: Icons.receipt_long_rounded, label: 'Receipt'),
-      );
+      badges.add(_Badge(icon: Icons.receipt_long_rounded, label: 'Receipt'));
     }
     return [
       for (int i = 0; i < badges.length; i++) ...[
@@ -84,7 +76,7 @@ class ExpenseTile extends StatelessWidget {
                 children: [
                   Text(
                     expense.title,
-                    maxLines: 1,
+                    maxLines: 3,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       fontSize: 14,
@@ -94,9 +86,7 @@ class ExpenseTile extends StatelessWidget {
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   if (_hasBadges(expense)) ...[
-                    Row(
-                      children: _buildBadges(expense),
-                    ),
+                    Row(children: _buildBadges(expense)),
                     const SizedBox(height: AppSpacing.xs),
                   ],
                   Row(

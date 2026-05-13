@@ -45,7 +45,7 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen>
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         title: const Text(
-          'Contacts',
+          'Friends & Groups',
           style: TextStyle(
             color: AppColors.textPrimary,
             fontSize: 18,

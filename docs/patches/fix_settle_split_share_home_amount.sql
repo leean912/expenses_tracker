@@ -1,6 +1,9 @@
 -- Fix: settle_split_share was setting home_amount_cents = null for same-currency bills
 -- (when conversion_rate is null). The home screen displays home_amount_cents, so
 -- those settlement expenses appeared as 0. Now same-currency shares copy share_cents.
+--
+-- Also fixes: payer income expense missing collab_id, and improves settlement notes
+-- to include the other party's name ("Paid to X: note" / "Received from X: note").
 
 create or replace function settle_split_share(
   p_share_id uuid,
@@ -19,6 +22,8 @@ declare
   v_payer_expense_id uuid;
   v_settler_expense_id uuid;
   v_share_home_cents bigint;
+  v_payer_name text;
+  v_settler_name text;
 begin
   if v_user_id is null then
     raise exception 'Not authenticated';
@@ -61,6 +66,12 @@ begin
 
   select * into v_bill from split_bills where id = v_share.split_bill_id;
 
+  select coalesce(display_name, username, 'Someone') into v_payer_name
+    from profiles where id = v_bill.paid_by;
+
+  select coalesce(display_name, username, 'Someone') into v_settler_name
+    from profiles where id = v_user_id;
+
   -- Cross-currency: derive from conversion_rate. Same currency: home = local.
   if v_bill.conversion_rate is not null then
     v_share_home_cents := round(v_share.share_cents::numeric / v_bill.conversion_rate)::bigint;
@@ -93,7 +104,7 @@ begin
     v_share.share_cents, v_bill.currency,
     v_share_home_cents, v_bill.home_currency, v_bill.conversion_rate,
     p_category_id, p_account_id, v_bill.collab_id,
-    coalesce('Paid for: ' || v_bill.note, 'Split settlement'), current_date,
+    coalesce('Paid to ' || v_payer_name || ': ' || v_bill.note, 'Paid to ' || v_payer_name), current_date,
     v_bill.google_place_id, v_bill.place_name, v_bill.latitude, v_bill.longitude
   ) returning id into v_settler_expense_id;
 
@@ -101,14 +112,14 @@ begin
     user_id, type, source, source_split_bill_id, source_settlement_id,
     amount_cents, currency,
     home_amount_cents, home_currency, conversion_rate,
-    category_id,
+    category_id, collab_id,
     note, expense_date
   ) values (
     v_bill.paid_by, 'income', 'settlement', v_bill.id, v_settlement_id,
     v_share.share_cents, v_bill.currency,
     v_share_home_cents, v_bill.home_currency, v_bill.conversion_rate,
-    v_bill.category_id,
-    coalesce('Received for: ' || v_bill.note, 'Split settlement'), current_date
+    v_bill.category_id, v_bill.collab_id,
+    coalesce('Received from ' || v_settler_name || ': ' || v_bill.note, 'Received from ' || v_settler_name), current_date
   ) returning id into v_payer_expense_id;
 
   update split_bill_shares

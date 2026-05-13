@@ -670,12 +670,19 @@ class _ExpenseTile extends StatelessWidget {
         ? hexToColor(expense.categoryColor ?? '#888780')
         : AppColors.textTertiary;
 
-    final primaryAmount =
+    final amountStr =
         '${collab.currency} ${_fmtAmount(expense.amountCents, expense.currency)}';
+    final primaryAmount = '${expense.isIncome ? "+" : "−"}$amountStr';
     final showHomeAmount = collab.isForeignCurrency;
     final homeAmount = showHomeAmount
         ? '${collab.homeCurrency} ${(expense.homeAmountCents / 100).toStringAsFixed(2)}'
         : null;
+    final amountColor = expense.isIncome
+        ? AppColors.positiveDark
+        : AppColors.expenseLight;
+
+    final hasBadges =
+        expense.isSplitBill || expense.hasReceipt || collab.isForeignCurrency;
 
     return Container(
       padding: const EdgeInsets.symmetric(
@@ -687,93 +694,153 @@ class _ExpenseTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppRadius.md),
         border: Border.all(color: AppColors.border),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: .start,
         children: [
-          // Category icon
           Container(
-            width: 36,
-            height: 36,
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
             decoration: BoxDecoration(
-              color: catColor.withValues(alpha: 0.12),
-              shape: BoxShape.circle,
+              color: isOwn
+                  ? AppColors.accent.withValues(alpha: 0.1)
+                  : AppColors.surfaceMuted,
+              borderRadius: BorderRadius.circular(AppRadius.pill),
             ),
-            child: Icon(
-              hasCategory
-                  ? iconForName(expense.categoryIcon ?? 'category')
-                  : Icons.receipt_long_outlined,
-              size: 16,
-              color: catColor,
+            child: Text(
+              isOwn ? 'You' : expense.ownerDisplayName.split(' ').first,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: isOwn ? AppColors.accent : AppColors.textTertiary,
+              ),
             ),
           ),
-          const SizedBox(width: AppSpacing.lg),
-
-          // Note + owner
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  expense.note?.isNotEmpty == true
-                      ? expense.note!
-                      : expense.categoryName ?? 'Expense',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.textPrimary,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+          const SizedBox(height: 2),
+          Row(
+            children: [
+              // Category icon
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: catColor.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
                 ),
-                Row(
+                child: Icon(
+                  hasCategory
+                      ? iconForName(expense.categoryIcon ?? 'category')
+                      : Icons.receipt_long_outlined,
+                  size: 16,
+                  color: catColor,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.lg),
+
+              // Owner + note + badges
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 1,
+                    Text(
+                      expense.note?.isNotEmpty == true
+                          ? expense.note!
+                          : expense.categoryName ?? 'Expense',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.textPrimary,
                       ),
-                      decoration: BoxDecoration(
-                        color: isOwn
-                            ? AppColors.accent.withValues(alpha: 0.1)
-                            : AppColors.surfaceMuted,
-                        borderRadius: BorderRadius.circular(AppRadius.pill),
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    if (hasBadges) ...[
+                      Row(
+                        children: [
+                          if (expense.isSplitBill) ...[
+                            _TileBadge(
+                              icon: Icons.call_split_rounded,
+                              label: expense.isIncome
+                                  ? 'Settlement'
+                                  : 'Split bill',
+                            ),
+                            const SizedBox(width: AppSpacing.sm),
+                          ],
+                          if (collab.isForeignCurrency) ...[
+                            _TileBadge(
+                              icon: Icons.language_rounded,
+                              label: collab.currency,
+                            ),
+                            const SizedBox(width: AppSpacing.sm),
+                          ],
+                          if (expense.hasReceipt)
+                            const _TileBadge(
+                              icon: Icons.receipt_long_rounded,
+                              label: 'Receipt',
+                            ),
+                        ],
                       ),
-                      child: Text(
-                        isOwn ? 'You' : expense.ownerDisplayName,
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: isOwn
-                              ? AppColors.accent
-                              : AppColors.textTertiary,
-                        ),
-                      ),
+                      const SizedBox(height: 2),
+                    ],
+                    Row(
+                      children: [
+                        if (hasCategory) ...[
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.md,
+                              vertical: 1,
+                            ),
+                            decoration: BoxDecoration(
+                              color: catColor.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(AppRadius.sm),
+                            ),
+                            child: Text(
+                              expense.categoryName!,
+                              style: TextStyle(fontSize: 10, color: catColor),
+                            ),
+                          ),
+                          const SizedBox(width: AppSpacing.sm),
+                        ],
+                        if (expense.accountName != null)
+                          Flexible(
+                            child: Text(
+                              expense.accountName!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 10,
+                                color: AppColors.textTertiary,
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   ],
                 ),
-              ],
-            ),
-          ),
-
-          // Amount
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                primaryAmount,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
-                ),
               ),
-              if (homeAmount != null)
-                Text(
-                  homeAmount,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: AppColors.textTertiary,
+              const SizedBox(width: AppSpacing.lg),
+
+              // Amount
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    primaryAmount,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: amountColor,
+                    ),
                   ),
-                ),
+                  if (homeAmount != null)
+                    Text(
+                      homeAmount,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: AppColors.textTertiary,
+                      ),
+                    ),
+                ],
+              ),
             ],
           ),
         ],
@@ -782,10 +849,35 @@ class _ExpenseTile extends StatelessWidget {
   }
 
   String _fmtAmount(int cents, String currency) {
-    // For JPY and KRW (no decimal), show as whole number
     final noDecimal = {'JPY', 'KRW', 'VND', 'IDR'}.contains(currency);
     if (noDecimal) return (cents ~/ 100).toString();
     return (cents / 100).toStringAsFixed(2);
+  }
+}
+
+class _TileBadge extends StatelessWidget {
+  const _TileBadge({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 11, color: AppColors.textTertiary),
+        const SizedBox(width: 3),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 11,
+            color: AppColors.textTertiary,
+            fontWeight: FontWeight.w400,
+          ),
+        ),
+      ],
+    );
   }
 }
 

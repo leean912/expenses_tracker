@@ -510,7 +510,6 @@ class _CreateCollabSheetState extends ConsumerState<_CreateCollabSheet> {
   final _nameController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _exchangeRateController = TextEditingController();
-  final _budgetController = TextEditingController();
 
   late String _currency;
   DateTime? _startDate;
@@ -529,7 +528,6 @@ class _CreateCollabSheetState extends ConsumerState<_CreateCollabSheet> {
     _nameController.dispose();
     _descriptionController.dispose();
     _exchangeRateController.dispose();
-    _budgetController.dispose();
     super.dispose();
   }
 
@@ -596,13 +594,6 @@ class _CreateCollabSheetState extends ConsumerState<_CreateCollabSheet> {
       _error = null;
     });
 
-    int? budgetCents;
-    final budgetText = _budgetController.text.trim();
-    if (budgetText.isNotEmpty) {
-      final budgetAmount = double.tryParse(budgetText);
-      if (budgetAmount != null) budgetCents = (budgetAmount * 100).round();
-    }
-
     double? exchangeRate;
     if (_isForeign) {
       exchangeRate = double.tryParse(_exchangeRateController.text.trim());
@@ -620,7 +611,6 @@ class _CreateCollabSheetState extends ConsumerState<_CreateCollabSheet> {
           currency: _currency,
           homeCurrency: widget.homeCurrency,
           exchangeRate: exchangeRate,
-          budgetCents: budgetCents,
         );
 
     if (!mounted) return;
@@ -806,22 +796,6 @@ class _CreateCollabSheetState extends ConsumerState<_CreateCollabSheet> {
                   ],
                 ),
               ],
-
-              const SizedBox(height: AppSpacing.xxl),
-
-              // Budget
-              _Label('Budget in ${widget.homeCurrency} (optional)'),
-              const SizedBox(height: AppSpacing.md),
-              _TextField(
-                controller: _budgetController,
-                hint: 'e.g. 2000.00',
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
-                ],
-              ),
 
               if (_error != null) ...[
                 const SizedBox(height: AppSpacing.md),
