@@ -2,12 +2,16 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../service_locator.dart';
+import '../../auth/providers/auth_provider.dart';
 import '../../subscription/providers/subscription_provider.dart';
 import '../data/models/group_model.dart';
 
 class GroupsNotifier extends AsyncNotifier<List<GroupModel>> {
   @override
-  Future<List<GroupModel>> build() => _fetch();
+  Future<List<GroupModel>> build() {
+    ref.watch(currentUserIdProvider);
+    return _fetch();
+  }
 
   Future<List<GroupModel>> _fetch() async {
     final rows = await supabase

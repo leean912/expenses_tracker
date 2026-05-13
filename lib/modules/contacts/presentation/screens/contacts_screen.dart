@@ -8,7 +8,9 @@ import '../../../../core/widgets/upgrade_sheet.dart';
 import '../../../../modules/expenses/utils/expense_ui_helpers.dart';
 import '../../../subscription/providers/subscription_provider.dart';
 import '../../data/models/contact_model.dart';
+import '../../data/models/contact_request_model.dart';
 import '../../data/models/group_model.dart';
+import '../../providers/contact_requests_provider.dart';
 import '../../providers/contacts_provider.dart';
 import '../../providers/groups_provider.dart';
 
@@ -36,8 +38,20 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen>
     super.dispose();
   }
 
+  void _showRequestsSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const _RequestsSheet(),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final hasRequests =
+        ref.watch(contactRequestsProvider).valueOrNull?.isNotEmpty ?? false;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -53,6 +67,37 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen>
           ),
         ),
         iconTheme: const IconThemeData(color: AppColors.textPrimary),
+        actions: [
+          Stack(
+            alignment: Alignment.topRight,
+            children: [
+              TextButton(
+                onPressed: _showRequestsSheet,
+                child: const Text(
+                  'Requests',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              if (hasRequests)
+                Positioned(
+                  top: 8,
+                  right: 4,
+                  child: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFE24B4A),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
         bottom: TabBar(
           controller: _tabController,
           labelColor: AppColors.textPrimary,
@@ -113,11 +158,11 @@ class _ContactsTabState extends ConsumerState<_ContactsTab> {
     await showDialog<void>(
       context: context,
       builder: (_) => _AddFriendDialog(
-        onAdded: () {
+        onResult: (isPending) {
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Contact added.'),
+            SnackBar(
+              content: Text(isPending ? 'Request sent.' : 'Friend added.'),
               behavior: SnackBarBehavior.floating,
               backgroundColor: AppColors.textPrimary,
             ),
@@ -127,13 +172,17 @@ class _ContactsTabState extends ConsumerState<_ContactsTab> {
     );
   }
 
-  Future<void> _handleDelete(String contactId, String displayName) async {
-    setState(() => _dismissedIds.add(contactId));
-    await ref.read(contactsProvider.notifier).deleteContact(contactId);
+  Future<void> _handleDelete(ContactModel contact) async {
+    setState(() => _dismissedIds.add(contact.friendId));
+    await ref.read(contactsProvider.notifier).deleteContact(contact.friendId);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('$displayName removed.'),
+        content: Text(
+          contact.isPending
+              ? 'Request cancelled.'
+              : '${contact.displayName} removed.',
+        ),
         behavior: SnackBarBehavior.floating,
         backgroundColor: AppColors.textPrimary,
       ),
@@ -229,7 +278,7 @@ class _ContactsTabState extends ConsumerState<_ContactsTab> {
               ),
               data: (contacts) {
                 final filtered = contacts
-                    .where((c) => !_dismissedIds.contains(c.id))
+                    .where((c) => !_dismissedIds.contains(c.friendId))
                     .where(
                       (c) =>
                           _query.isEmpty ||
@@ -265,8 +314,7 @@ class _ContactsTabState extends ConsumerState<_ContactsTab> {
                     final contact = filtered[index];
                     return _ContactTile(
                       contact: contact,
-                      onDelete: () =>
-                          _handleDelete(contact.id, contact.displayName),
+                      onDelete: () => _handleDelete(contact),
                     );
                   },
                 );
@@ -326,7 +374,7 @@ class _GroupsTabState extends ConsumerState<_GroupsTab> {
       return;
     }
 
-    final contacts = ref.read(contactsProvider).valueOrNull ?? [];
+    final contacts = ref.read(acceptedContactsProvider).valueOrNull ?? [];
     if (contacts.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -549,6 +597,45 @@ class _ContactTile extends StatelessWidget {
     return Dismissible(
       key: Key(contact.id),
       direction: DismissDirection.endToStart,
+      confirmDismiss: (_) => showDialog<bool>(
+        context: context,
+        builder: (_) => AlertDialog(
+          backgroundColor: AppColors.surface,
+          title: Text(
+            contact.isPending ? 'Cancel Request?' : 'Remove Friend?',
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          content: Text(
+            contact.isPending
+                ? 'Cancel your friend request to ${contact.displayName}?'
+                : 'Remove ${contact.displayName} from your contacts?',
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 14,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(color: AppColors.textSecondary),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text(
+                'Remove',
+                style: TextStyle(color: Color(0xFFE24B4A)),
+              ),
+            ),
+          ],
+        ),
+      ),
       onDismissed: (_) => onDelete(),
       background: Container(
         alignment: Alignment.centerRight,
@@ -598,6 +685,24 @@ class _ContactTile extends StatelessWidget {
                 ],
               ),
             ),
+            if (contact.isPending)
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md,
+                  vertical: AppSpacing.xs,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceMuted,
+                  borderRadius: BorderRadius.circular(AppRadius.pill),
+                ),
+                child: const Text(
+                  'Pending',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textTertiary,
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -631,6 +736,43 @@ class _GroupTile extends StatelessWidget {
       child: Dismissible(
         key: Key(group.id),
         direction: DismissDirection.endToStart,
+        confirmDismiss: (_) => showDialog<bool>(
+          context: context,
+          builder: (_) => AlertDialog(
+            backgroundColor: AppColors.surface,
+            title: const Text(
+              'Delete Group?',
+              style: TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            content: Text(
+              'Delete "${group.name}"? This cannot be undone.',
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 14,
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text(
+                  'Cancel',
+                  style: TextStyle(color: AppColors.textSecondary),
+                ),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text(
+                  'Delete',
+                  style: TextStyle(color: Color(0xFFE24B4A)),
+                ),
+              ),
+            ],
+          ),
+        ),
         onDismissed: (_) => onDelete(),
         background: Container(
           alignment: Alignment.centerRight,
@@ -799,9 +941,9 @@ class _GroupUsageBanner extends StatelessWidget {
 // ── Add friend dialog ─────────────────────────────────────────────────────────
 
 class _AddFriendDialog extends ConsumerStatefulWidget {
-  const _AddFriendDialog({required this.onAdded});
+  const _AddFriendDialog({required this.onResult});
 
-  final VoidCallback onAdded;
+  final ValueChanged<bool> onResult; // true = pending, false = accepted
 
   @override
   ConsumerState<_AddFriendDialog> createState() => _AddFriendDialogState();
@@ -825,17 +967,17 @@ class _AddFriendDialogState extends ConsumerState<_AddFriendDialog> {
       _adding = true;
       _error = null;
     });
-    final error = await ref
+    final result = await ref
         .read(contactsProvider.notifier)
         .addContact(identifier);
     if (!mounted) return;
-    if (error == null) {
+    if (result == null || result == 'pending') {
       context.pop();
-      widget.onAdded();
+      widget.onResult(result == 'pending');
     } else {
       setState(() {
         _adding = false;
-        _error = error;
+        _error = result;
       });
     }
   }
@@ -1254,6 +1396,211 @@ class _CreateGroupSheetState extends ConsumerState<_CreateGroupSheet> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ── Requests sheet ────────────────────────────────────────────────────────────
+
+class _RequestsSheet extends ConsumerWidget {
+  const _RequestsSheet();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final requestsAsync = ref.watch(contactRequestsProvider);
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xxl)),
+      ),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.viewInsetsOf(context).bottom + AppSpacing.xxl,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              margin: const EdgeInsets.only(top: AppSpacing.xl),
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.borderDashed,
+                borderRadius: BorderRadius.circular(AppRadius.pill),
+              ),
+            ),
+          ),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(
+              AppSpacing.xl,
+              AppSpacing.xl,
+              AppSpacing.xl,
+              AppSpacing.lg,
+            ),
+            child: Text(
+              'Friend Requests',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ),
+          requestsAsync.when(
+            loading: () => const Padding(
+              padding: EdgeInsets.all(AppSpacing.xxl),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+            error: (e, st) => const Padding(
+              padding: EdgeInsets.all(AppSpacing.xxl),
+              child: Center(
+                child: Text(
+                  'Failed to load requests.',
+                  style: TextStyle(color: AppColors.textSecondary),
+                ),
+              ),
+            ),
+            data: (requests) {
+              if (requests.isEmpty) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: AppSpacing.xxl),
+                  child: Center(
+                    child: Text(
+                      'No pending requests.',
+                      style: TextStyle(
+                        color: AppColors.textTertiary,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                );
+              }
+              return ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+                itemCount: requests.length,
+                separatorBuilder: (_, _) =>
+                    const SizedBox(height: AppSpacing.sm),
+                itemBuilder: (context, index) => _RequestTile(
+                  request: requests[index],
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RequestTile extends ConsumerStatefulWidget {
+  const _RequestTile({required this.request});
+
+  final ContactRequestModel request;
+
+  @override
+  ConsumerState<_RequestTile> createState() => _RequestTileState();
+}
+
+class _RequestTileState extends ConsumerState<_RequestTile> {
+  bool _loading = false;
+
+  Future<void> _accept() async {
+    setState(() => _loading = true);
+    await ref
+        .read(contactRequestsProvider.notifier)
+        .acceptRequest(widget.request.fromUserId);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('${widget.request.displayName} added to friends.'),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: AppColors.textPrimary,
+      ),
+    );
+  }
+
+  Future<void> _decline() async {
+    setState(() => _loading = true);
+    await ref
+        .read(contactRequestsProvider.notifier)
+        .declineRequest(widget.request.fromUserId);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.xl,
+        vertical: AppSpacing.lg,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.request.displayName,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                if (widget.request.username != null)
+                  Text(
+                    '@${widget.request.username}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textTertiary,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          if (_loading)
+            const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          else ...[
+            TextButton(
+              onPressed: _decline,
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.textTertiary,
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: const Text('Decline'),
+            ),
+            const SizedBox(width: AppSpacing.xs),
+            TextButton(
+              onPressed: _accept,
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.accent,
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: const Text(
+                'Accept',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

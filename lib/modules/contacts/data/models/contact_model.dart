@@ -6,6 +6,7 @@ class ContactModel {
     this.username,
     required this.displayName,
     this.avatarUrl,
+    this.status = 'accepted',
   });
 
   final String id;
@@ -14,6 +15,9 @@ class ContactModel {
   final String? username;
   final String displayName;
   final String? avatarUrl;
+  final String status;
+
+  bool get isPending => status == 'pending';
 
   factory ContactModel.fromJson(Map<String, dynamic> json) {
     final friend = json['friend'] as Map<String, dynamic>? ?? {};
@@ -24,6 +28,7 @@ class ContactModel {
       username: friend['username'] as String?,
       displayName: friend['display_name'] as String? ?? '',
       avatarUrl: friend['avatar_url'] as String?,
+      status: json['status'] as String? ?? 'accepted',
     );
   }
 }

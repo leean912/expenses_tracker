@@ -882,7 +882,7 @@ class _ContactPickerSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final contactsAsync = ref.watch(contactsProvider);
+    final contactsAsync = ref.watch(acceptedContactsProvider);
 
     return Container(
       margin: const EdgeInsets.fromLTRB(

@@ -160,17 +160,19 @@ Query to fetch: `contacts` where `friend_id = auth.uid() AND status = 'pending'`
 
 | Change | Detail |
 |--------|--------|
-| `_fetch()` query | Add `.eq('status', 'accepted')` filter |
+| `_fetch()` query | No status filter — returns all outgoing rows (`owner_id = auth.uid()`), both `pending` and `accepted` |
 | `addContact()` | Handle `{ result: 'pending' \| 'accepted' }` return from RPC; return an enum/string so the dialog can show the right message |
 | `deleteContact()` | Replace direct `.delete()` with `supabase.rpc('remove_contact', params: { 'p_friend_id': friendId })` |
 
+`ContactModel` must expose the `status` field so the contacts screen can render a "Pending" badge on outgoing requests awaiting approval.
+
 ### New provider: `acceptedContactsProvider`
 
-A lightweight read-only provider with the same query as `contactsProvider` (`owner_id = auth.uid() AND status = 'accepted'`). Kept separate so split bill / collab screens are decoupled from the contacts screen's notifier state.
+A lightweight read-only provider that fetches only `accepted` contacts (`owner_id = auth.uid() AND status = 'accepted'`). Used exclusively by pickers (split bill, collab, groups) so pending friends never appear in those flows.
 
 ```dart
 final acceptedContactsProvider = FutureProvider<List<ContactModel>>((ref) async {
-  // same fetch as contactsProvider but no mutation methods
+  // owner_id = auth.uid() AND status = 'accepted' only
 });
 ```
 
@@ -182,6 +184,7 @@ final acceptedContactsProvider = FutureProvider<List<ContactModel>>((ref) async 
 | Red dot badge | `Stack` + small red `Container` overlay when `contactRequestsProvider` has items |
 | `_RequestsSheet` | New bottom sheet widget — lists `ContactRequestModel` items with Accept / Decline buttons per row |
 | `_AddFriendDialog` snackbar | Show "Request sent." when result is `pending`, "Friend added." when `accepted` |
+| Pending contact rows | Show a "Pending" badge/label on contact tiles where `status == 'pending'`; swipe-to-delete or context action shows "Cancel Request" instead of "Remove Friend" — calls the same `deleteContact()` → `remove_contact` RPC (only A→B row exists so it just deletes that one row) |
 | `_GroupsTab` (line 329) | `ref.read(contactsProvider)` → `ref.read(acceptedContactsProvider)` |
 
 ### `_RequestsSheet` behaviour
@@ -191,7 +194,7 @@ final acceptedContactsProvider = FutureProvider<List<ContactModel>>((ref) async 
 - Accept: calls `acceptRequest` → invalidates `contactRequestsProvider` + `contactsProvider` → friends list and badge both update
 - Decline: calls `declineRequest` → invalidates `contactRequestsProvider` → row disappears from sheet
 
-### Files that swap `contactsProvider` → `acceptedContactsProvider`
+### Files that use `acceptedContactsProvider` (accepted friends only)
 
 | File | Line | Usage |
 |------|------|-------|
@@ -201,7 +204,7 @@ final acceptedContactsProvider = FutureProvider<List<ContactModel>>((ref) async 
 | `recurring_split_bill_form_screen.dart` | 885 | Recurring split bill participant picker |
 | `group_detail_screen.dart` | 440 | Add member to existing group |
 
-No logic changes in these files — just swap the provider reference. The accepted-only filter in the provider is what prevents pending friends from appearing in pickers.
+No logic changes in these files — just swap the provider reference. The accepted-only filter in `acceptedContactsProvider` is what prevents pending friends from appearing in all pickers.
 
 ---
 
@@ -231,7 +234,6 @@ No logic changes in these files — just swap the provider reference. The accept
 
 ## Out of Scope (future considerations)
 
-- **Outgoing pending visibility**: Users cannot currently see requests they've sent that are awaiting approval. Could add a "Sent" section in `_RequestsSheet` querying `owner_id = auth.uid() AND status = 'pending'` with a Cancel option.
 - **Push notifications**: Notify B when A sends a request (requires push notification infrastructure).
 - **Backend enforcement**: Currently frontend-only. If stronger guarantee is needed, `create_split_bill`, `create_group`, and `add_collab_member` RPCs should also check `status = 'accepted'`.
 - **Activity feed**: `contact_added` event type would split into `contact_request_received` (actionable) and `contact_accepted` (informational).
