@@ -70,7 +70,6 @@ class CollabsNotifier extends AsyncNotifier<List<CollabModel>> {
     String? description,
     DateTime? startDate,
     DateTime? endDate,
-    required int? budgetCents,
     required String currency,
     double? exchangeRate,
   }) async {
@@ -80,7 +79,6 @@ class CollabsNotifier extends AsyncNotifier<List<CollabModel>> {
         'name': name,
         'description': description,
         'currency': currency,
-        'budget_cents': budgetCents,
         'exchange_rate': exchangeRate,
       };
       if (startDate != null) {

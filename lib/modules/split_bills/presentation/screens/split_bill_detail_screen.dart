@@ -92,49 +92,84 @@ class _DeleteButtonState extends ConsumerState<_DeleteButton> {
       (s) => s.userId != widget.bill.createdBy && s.isSettled,
     );
 
-    final confirmed = await showDialog<bool>(
+    final result = await showDialog<({bool confirmed, bool deleteExpenses})>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Delete split bill?'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Your personal expense record will not be removed — it stays in your history.',
+      builder: (_) {
+        var deleteExpenses = false;
+        return StatefulBuilder(
+          builder: (ctx, setStatDialog) => AlertDialog(
+            title: const Text('Delete split bill?'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (hasSettledOthers) ...[
+                  const Text(
+                    'Some participants have already settled their share. Their payments cannot be reversed.',
+                    style: TextStyle(fontWeight: FontWeight.w500),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                const Text('This action cannot be undone.'),
+                const SizedBox(height: 16),
+                GestureDetector(
+                  onTap: () =>
+                      setStatDialog(() => deleteExpenses = !deleteExpenses),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: Checkbox(
+                          value: deleteExpenses,
+                          onChanged: (v) => setStatDialog(
+                            () => deleteExpenses = v ?? false,
+                          ),
+                          materialTapTargetSize:
+                              MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'Also delete my personal expense and settlement income records',
+                          style: TextStyle(fontSize: 13),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            if (hasSettledOthers) ...[
-              const SizedBox(height: 12),
-              const Text(
-                'Some participants have already settled their share. Their payments cannot be reversed.',
-                style: TextStyle(fontWeight: FontWeight.w500),
+            actions: [
+              TextButton(
+                onPressed: () => ctx.pop(null),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => ctx.pop(
+                  (confirmed: true, deleteExpenses: deleteExpenses),
+                ),
+                child: const Text(
+                  'Delete',
+                  style: TextStyle(color: Color(0xFFE24B4A)),
+                ),
               ),
             ],
-            const SizedBox(height: 12),
-            const Text('This action cannot be undone.'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => context.pop(false),
-            child: const Text('Cancel'),
           ),
-          TextButton(
-            onPressed: () => context.pop(true),
-            child: const Text(
-              'Delete',
-              style: TextStyle(color: Color(0xFFE24B4A)),
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
-    if (confirmed != true || !mounted) return;
+    if (result == null || !mounted) return;
 
     setState(() => _loading = true);
     final error = await ref
         .read(splitBillsProvider.notifier)
-        .deleteSplitBill(widget.billId);
+        .deleteSplitBill(
+          widget.billId,
+          deleteRelatedExpenses: result.deleteExpenses,
+        );
     if (!mounted) return;
     setState(() => _loading = false);
     if (error != null) {
@@ -222,6 +257,7 @@ class _BillDetail extends ConsumerWidget {
                     share: bill.shares[i],
                     currency: bill.currency,
                     isCurrentUser: bill.shares[i].userId == currentUserId,
+                    isCreator: bill.createdBy == currentUserId,
                     billId: billId,
                   ),
                 ],
@@ -505,19 +541,36 @@ class _ShareRow extends StatelessWidget {
     required this.share,
     required this.currency,
     required this.isCurrentUser,
+    required this.isCreator,
     required this.billId,
   });
 
   final SplitShareModel share;
   final String currency;
   final bool isCurrentUser;
+  final bool isCreator;
   final String billId;
+
+  bool get _tappable => isCreator && !isCurrentUser && share.isPending;
+
+  void _openOptions(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _CreatorShareOptionsSheet(
+        share: share,
+        currency: currency,
+        billId: billId,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final name = isCurrentUser ? 'You' : share.user?.displayName ?? 'Unknown';
 
-    return Padding(
+    final content = Padding(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.xl,
         vertical: AppSpacing.lg,
@@ -550,6 +603,13 @@ class _ShareRow extends StatelessWidget {
             _StatusChip(isSettled: share.isSettled),
         ],
       ),
+    );
+
+    if (!_tappable) return content;
+
+    return InkWell(
+      onTap: () => _openOptions(context),
+      child: content,
     );
   }
 }
@@ -602,6 +662,389 @@ class _StatusChip extends StatelessWidget {
           fontSize: 11,
           fontWeight: FontWeight.w500,
           color: isSettled ? AppColors.positiveDark : AppColors.accentText,
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Creator share options sheet ──────────────────────────────────────────────
+
+class _CreatorShareOptionsSheet extends ConsumerStatefulWidget {
+  const _CreatorShareOptionsSheet({
+    required this.share,
+    required this.currency,
+    required this.billId,
+  });
+
+  final SplitShareModel share;
+  final String currency;
+  final String billId;
+
+  @override
+  ConsumerState<_CreatorShareOptionsSheet> createState() =>
+      _CreatorShareOptionsSheetState();
+}
+
+class _CreatorShareOptionsSheetState
+    extends ConsumerState<_CreatorShareOptionsSheet> {
+  bool _markPaidLoading = false;
+
+  Future<void> _onEditAmount() async {
+    context.pop();
+    await Future.delayed(const Duration(milliseconds: 150));
+    if (!mounted) return;
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _EditAmountSheet(
+        share: widget.share,
+        currency: widget.currency,
+        billId: widget.billId,
+      ),
+    );
+  }
+
+  Future<void> _onMarkPaid() async {
+    final name = widget.share.user?.displayName ?? 'this participant';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Mark as paid?'),
+        content: Text(
+          'This records that $name paid you. Their own expense records are not affected.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => context.pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => context.pop(true),
+            child: const Text(
+              'Mark Paid',
+              style: TextStyle(color: AppColors.accent),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _markPaidLoading = true);
+    final error = await ref
+        .read(splitBillsProvider.notifier)
+        .creatorMarkSharePaid(widget.share.id);
+    if (!mounted) return;
+    setState(() => _markPaidLoading = false);
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error), behavior: SnackBarBehavior.floating),
+      );
+      return;
+    }
+    ref.invalidate(splitBillDetailProvider(widget.billId));
+    if (mounted) context.pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final name = widget.share.user?.displayName ?? 'Participant';
+    final amount = _fmtAmount(widget.share.shareCents, widget.currency);
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(
+        AppSpacing.xl,
+        0,
+        AppSpacing.xl,
+        AppSpacing.xl,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.xxl),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.xl,
+              AppSpacing.xl,
+              AppSpacing.xl,
+              AppSpacing.md,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  amount,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: AppColors.border),
+          _OptionTile(
+            icon: Icons.edit_outlined,
+            label: 'Edit Amount',
+            onTap: _onEditAmount,
+          ),
+          const Divider(height: 1, color: AppColors.border, indent: 56),
+          _OptionTile(
+            icon: Icons.check_circle_outline_rounded,
+            label: 'Mark Paid',
+            loading: _markPaidLoading,
+            onTap: _markPaidLoading ? null : _onMarkPaid,
+          ),
+          const Divider(height: 1, color: AppColors.border, indent: 56),
+          _OptionTile(
+            icon: Icons.notifications_outlined,
+            label: 'Notify',
+            subtitle: 'Coming soon',
+            disabled: true,
+            onTap: null,
+          ),
+          const SizedBox(height: AppSpacing.md),
+        ],
+      ),
+    );
+  }
+}
+
+class _OptionTile extends StatelessWidget {
+  const _OptionTile({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.subtitle,
+    this.disabled = false,
+    this.loading = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final String? subtitle;
+  final bool disabled;
+  final bool loading;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color =
+        disabled ? AppColors.textTertiary : AppColors.textPrimary;
+
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.xl,
+          vertical: AppSpacing.lg,
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 20, color: disabled ? AppColors.textTertiary : AppColors.textSecondary),
+            const SizedBox(width: AppSpacing.xl),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                      color: color,
+                    ),
+                  ),
+                  if (subtitle != null)
+                    Text(
+                      subtitle!,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textTertiary,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            if (loading)
+              const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EditAmountSheet extends ConsumerStatefulWidget {
+  const _EditAmountSheet({
+    required this.share,
+    required this.currency,
+    required this.billId,
+  });
+
+  final SplitShareModel share;
+  final String currency;
+  final String billId;
+
+  @override
+  ConsumerState<_EditAmountSheet> createState() => _EditAmountSheetState();
+}
+
+class _EditAmountSheetState extends ConsumerState<_EditAmountSheet> {
+  late final TextEditingController _controller;
+  bool _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(
+      text: (widget.share.shareCents / 100).toStringAsFixed(2),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _confirm() async {
+    final amount = double.tryParse(_controller.text.trim());
+    if (amount == null || amount <= 0) return;
+    final newCents = (amount * 100).round();
+    if (newCents == widget.share.shareCents) {
+      context.pop();
+      return;
+    }
+
+    setState(() => _loading = true);
+    final error = await ref
+        .read(splitBillsProvider.notifier)
+        .updateShareAmount(shareId: widget.share.id, newCents: newCents);
+    if (!mounted) return;
+    setState(() => _loading = false);
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error), behavior: SnackBarBehavior.floating),
+      );
+      return;
+    }
+    ref.invalidate(splitBillDetailProvider(widget.billId));
+    context.pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final canConfirm =
+        (double.tryParse(_controller.text.trim()) ?? 0) > 0 && !_loading;
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(
+          AppSpacing.xl,
+          0,
+          AppSpacing.xl,
+          AppSpacing.xl,
+        ),
+        padding: const EdgeInsets.all(AppSpacing.xl),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(AppRadius.xxl),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Edit Share Amount',
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.xl),
+            TextField(
+              controller: _controller,
+              autofocus: true,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              onChanged: (_) => setState(() {}),
+              decoration: InputDecoration(
+                prefixText: '${widget.currency} ',
+                prefixStyle: const TextStyle(
+                  fontSize: 16,
+                  color: AppColors.textSecondary,
+                ),
+                filled: true,
+                fillColor: AppColors.surfaceMuted,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppRadius.xl),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.xl,
+                  vertical: AppSpacing.lg,
+                ),
+              ),
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.xl),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.accent,
+                  foregroundColor: AppColors.accentText,
+                  disabledBackgroundColor: AppColors.surfaceMuted,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.pill),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
+                ),
+                onPressed: canConfirm ? _confirm : null,
+                child: _loading
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.accentText,
+                        ),
+                      )
+                    : const Text(
+                        'Save',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -78,11 +78,57 @@ class SplitBillsNotifier extends AsyncNotifier<SplitBillsData> {
     return SplitBillsData(myBills: myBills, myShares: myShares);
   }
 
-  Future<String?> deleteSplitBill(String billId) async {
+  Future<String?> deleteSplitBill(
+    String billId, {
+    bool deleteRelatedExpenses = false,
+  }) async {
     try {
+      final now = DateTime.now().toIso8601String();
+
+      if (deleteRelatedExpenses) {
+        final userId = supabase.auth.currentUser!.id;
+
+        // Soft-delete the payer's split_payer expense
+        await supabase
+            .from('expenses')
+            .update({'deleted_at': now})
+            .eq('source_split_bill_id', billId)
+            .eq('user_id', userId)
+            .isFilter('deleted_at', null);
+
+        // Find share IDs for this bill
+        final sharesRaw = await supabase
+            .from('split_bill_shares')
+            .select('id')
+            .eq('split_bill_id', billId);
+        final shareIds =
+            (sharesRaw as List).map((r) => r['id'] as String).toList();
+
+        if (shareIds.isNotEmpty) {
+          // Find settlement IDs linked to those shares
+          final settlementsRaw = await supabase
+              .from('settlements')
+              .select('id')
+              .inFilter('split_bill_share_id', shareIds);
+          final settlementIds = (settlementsRaw as List)
+              .map((r) => r['id'] as String)
+              .toList();
+
+          if (settlementIds.isNotEmpty) {
+            // Soft-delete the payer's settlement income rows
+            await supabase
+                .from('expenses')
+                .update({'deleted_at': now})
+                .inFilter('source_settlement_id', settlementIds)
+                .eq('user_id', userId)
+                .isFilter('deleted_at', null);
+          }
+        }
+      }
+
       await supabase
           .from('split_bills')
-          .update({'deleted_at': DateTime.now().toIso8601String()})
+          .update({'deleted_at': now})
           .eq('id', billId);
       ref.invalidateSelf();
       return null;
@@ -106,6 +152,36 @@ class SplitBillsNotifier extends AsyncNotifier<SplitBillsData> {
       return null;
     } catch (e) {
       return 'Failed to settle. Please try again.';
+    }
+  }
+
+  Future<String?> updateShareAmount({
+    required String shareId,
+    required int newCents,
+  }) async {
+    try {
+      await supabase
+          .from('split_bill_shares')
+          .update({
+            'share_cents': newCents,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', shareId);
+      ref.invalidateSelf();
+      return null;
+    } catch (e) {
+      return 'Failed to update amount. Please try again.';
+    }
+  }
+
+  Future<String?> creatorMarkSharePaid(String shareId) async {
+    try {
+      await supabase
+          .rpc('creator_mark_share_paid', params: {'p_share_id': shareId});
+      ref.invalidateSelf();
+      return null;
+    } catch (e) {
+      return 'Failed to mark as paid. Please try again.';
     }
   }
 }

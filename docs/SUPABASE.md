@@ -105,6 +105,7 @@ All RPCs are `security definer`. They internally validate `auth.uid()` and rejec
 |---|---|
 | `create_split_bill(...)` | Create bill + shares + payer's auto-expense. Validates onboarded participants are contacts. Email participants (V2) go to `pending_split_shares` |
 | `settle_split_share(p_share_id, p_category_id, p_account_id)` | Mark share settled, create both expense rows, copy bill's conversion |
+| `creator_mark_share_paid(p_share_id)` | Bill creator marks a participant's share as paid on their behalf. Creates settlement + income row for creator + expense row for participant (category/account null — cross-user categories invalid). See `docs/patches/creator_mark_share_paid.sql` |
 | `unsettle_split_share(p_share_id)` | Soft-undo a settlement |
 | `dispute_split_share(p_share_id, p_reason)` | Mark share disputed with reason |
 

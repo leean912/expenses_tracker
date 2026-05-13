@@ -85,7 +85,7 @@ class ExportPdfNotifier extends Notifier<ExportPdfFilter> {
   ExportPdfFilter build() {
     final now = DateTime.now();
     final monthStart = DateTime(now.year, now.month, 1);
-    final defaultName = 'spendz_export_${DateFormat('yyyy-MM-dd').format(now)}';
+    final defaultName = 'jomspendz_${DateFormat('yyyyMMdd_HHmmss').format(now)}';
     return ExportPdfFilter(
       startDate: monthStart,
       endDate: now,

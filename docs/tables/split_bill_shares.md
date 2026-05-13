@@ -134,7 +134,8 @@ Each user sees their own shares + all shares on bills they created. They can upd
 
 | RPC | Purpose |
 |---|---|
-| `settle_split_share(p_share_id, p_category_id, p_account_id)` | Mark settled, create expense + income rows |
+| `settle_split_share(p_share_id, p_category_id, p_account_id)` | Mark settled, create expense + income rows (called by the participant) |
+| `creator_mark_share_paid(p_share_id)` | Bill creator marks a participant's share as settled on their behalf. Only creates income row for creator — no expense for participant (RLS boundary). |
 | `unsettle_split_share(p_share_id)` | Reverse a settlement |
 | `dispute_split_share(p_share_id, p_reason)` | Mark disputed with reason |
 

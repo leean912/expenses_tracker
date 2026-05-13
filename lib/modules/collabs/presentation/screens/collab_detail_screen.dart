@@ -1046,7 +1046,6 @@ class _CollabMenuSheet extends StatelessWidget {
               },
             ),
           ],
-          SizedBox(height: MediaQuery.of(context).padding.bottom),
         ],
       ),
     );
@@ -1067,7 +1066,6 @@ class _EditCollabSheet extends ConsumerStatefulWidget {
 class _EditCollabSheetState extends ConsumerState<_EditCollabSheet> {
   late final TextEditingController _nameController;
   late final TextEditingController _descController;
-  late final TextEditingController _budgetController;
   late final TextEditingController _exchangeRateController;
 
   late String _currency;
@@ -1088,11 +1086,6 @@ class _EditCollabSheetState extends ConsumerState<_EditCollabSheet> {
     _currency = collab.currency;
     _startDate = collab.startDate;
     _endDate = collab.endDate;
-    _budgetController = TextEditingController(
-      text: collab.budgetCents != null && collab.budgetCents! > 0
-          ? (collab.budgetCents! / 100).toStringAsFixed(2)
-          : '',
-    );
     _exchangeRateController = TextEditingController(
       text: collab.exchangeRate != null
           ? collab.exchangeRate!.toStringAsFixed(
@@ -1106,7 +1099,6 @@ class _EditCollabSheetState extends ConsumerState<_EditCollabSheet> {
   void dispose() {
     _nameController.dispose();
     _descController.dispose();
-    _budgetController.dispose();
     _exchangeRateController.dispose();
     super.dispose();
   }
@@ -1180,13 +1172,6 @@ class _EditCollabSheetState extends ConsumerState<_EditCollabSheet> {
       _error = null;
     });
 
-    int? budgetCents;
-    final budgetText = _budgetController.text.trim();
-    if (budgetText.isNotEmpty) {
-      final amount = double.tryParse(budgetText);
-      if (amount != null) budgetCents = (amount * 100).round();
-    }
-
     double? exchangeRate;
     if (_isForeign) {
       exchangeRate = double.tryParse(_exchangeRateController.text.trim());
@@ -1202,7 +1187,6 @@ class _EditCollabSheetState extends ConsumerState<_EditCollabSheet> {
               : _descController.text.trim(),
           startDate: _startDate,
           endDate: _endDate,
-          budgetCents: budgetCents,
           currency: _currency,
           exchangeRate: exchangeRate,
         );
@@ -1429,25 +1413,6 @@ class _EditCollabSheetState extends ConsumerState<_EditCollabSheet> {
                 ),
               ),
             ],
-            const SizedBox(height: AppSpacing.md),
-
-            // Budget
-            TextField(
-              controller: _budgetController,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
-              ],
-              style: const TextStyle(
-                fontSize: 14,
-                color: AppColors.textPrimary,
-              ),
-              decoration: _fieldDecoration(
-                'Budget in ${collab.homeCurrency} (optional)',
-              ),
-            ),
 
             if (_error != null) ...[
               const SizedBox(height: AppSpacing.md),
