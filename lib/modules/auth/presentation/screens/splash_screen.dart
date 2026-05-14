@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../../../core/routes/routes.dart';
@@ -42,7 +41,9 @@ class SplashScreen extends ConsumerWidget {
               if (minVersion.isNotEmpty) {
                 final info = await PackageInfo.fromPlatform();
                 if (_isOutdated(info.version, minVersion)) {
-                  if (context.mounted) context.pushReplacement(forceUpdateRoute);
+                  if (context.mounted) {
+                    context.pushReplacement(forceUpdateRoute);
+                  }
                   return;
                 }
               }
@@ -51,11 +52,17 @@ class SplashScreen extends ConsumerWidget {
             final currentVersion = ref.read(currentPolicyVersionProvider);
             final userVersion = user.privacyPolicyVersion ?? 0;
             if (userVersion < currentVersion) {
-              context.pushReplacement(consentRoute);
+              if (context.mounted) {
+                context.pushReplacement(consentRoute);
+              }
             } else if (user.username == null) {
-              context.pushReplacement(userNameRoute);
+              if (context.mounted) {
+                context.pushReplacement(userNameRoute);
+              }
             } else {
-              context.pushReplacement(homeRoute);
+              if (context.mounted) {
+                context.pushReplacement(homeRoute);
+              }
             }
           },
           unauthenticated: () async {
@@ -64,12 +71,16 @@ class SplashScreen extends ConsumerWidget {
               if (minVersion.isNotEmpty) {
                 final info = await PackageInfo.fromPlatform();
                 if (_isOutdated(info.version, minVersion)) {
-                  if (context.mounted) context.pushReplacement(forceUpdateRoute);
+                  if (context.mounted) {
+                    context.pushReplacement(forceUpdateRoute);
+                  }
                   return;
                 }
               }
             }
-            if (context.mounted) context.pushReplacement(loginRoute);
+            if (context.mounted) {
+              context.pushReplacement(loginRoute);
+            }
           },
         );
       }

@@ -5,15 +5,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/routes/routes.dart';
+import '../../../../core/services/receipt_upload_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../service_locator.dart';
 import '../../../auth/providers/auth_provider.dart';
 import '../../../auth/providers/states/auth_state.dart';
+import '../../../expenses/presentation/widgets/edit_expense_sheet.dart';
 import '../../../subscription/providers/subscription_provider.dart';
 import '../../providers/home/home_provider.dart';
 import '../../providers/home/home_state.dart';
-import '../../../../core/services/receipt_upload_service.dart';
-import '../../../expenses/presentation/widgets/edit_expense_sheet.dart';
 import '../widgets/analytics_banner.dart';
 import '../widgets/budget_grid.dart';
 import '../widgets/expense_tile.dart';
@@ -249,9 +249,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       pinned: true,
                     ),
                   if (kDebugMode)
-                    SliverToBoxAdapter(
-                      child: _DevPremiumToggle(),
-                    ),
+                    SliverToBoxAdapter(child: _DevPremiumToggle()),
 
                   SliverToBoxAdapter(
                     child: TimeFilterChips(
@@ -263,12 +261,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     SliverToBoxAdapter(
                       child: BudgetGrid(
                         budgets: homeData.budgets,
-                        onManageTap: () async {
-                          await context.push(budgetsRoute);
-                          if (mounted) {
-                            ref.invalidate(homeDataProvider(_filter));
-                          }
-                        },
+                        onAnalyticsTap: () =>
+                            context.push(budgetAnalyticsRoute),
                         onBudgetTap: (_) async {
                           await context.push(budgetsRoute);
                           if (mounted) {

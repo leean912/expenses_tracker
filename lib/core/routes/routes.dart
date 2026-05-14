@@ -25,3 +25,4 @@ const String profileRoute = '/profile';
 const String privacyPolicyRoute = '/privacy-policy';
 const String consentRoute = '/consent';
 const String forceUpdateRoute = '/force-update';
+const String budgetAnalyticsRoute = '/budget-analytics';

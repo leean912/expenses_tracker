@@ -166,41 +166,41 @@ class AnalyticsBanner extends StatelessWidget {
   }
 }
 
-class _ChangeBadge extends StatelessWidget {
-  const _ChangeBadge({required this.isDown, required this.percent});
+// class _ChangeBadge extends StatelessWidget {
+//   const _ChangeBadge({required this.isDown, required this.percent});
 
-  final bool isDown;
-  final int percent;
+//   final bool isDown;
+//   final int percent;
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-      decoration: BoxDecoration(
-        color: AppColors.positiveLight,
-        borderRadius: BorderRadius.circular(AppRadius.pill),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            isDown ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_up,
-            size: 14,
-            color: AppColors.positiveDark,
-          ),
-          Text(
-            '$percent%',
-            style: const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
-              color: AppColors.positiveDark,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
+//   @override
+//   Widget build(BuildContext context) {
+//     return Container(
+//       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+//       decoration: BoxDecoration(
+//         color: AppColors.positiveLight,
+//         borderRadius: BorderRadius.circular(AppRadius.pill),
+//       ),
+//       child: Row(
+//         mainAxisSize: MainAxisSize.min,
+//         children: [
+//           Icon(
+//             isDown ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_up,
+//             size: 14,
+//             color: AppColors.positiveDark,
+//           ),
+//           Text(
+//             '$percent%',
+//             style: const TextStyle(
+//               fontSize: 11,
+//               fontWeight: FontWeight.w500,
+//               color: AppColors.positiveDark,
+//             ),
+//           ),
+//         ],
+//       ),
+//     );
+//   }
+// }
 
 class _StatItem extends StatelessWidget {
   const _StatItem({required this.label, required this.value, this.valueColor});

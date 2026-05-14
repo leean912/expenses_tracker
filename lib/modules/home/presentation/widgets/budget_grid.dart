@@ -12,12 +12,12 @@ class BudgetGrid extends StatelessWidget {
   const BudgetGrid({
     super.key,
     required this.budgets,
-    this.onManageTap,
+    this.onAnalyticsTap,
     this.onBudgetTap,
   });
 
   final List<BudgetMini> budgets;
-  final VoidCallback? onManageTap;
+  final VoidCallback? onAnalyticsTap;
   final void Function(BudgetMini budget)? onBudgetTap;
 
   @override
@@ -34,18 +34,23 @@ class BudgetGrid extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.baseline,
               textBaseline: TextBaseline.alphabetic,
               children: [
-                const Text(
-                  'Budgets',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.textPrimary,
+                TextButton(
+                  onPressed: () {
+                    context.push(budgetsRoute);
+                  },
+                  child: Text(
+                    'Budgets',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.textPrimary,
+                    ),
                   ),
                 ),
                 TextButton.icon(
-                  onPressed: onManageTap,
+                  onPressed: onAnalyticsTap,
                   label: const Text(
-                    'Manage',
+                    'Paces',
                     style: TextStyle(
                       fontSize: 11,
                       color: AppColors.textSecondary,

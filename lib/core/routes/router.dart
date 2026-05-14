@@ -2,6 +2,7 @@ import 'package:go_router/go_router.dart';
 import 'package:jomspendz/core/routes/routes.dart';
 
 import '../../modules/analysis/presentation/screens/analysis_screen.dart';
+import '../../modules/analysis/presentation/screens/budget_analytics_screen.dart';
 import '../../modules/auth/presentation/screens/consent_screen.dart';
 import '../../modules/auth/presentation/screens/force_update_screen.dart';
 import '../../modules/auth/presentation/screens/login_screen.dart';
@@ -61,6 +62,10 @@ final router = GoRouter(
     GoRoute(
       path: analysisRoute,
       builder: (context, state) => const AnalysisScreen(),
+    ),
+    GoRoute(
+      path: budgetAnalyticsRoute,
+      builder: (context, state) => const BudgetAnalyticsScreen(),
     ),
     GoRoute(
       path: settingsCategoriesRoute,

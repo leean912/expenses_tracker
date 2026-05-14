@@ -90,6 +90,7 @@ class BudgetVsActualCard extends StatelessWidget {
                     : '${budget.percentUsed}% used · ${_fmtCents(remaining)} left',
                 style: TextStyle(fontSize: 11, color: color),
               ),
+
               if (hasPace && showPaceCharts) ...[
                 const SizedBox(height: AppSpacing.lg),
                 if (isPremium)
@@ -99,6 +100,14 @@ class BudgetVsActualCard extends StatelessWidget {
                   )
                 else
                   _PaceChartLocked(context: context),
+                Text(
+                  'Try to keep your spending below the dotted line, which represents the ideal pace to stay within your budget.',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textTertiary,
+                    height: 1.4,
+                  ),
+                ),
               ],
             ],
           ),
