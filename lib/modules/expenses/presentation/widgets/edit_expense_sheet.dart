@@ -57,21 +57,62 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
   bool _isRecurring = false;
   bool _isCollab = false;
 
+  String? _splitBillId;
+  String? _collabId;
+
+  bool _isUpdating = false;
+
   bool get _isForeignCurrency => _currency != _homeCurrency;
 
   @override
   void initState() {
     super.initState();
     _loadExpense();
+    _amountController.addListener(_onForeignAmountChanged);
+    _homeAmountController.addListener(_onHomeAmountChanged);
+    _conversionRateController.addListener(_onRateChanged);
   }
 
   @override
   void dispose() {
+    _amountController.removeListener(_onForeignAmountChanged);
+    _homeAmountController.removeListener(_onHomeAmountChanged);
+    _conversionRateController.removeListener(_onRateChanged);
     _amountController.dispose();
     _homeAmountController.dispose();
     _conversionRateController.dispose();
     _noteController.dispose();
     super.dispose();
+  }
+
+  void _onForeignAmountChanged() {
+    if (_isUpdating || _loading || !_isForeignCurrency) return;
+    final rate = double.tryParse(_conversionRateController.text.trim());
+    final foreign = double.tryParse(_amountController.text.trim());
+    if (rate == null || rate == 0 || foreign == null) return;
+    _isUpdating = true;
+    _homeAmountController.text = (foreign / rate).toStringAsFixed(2);
+    _isUpdating = false;
+  }
+
+  void _onHomeAmountChanged() {
+    if (_isUpdating || _loading || !_isForeignCurrency) return;
+    final rate = double.tryParse(_conversionRateController.text.trim());
+    final home = double.tryParse(_homeAmountController.text.trim());
+    if (rate == null || rate == 0 || home == null) return;
+    _isUpdating = true;
+    _amountController.text = (home * rate).toStringAsFixed(2);
+    _isUpdating = false;
+  }
+
+  void _onRateChanged() {
+    if (_isUpdating || _loading || !_isForeignCurrency) return;
+    final rate = double.tryParse(_conversionRateController.text.trim());
+    final foreign = double.tryParse(_amountController.text.trim());
+    if (rate == null || rate == 0 || foreign == null) return;
+    _isUpdating = true;
+    _homeAmountController.text = (foreign / rate).toStringAsFixed(2);
+    _isUpdating = false;
   }
 
   Future<void> _loadExpense() async {
@@ -98,11 +139,13 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
         _currency = row['currency'] as String? ?? 'MYR';
         _homeCurrency = row['home_currency'] as String? ?? 'MYR';
         _receiptUrl = row['receipt_url'] as String?;
-        _isSplitBill = row['source_split_bill_id'] != null ||
+        _splitBillId = row['source_split_bill_id'] as String?;
+        _collabId = row['collab_id'] as String?;
+        _isSplitBill = _splitBillId != null ||
             row['source_recurring_split_bill_id'] != null;
         _isRecurring = row['source_recurring_expense_id'] != null ||
             row['source_recurring_split_bill_id'] != null;
-        _isCollab = row['collab_id'] != null;
+        _isCollab = _collabId != null;
         _selectedCategoryId = row['category_id'] as String?;
         _selectedAccountId = row['account_id'] as String?;
         _selectedDate = DateTime.parse(expenseDate);
@@ -387,6 +430,11 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
                                   _InfoBadge(
                                     icon: Icons.call_split_rounded,
                                     label: 'Split Bill',
+                                    onTap: _splitBillId != null
+                                        ? () => context.push(
+                                              '/split-bills/$_splitBillId',
+                                            )
+                                        : null,
                                   ),
                                 if (_isRecurring)
                                   _InfoBadge(
@@ -397,6 +445,9 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
                                   _InfoBadge(
                                     icon: Icons.group_outlined,
                                     label: 'Collab',
+                                    onTap: _collabId != null
+                                        ? () => context.push('/collabs/$_collabId')
+                                        : null,
                                   ),
                                 if (_isForeignCurrency)
                                   _InfoBadge(
@@ -819,39 +870,59 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
 // ── Info badge ────────────────────────────────────────────────────────────────
 
 class _InfoBadge extends StatelessWidget {
-  const _InfoBadge({required this.icon, required this.label});
+  const _InfoBadge({required this.icon, required this.label, this.onTap});
 
   final IconData icon;
   final String label;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final tappable = onTap != null;
+    final widget = Container(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.md,
         vertical: AppSpacing.xs,
       ),
       decoration: BoxDecoration(
-        color: AppColors.surfaceMuted,
+        color: tappable
+            ? AppColors.accent.withValues(alpha: 0.08)
+            : AppColors.surfaceMuted,
         borderRadius: BorderRadius.circular(AppRadius.pill),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(
+          color: tappable ? AppColors.accent.withValues(alpha: 0.4) : AppColors.border,
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 12, color: AppColors.textSecondary),
+          Icon(
+            icon,
+            size: 12,
+            color: tappable ? AppColors.accent : AppColors.textSecondary,
+          ),
           const SizedBox(width: 4),
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w500,
-              color: AppColors.textSecondary,
+              color: tappable ? AppColors.accent : AppColors.textSecondary,
             ),
           ),
+          if (tappable) ...[
+            const SizedBox(width: 2),
+            const Icon(
+              Icons.chevron_right_rounded,
+              size: 12,
+              color: AppColors.accent,
+            ),
+          ],
         ],
       ),
     );
+    if (!tappable) return widget;
+    return GestureDetector(onTap: onTap, child: widget);
   }
 }
 

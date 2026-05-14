@@ -8,6 +8,7 @@ import '../../../../core/routes/routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/currencies.dart';
 import '../../../../service_locator.dart';
+import '../../../expenses/presentation/widgets/edit_expense_sheet.dart';
 import '../../../expenses/utils/expense_ui_helpers.dart';
 import '../../data/models/collab_model.dart';
 import '../../providers/collab_expenses_provider.dart';
@@ -45,7 +46,7 @@ class CollabDetailScreen extends ConsumerWidget {
             appBar: _buildAppBar(context, null, null),
             body: const Center(
               child: Text(
-                'Collab not found',
+                'Collab not found / deleted',
                 style: TextStyle(color: AppColors.textSecondary),
               ),
             ),
@@ -406,6 +407,19 @@ class _CollabDetailBodyState extends ConsumerState<_CollabDetailBody> {
                             expense: expense,
                             collab: collab,
                             isOwn: isOwn,
+                            onTap: isOwn
+                                ? () => showModalBottomSheet<void>(
+                                      context: context,
+                                      isScrollControlled: true,
+                                      backgroundColor: Colors.transparent,
+                                      builder: (_) => EditExpenseSheet(
+                                        expenseId: expense.id,
+                                        onSaved: () => ref
+                                            .read(collabExpensesProvider(collab.id).notifier)
+                                            .refresh(),
+                                      ),
+                                    )
+                                : null,
                           );
                         },
                       ),
@@ -819,11 +833,13 @@ class _ExpenseTile extends StatelessWidget {
     required this.expense,
     required this.collab,
     required this.isOwn,
+    this.onTap,
   });
 
   final CollabExpense expense;
   final CollabModel collab;
   final bool isOwn;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -846,7 +862,9 @@ class _ExpenseTile extends StatelessWidget {
     final hasBadges =
         expense.isSplitBill || expense.hasReceipt || isForeignExpense;
 
-    return Container(
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.xl,
         vertical: AppSpacing.lg,
@@ -868,7 +886,7 @@ class _ExpenseTile extends StatelessWidget {
               borderRadius: BorderRadius.circular(AppRadius.pill),
             ),
             child: Text(
-              isOwn ? 'You' : expense.ownerDisplayName.split(' ').first,
+              isOwn ? 'You' : expense.ownerDisplayName,
               style: TextStyle(
                 fontSize: 10,
                 fontWeight: FontWeight.w600,
@@ -900,6 +918,7 @@ class _ExpenseTile extends StatelessWidget {
               // Owner + note + badges
               Expanded(
                 child: Column(
+                  spacing: 2,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
@@ -924,6 +943,11 @@ class _ExpenseTile extends StatelessWidget {
                               label: expense.isIncome
                                   ? 'Settlement'
                                   : 'Split bill',
+                              onTap: expense.splitBillId != null
+                                  ? () => context.push(
+                                      '/split-bills/${expense.splitBillId}',
+                                    )
+                                  : null,
                             ),
                             const SizedBox(width: AppSpacing.sm),
                           ],
@@ -1007,6 +1031,7 @@ class _ExpenseTile extends StatelessWidget {
           ),
         ],
       ),
+    ),
     );
   }
 
@@ -1018,28 +1043,55 @@ class _ExpenseTile extends StatelessWidget {
 }
 
 class _TileBadge extends StatelessWidget {
-  const _TileBadge({required this.icon, required this.label});
+  const _TileBadge({required this.icon, required this.label, this.onTap});
 
   final IconData icon;
   final String label;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 11, color: AppColors.textTertiary),
-        const SizedBox(width: 3),
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 11,
-            color: AppColors.textTertiary,
-            fontWeight: FontWeight.w400,
+    final tappable = onTap != null;
+    final content = Container(
+      padding: tappable
+          ? const EdgeInsets.symmetric(horizontal: 6, vertical: 2)
+          : EdgeInsets.zero,
+      decoration: tappable
+          ? BoxDecoration(
+              color: AppColors.surfaceMuted,
+              borderRadius: BorderRadius.circular(AppRadius.sm),
+            )
+          : null,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            size: 11,
+            color: tappable ? AppColors.accent : AppColors.textTertiary,
           ),
-        ),
-      ],
+          const SizedBox(width: 3),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              color: tappable ? AppColors.accent : AppColors.textTertiary,
+              fontWeight: FontWeight.w400,
+            ),
+          ),
+          if (tappable) ...[
+            const SizedBox(width: 2),
+            const Icon(
+              Icons.chevron_right_rounded,
+              size: 11,
+              color: AppColors.accent,
+            ),
+          ],
+        ],
+      ),
     );
+    if (!tappable) return content;
+    return GestureDetector(onTap: onTap, child: content);
   }
 }
 

@@ -54,7 +54,7 @@ final homeDataProvider = FutureProvider.family<HomeData, HomeFilter>((
     supabase
         .from('expenses')
         .select(
-          'id, note, home_amount_cents, type, expense_date, category_id, '
+          'id, note, amount_cents, home_amount_cents, type, expense_date, category_id, '
           'currency, collab_id, source_split_bill_id, source_recurring_expense_id, '
           'source_recurring_split_bill_id, receipt_url, '
           'category:categories(name, color), account:accounts(name)',
@@ -226,6 +226,11 @@ final homeDataProvider = FutureProvider.family<HomeData, HomeFilter>((
           row['source_recurring_split_bill_id'] != null,
       hasReceipt: row['receipt_url'] != null,
       currencyCode: (currency != null && currency != 'MYR') ? currency : null,
+      foreignAmountCents: (currency != null && currency != 'MYR')
+          ? row['amount_cents'] as int?
+          : null,
+      collabId: row['collab_id'] as String?,
+      splitBillId: row['source_split_bill_id'] as String?,
     );
   }).toList();
 

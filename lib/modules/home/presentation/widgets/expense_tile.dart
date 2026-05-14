@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/theme/app_colors.dart';
@@ -19,13 +20,29 @@ class ExpenseTile extends StatelessWidget {
       expense.isForeignCurrency ||
       expense.hasReceipt;
 
-  List<Widget> _buildBadges(ExpenseTileData expense) {
+  List<Widget> _buildBadges(BuildContext context, ExpenseTileData expense) {
     final badges = <Widget>[];
     if (expense.isCollab) {
-      badges.add(_Badge(icon: Icons.group_outlined, label: 'Collab'));
+      badges.add(
+        _Badge(
+          icon: Icons.group_outlined,
+          label: 'Collab',
+          onTap: expense.collabId != null
+              ? () => context.push('/collabs/${expense.collabId}')
+              : null,
+        ),
+      );
     }
     if (expense.isSplitBill) {
-      badges.add(_Badge(icon: Icons.call_split_rounded, label: 'Split bill'));
+      badges.add(
+        _Badge(
+          icon: Icons.call_split_rounded,
+          label: 'Split bill',
+          onTap: expense.splitBillId != null
+              ? () => context.push('/split-bills/${expense.splitBillId}')
+              : null,
+        ),
+      );
     }
     if (expense.isRecurring) {
       badges.add(_Badge(icon: Icons.repeat_rounded, label: 'Recurring'));
@@ -44,6 +61,19 @@ class ExpenseTile extends StatelessWidget {
         badges[i],
       ],
     ];
+  }
+
+  String _fmtForeign(int cents, String currency) {
+    final value = (cents / 100).abs();
+    final whole = value.toStringAsFixed(2);
+    final parts = whole.split('.');
+    final intPart = parts[0];
+    final formatted = StringBuffer();
+    for (int i = 0; i < intPart.length; i++) {
+      if (i > 0 && (intPart.length - i) % 3 == 0) formatted.write(',');
+      formatted.write(intPart[i]);
+    }
+    return '$currency $formatted.${parts[1]}';
   }
 
   String _fmtAmount(int cents, {required bool isIncome}) {
@@ -86,7 +116,7 @@ class ExpenseTile extends StatelessWidget {
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   if (_hasBadges(expense)) ...[
-                    Row(children: _buildBadges(expense)),
+                    Row(children: _buildBadges(context, expense)),
                     const SizedBox(height: AppSpacing.xs),
                   ],
                   Row(
@@ -128,15 +158,32 @@ class ExpenseTile extends StatelessWidget {
               ),
             ),
             const SizedBox(width: AppSpacing.lg),
-            Text(
-              _fmtAmount(expense.amountCents, isIncome: expense.isIncome),
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: expense.isIncome
-                    ? AppColors.incomeDark
-                    : AppColors.expenseLight,
-              ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  _fmtAmount(expense.amountCents, isIncome: expense.isIncome),
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: expense.isIncome
+                        ? AppColors.incomeDark
+                        : AppColors.expenseLight,
+                  ),
+                ),
+                if (expense.isForeignCurrency &&
+                    expense.foreignAmountCents != null)
+                  Text(
+                    _fmtForeign(
+                      expense.foreignAmountCents!,
+                      expense.currencyCode!,
+                    ),
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textTertiary,
+                    ),
+                  ),
+              ],
             ),
           ],
         ),
@@ -146,28 +193,55 @@ class ExpenseTile extends StatelessWidget {
 }
 
 class _Badge extends StatelessWidget {
-  const _Badge({required this.icon, required this.label});
+  const _Badge({required this.icon, required this.label, this.onTap});
 
   final IconData icon;
   final String label;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 11, color: AppColors.textTertiary),
-        const SizedBox(width: 3),
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 11,
-            color: AppColors.textTertiary,
-            fontWeight: FontWeight.w400,
+    final tappable = onTap != null;
+    final content = Container(
+      padding: tappable
+          ? const EdgeInsets.symmetric(horizontal: 6, vertical: 2)
+          : EdgeInsets.zero,
+      decoration: tappable
+          ? BoxDecoration(
+              color: AppColors.surfaceMuted,
+              borderRadius: BorderRadius.circular(AppRadius.sm),
+            )
+          : null,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            size: 11,
+            color: tappable ? AppColors.accent : AppColors.textTertiary,
           ),
-        ),
-      ],
+          const SizedBox(width: 3),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              color: tappable ? AppColors.accent : AppColors.textTertiary,
+              fontWeight: FontWeight.w400,
+            ),
+          ),
+          if (tappable) ...[
+            const SizedBox(width: 2),
+            const Icon(
+              Icons.chevron_right_rounded,
+              size: 11,
+              color: AppColors.accent,
+            ),
+          ],
+        ],
+      ),
     );
+    if (!tappable) return content;
+    return GestureDetector(onTap: onTap, child: content);
   }
 }
 

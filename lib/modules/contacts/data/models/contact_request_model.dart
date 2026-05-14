@@ -14,13 +14,13 @@ class ContactRequestModel {
   final String? avatarUrl;
 
   factory ContactRequestModel.fromJson(Map<String, dynamic> json) {
-    final from = json['from'] as Map<String, dynamic>? ?? {};
+    final sender = json['sender'] as Map<String, dynamic>? ?? {};
     return ContactRequestModel(
       id: json['id'] as String,
-      fromUserId: from['id'] as String? ?? '',
-      username: from['username'] as String?,
-      displayName: from['display_name'] as String? ?? '',
-      avatarUrl: from['avatar_url'] as String?,
+      fromUserId: json['owner_id'] as String? ?? sender['id'] as String? ?? '',
+      username: sender['username'] as String?,
+      displayName: sender['display_name'] as String? ?? '',
+      avatarUrl: sender['avatar_url'] as String?,
     );
   }
 }

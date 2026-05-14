@@ -187,6 +187,9 @@ class ExpenseTileData {
     this.isRecurring = false,
     this.hasReceipt = false,
     this.currencyCode,
+    this.foreignAmountCents,
+    this.collabId,
+    this.splitBillId,
   });
 
   final String id;
@@ -205,6 +208,15 @@ class ExpenseTileData {
 
   /// Non-null when the expense was recorded in a foreign currency (not MYR).
   final String? currencyCode;
+
+  /// Original amount in [currencyCode]. Non-null when [isForeignCurrency].
+  final int? foreignAmountCents;
+
+  /// Non-null when this expense belongs to a collab.
+  final String? collabId;
+
+  /// Non-null when this expense originated from a split bill.
+  final String? splitBillId;
 
   bool get isForeignCurrency => currencyCode != null;
 }

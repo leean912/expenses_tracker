@@ -23,6 +23,7 @@ class CollabExpense {
     this.isSplitBill = false,
     this.hasReceipt = false,
     this.accountName,
+    this.splitBillId,
   });
 
   final String id;
@@ -44,6 +45,7 @@ class CollabExpense {
   final bool isSplitBill;
   final bool hasReceipt;
   final String? accountName;
+  final String? splitBillId;
 
   factory CollabExpense.fromJson(Map<String, dynamic> json) {
     final owner = json['owner'] as Map<String, dynamic>? ?? {};
@@ -72,6 +74,7 @@ class CollabExpense {
       isSplitBill: source == 'split_payer' || source == 'settlement',
       hasReceipt: (json['receipt_url'] as String?)?.isNotEmpty == true,
       accountName: account?['name'] as String?,
+      splitBillId: json['source_split_bill_id'] as String?,
     );
   }
 }
@@ -99,7 +102,7 @@ class CollabExpensesNotifier
     final rows = await supabase
         .from('expenses')
         .select(
-          'id, user_id, type, source, amount_cents, currency, home_amount_cents, home_currency, conversion_rate, note, expense_date, receipt_url, owner:profiles!user_id(id, username, display_name, avatar_url), category:categories(name, icon, color), account:accounts(name)',
+          'id, user_id, type, source, source_split_bill_id, amount_cents, currency, home_amount_cents, home_currency, conversion_rate, note, expense_date, receipt_url, owner:profiles!user_id(id, username, display_name, avatar_url), category:categories(name, icon, color), account:accounts(name)',
         )
         .eq('collab_id', collabId)
         .isFilter('deleted_at', null)

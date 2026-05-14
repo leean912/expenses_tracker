@@ -17,7 +17,7 @@ class ContactRequestsNotifier
     final rows = await supabase
         .from('contacts')
         .select(
-          'id, from:profiles!owner_id(id, username, display_name, avatar_url)',
+          'id, owner_id, sender:profiles!owner_id(id, username, display_name, avatar_url)',
         )
         .eq('friend_id', supabase.auth.currentUser!.id)
         .eq('status', 'pending')
