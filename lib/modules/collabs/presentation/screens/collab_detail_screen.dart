@@ -115,6 +115,104 @@ class _CollabDetailBodyState extends ConsumerState<_CollabDetailBody> {
     );
   }
 
+  void _showPersonalBudgetDialog(CollabMemberModel member) {
+    final controller = TextEditingController(
+      text: member.personalBudgetCents != null
+          ? (member.personalBudgetCents! / 100).toStringAsFixed(2)
+          : '',
+    );
+    showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text(
+          'My Personal Budget',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textPrimary,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Personal spending cap in ${collab.homeCurrency}',
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.textTertiary,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+              ],
+              style: const TextStyle(
+                fontSize: 14,
+                color: AppColors.textPrimary,
+              ),
+              decoration: InputDecoration(
+                hintText: 'e.g. 500.00',
+                hintStyle: const TextStyle(color: AppColors.textTertiary),
+                prefixText: '${collab.homeCurrency} ',
+                prefixStyle: const TextStyle(color: AppColors.textSecondary),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          if (member.personalBudgetCents != null)
+            TextButton(
+              onPressed: () async {
+                context.pop();
+                await ref
+                    .read(collabsProvider.notifier)
+                    .updatePersonalBudget(
+                      collabId: collab.id,
+                      memberId: member.id,
+                      budgetCents: null,
+                    );
+              },
+              child: const Text(
+                'Remove',
+                style: TextStyle(color: AppColors.textSecondary),
+              ),
+            ),
+          TextButton(
+            onPressed: () => context.pop(),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
+          ),
+          TextButton(
+            onPressed: () async {
+              final amount = double.tryParse(controller.text.trim());
+              context.pop();
+              if (amount != null && amount > 0) {
+                await ref
+                    .read(collabsProvider.notifier)
+                    .updatePersonalBudget(
+                      collabId: collab.id,
+                      memberId: member.id,
+                      budgetCents: (amount * 100).round(),
+                    );
+              }
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showMenu() {
     showModalBottomSheet<void>(
       context: context,
@@ -224,6 +322,13 @@ class _CollabDetailBodyState extends ConsumerState<_CollabDetailBody> {
         ),
         data: (state) {
           final grouped = _groupByDate(state.expenses);
+          final currentMember = collab.members
+              .where((m) => m.userId == _currentUserId && m.isActive)
+              .firstOrNull;
+          final mySpentCents = state.expenses.fold<int>(0, (sum, e) {
+            if (e.userId != _currentUserId) return sum;
+            return sum + (e.isIncome ? -e.homeAmountCents : e.homeAmountCents);
+          });
           return RefreshIndicator(
             color: AppColors.accent,
             onRefresh: () => Future.wait([
@@ -241,6 +346,11 @@ class _CollabDetailBodyState extends ConsumerState<_CollabDetailBody> {
                     spentCents: state.totalHomeAmountCents,
                     onMembersTap: () =>
                         context.push('$collabDetailRoute/${collab.id}/members'),
+                    currentMember: currentMember,
+                    mySpentCents: mySpentCents,
+                    onBudgetTap: currentMember != null && collab.isActive
+                        ? () => _showPersonalBudgetDialog(currentMember)
+                        : null,
                   ),
                 ),
 
@@ -352,21 +462,29 @@ class _CollabHeader extends StatelessWidget {
     required this.members,
     required this.spentCents,
     required this.onMembersTap,
+    this.currentMember,
+    required this.mySpentCents,
+    this.onBudgetTap,
   });
 
   final CollabModel collab;
   final List<CollabMemberModel> members;
   final int spentCents;
   final VoidCallback onMembersTap;
+  final CollabMemberModel? currentMember;
+  final int mySpentCents;
+  final VoidCallback? onBudgetTap;
 
   @override
   Widget build(BuildContext context) {
-    final hasBudget = collab.budgetCents != null && collab.budgetCents! > 0;
-    final budgetCents = collab.budgetCents ?? 0;
+    final hasBudget =
+        currentMember?.personalBudgetCents != null &&
+        currentMember!.personalBudgetCents! > 0;
+    final budgetCents = currentMember?.personalBudgetCents ?? 0;
+    final overBudget = hasBudget && mySpentCents > budgetCents;
     final progress = hasBudget
-        ? (spentCents / budgetCents).clamp(0.0, 1.0)
+        ? (mySpentCents / budgetCents).clamp(0.0, 1.0)
         : 0.0;
-    final overBudget = hasBudget && spentCents > budgetCents;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(
@@ -448,68 +566,16 @@ class _CollabHeader extends StatelessWidget {
               ],
             ),
 
-            // Budget section
-            if (hasBudget) ...[
-              const SizedBox(height: AppSpacing.xl),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Spent ${collab.homeCurrency} ${_fmt(spentCents)}',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: overBudget
-                          ? const Color(0xFF993C1D)
-                          : AppColors.textPrimary,
-                    ),
-                  ),
-                  Text(
-                    'of ${collab.homeCurrency} ${_fmt(budgetCents)}',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textTertiary,
-                    ),
-                  ),
-                ],
+            // Total spent
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              '${collab.homeCurrency} ${_fmt(spentCents)} total spent',
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
               ),
-              const SizedBox(height: AppSpacing.sm),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(AppRadius.pill),
-                child: LinearProgressIndicator(
-                  value: progress,
-                  minHeight: 6,
-                  backgroundColor: AppColors.surfaceMuted,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    overBudget
-                        ? const Color(0xFF993C1D)
-                        : AppColors.budgetOverallBar,
-                  ),
-                ),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              Text(
-                overBudget
-                    ? '${collab.homeCurrency} ${_fmt(spentCents - budgetCents)} over budget'
-                    : '${collab.homeCurrency} ${_fmt(budgetCents - spentCents)} remaining',
-                style: TextStyle(
-                  fontSize: 11,
-                  color: overBudget
-                      ? const Color(0xFF993C1D)
-                      : AppColors.textTertiary,
-                ),
-              ),
-            ] else ...[
-              const SizedBox(height: AppSpacing.md),
-              Text(
-                '${collab.homeCurrency} ${_fmt(spentCents)} spent',
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-            ],
+            ),
 
             // Exchange rate hint
             if (collab.isForeignCurrency && collab.exchangeRate != null) ...[
@@ -519,6 +585,102 @@ class _CollabHeader extends StatelessWidget {
                 style: const TextStyle(
                   fontSize: 11,
                   color: AppColors.textTertiary,
+                ),
+              ),
+            ],
+
+            // My personal budget section
+            if (currentMember != null) ...[
+              const SizedBox(height: AppSpacing.xl),
+              const Divider(height: 1, color: AppColors.border),
+              const SizedBox(height: AppSpacing.xl),
+              GestureDetector(
+                onTap: onBudgetTap,
+                behavior: HitTestBehavior.opaque,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Text(
+                          'My spending',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                        const Spacer(),
+                        if (hasBudget)
+                          Text(
+                            '${collab.homeCurrency} ${_fmt(mySpentCents)} / ${_fmt(budgetCents)}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: overBudget
+                                  ? const Color(0xFF993C1D)
+                                  : AppColors.textSecondary,
+                            ),
+                          )
+                        else
+                          Text(
+                            '${collab.homeCurrency} ${_fmt(mySpentCents)}',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                      ],
+                    ),
+                    if (hasBudget) ...[
+                      const SizedBox(height: AppSpacing.sm),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(AppRadius.pill),
+                        child: LinearProgressIndicator(
+                          value: progress,
+                          minHeight: 5,
+                          backgroundColor: AppColors.surfaceMuted,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            overBudget
+                                ? const Color(0xFF993C1D)
+                                : AppColors.budgetOverallBar,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.xs),
+                      Text(
+                        overBudget
+                            ? '${collab.homeCurrency} ${_fmt(mySpentCents - budgetCents)} over my budget'
+                            : '${collab.homeCurrency} ${_fmt(budgetCents - mySpentCents)} left',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: overBudget
+                              ? const Color(0xFF993C1D)
+                              : AppColors.textTertiary,
+                        ),
+                      ),
+                    ] else if (onBudgetTap != null) ...[
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.add_rounded,
+                            size: 12,
+                            color: AppColors.textTertiary,
+                          ),
+                          const SizedBox(width: 3),
+                          const Text(
+                            'Set my personal budget',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: AppColors.textTertiary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
                 ),
               ),
             ],
@@ -534,9 +696,9 @@ class _CollabHeader extends StatelessWidget {
                 child: Row(
                   children: [
                     Expanded(child: _MemberStrip(members: members)),
-                    Text(
+                    const Text(
                       'View all',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
                         color: AppColors.textTertiary,
                       ),
@@ -671,10 +833,10 @@ class _ExpenseTile extends StatelessWidget {
         : AppColors.textTertiary;
 
     final amountStr =
-        '${collab.currency} ${_fmtAmount(expense.amountCents, expense.currency)}';
+        '${expense.currency} ${_fmtAmount(expense.amountCents, expense.currency)}';
     final primaryAmount = '${expense.isIncome ? "+" : "−"}$amountStr';
-    final showHomeAmount = collab.isForeignCurrency;
-    final homeAmount = showHomeAmount
+    final isForeignExpense = expense.currency != collab.homeCurrency;
+    final homeAmount = isForeignExpense
         ? '${collab.homeCurrency} ${(expense.homeAmountCents / 100).toStringAsFixed(2)}'
         : null;
     final amountColor = expense.isIncome
@@ -682,7 +844,7 @@ class _ExpenseTile extends StatelessWidget {
         : AppColors.expenseLight;
 
     final hasBadges =
-        expense.isSplitBill || expense.hasReceipt || collab.isForeignCurrency;
+        expense.isSplitBill || expense.hasReceipt || isForeignExpense;
 
     return Container(
       padding: const EdgeInsets.symmetric(
@@ -765,10 +927,10 @@ class _ExpenseTile extends StatelessWidget {
                             ),
                             const SizedBox(width: AppSpacing.sm),
                           ],
-                          if (collab.isForeignCurrency) ...[
+                          if (expense.currency != collab.homeCurrency) ...[
                             _TileBadge(
                               icon: Icons.language_rounded,
-                              label: collab.currency,
+                              label: expense.currency,
                             ),
                             const SizedBox(width: AppSpacing.sm),
                           ],
@@ -1108,6 +1270,22 @@ class _EditCollabSheetState extends ConsumerState<_EditCollabSheet> {
     return DateFormat('d MMM yyyy').format(d);
   }
 
+  void _pickCurrency() {
+    showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _CurrencyPickerSheet(selected: _currency),
+    ).then((picked) {
+      if (picked != null && picked != _currency) {
+        setState(() {
+          _currency = picked;
+          if (!_isForeign) _exchangeRateController.clear();
+        });
+      }
+    });
+  }
+
   Future<void> _pickDate({required bool isStart}) async {
     final initial = isStart
         ? (_startDate ?? DateTime.now())
@@ -1134,22 +1312,6 @@ class _EditCollabSheetState extends ConsumerState<_EditCollabSheet> {
         if (_endDate != null && _endDate!.isBefore(picked)) _endDate = null;
       } else {
         _endDate = picked;
-      }
-    });
-  }
-
-  void _pickCurrency() {
-    showModalBottomSheet<String>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (_) => _EditCurrencyPickerSheet(selected: _currency),
-    ).then((picked) {
-      if (picked != null && picked != _currency) {
-        setState(() {
-          _currency = picked;
-          if (!_isForeign) _exchangeRateController.clear();
-        });
       }
     });
   }
@@ -1392,6 +1554,11 @@ class _EditCollabSheetState extends ConsumerState<_EditCollabSheet> {
                 ),
               ),
             ),
+            const SizedBox(height: AppSpacing.xs),
+            const Text(
+              'Changing currency won\'t affect existing transactions.',
+              style: TextStyle(fontSize: 11, color: AppColors.expenseLight),
+            ),
 
             // Exchange rate (foreign currency only)
             if (_isForeign) ...[
@@ -1455,10 +1622,10 @@ class _EditCollabSheetState extends ConsumerState<_EditCollabSheet> {
   }
 }
 
-// ── Currency picker sheet (for edit) ─────────────────────────────────────────
+// ── Currency picker sheet ─────────────────────────────────────────────────────
 
-class _EditCurrencyPickerSheet extends StatelessWidget {
-  const _EditCurrencyPickerSheet({required this.selected});
+class _CurrencyPickerSheet extends StatelessWidget {
+  const _CurrencyPickerSheet({required this.selected});
 
   final String selected;
 
@@ -1536,11 +1703,10 @@ class _EditCurrencyPickerSheet extends StatelessWidget {
                   trailing: isSelected
                       ? const Icon(
                           Icons.check_rounded,
-                          size: 18,
-                          color: AppColors.textPrimary,
+                          size: 16,
+                          color: AppColors.accent,
                         )
                       : null,
-                  dense: true,
                 );
               },
             ),

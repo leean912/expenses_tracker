@@ -244,22 +244,36 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
               else if (data != null) ...[
                 _ChartSection(
                   title: 'Spending by Category',
-                  description:
-                      'Where your money goes — tap a slice to see the exact amount and share for each category.',
-                  child: CategoryPieChart(
-                    categories: data.categoryBreakdown,
-                    totalCents: data.totalSpentCents - data.totalIncomeCents,
+                  description: const TextSpan(
+                    children: [
+                      TextSpan(
+                        text:
+                            'Where your money goes — tap a slice to see the exact amount and share for each category. ',
+                      ),
+                      TextSpan(
+                        text: 'Income is excluded.',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ],
                   ),
+                  child: CategoryPieChart(categories: data.categoryBreakdown),
                 ),
 
                 _ChartSection(
                   title: 'Spending by Account',
-                  description:
-                      'Which account you spend from the most — tap a slice to see amount and share.',
-                  child: CategoryPieChart(
-                    categories: data.accountBreakdown,
-                    totalCents: data.totalSpentCents - data.totalIncomeCents,
+                  description: const TextSpan(
+                    children: [
+                      TextSpan(
+                        text:
+                            'Which account you spend from the most — tap a slice to see amount and share. ',
+                      ),
+                      TextSpan(
+                        text: 'Income is excluded.',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ],
                   ),
+                  child: CategoryPieChart(categories: data.accountBreakdown),
                 ),
 
                 if (_selectedPeriod != AnalysisPeriod.day)
@@ -269,15 +283,19 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                       AnalysisPeriod.year => 'Monthly Spending',
                       _ => 'Weekly Spending',
                     },
-                    description: 'How much you spent per period bucket.',
+                    description: const TextSpan(
+                      text: 'How much you spent per period bucket.',
+                    ),
                     child: SpendingBarChart(buckets: data.periodBreakdown),
                   ),
 
                 if (data.budgetProgress.isNotEmpty)
                   _ChartSection(
                     title: 'Budget vs Actual',
-                    description:
-                        'Compare your set budget limits against real spending. Red means over budget.',
+                    description: const TextSpan(
+                      text:
+                          'Compare your set budget limits against real spending. Red means over budget.',
+                    ),
                     showToggle:
                         _selectedPeriod != AnalysisPeriod.day &&
                         _selectedPeriod != AnalysisPeriod.custom,
@@ -312,7 +330,7 @@ class _ChartSection extends StatefulWidget {
   });
 
   final String title;
-  final String description;
+  final InlineSpan description;
   final Widget child;
   final Widget? collapsedChild;
   final bool showToggle;
@@ -342,6 +360,7 @@ class _ChartSectionState extends State<_ChartSection> {
             border: Border.all(color: AppColors.border, width: 0.5),
           ),
           child: Column(
+            spacing: 8,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
@@ -373,7 +392,7 @@ class _ChartSectionState extends State<_ChartSection> {
                 ],
               ),
               const SizedBox(height: AppSpacing.xs),
-              Text(
+              Text.rich(
                 widget.description,
                 style: const TextStyle(
                   fontSize: 12,

@@ -5,14 +5,9 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../providers/analysis_state.dart';
 
 class CategoryPieChart extends StatefulWidget {
-  const CategoryPieChart({
-    super.key,
-    required this.categories,
-    required this.totalCents,
-  });
+  const CategoryPieChart({super.key, required this.categories});
 
   final List<CategorySpend> categories;
-  final int totalCents;
 
   @override
   State<CategoryPieChart> createState() => _CategoryPieChartState();
@@ -145,7 +140,7 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          _fmtCents(widget.totalCents),
+                          _fmtCents(widget.categories.fold(0, (s, e) => s + e.totalCents)),
                           style: const TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w600,

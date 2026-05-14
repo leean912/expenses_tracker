@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -136,104 +135,6 @@ class _MembersBodyState extends ConsumerState<_MembersBody> {
     }
   }
 
-  void _showPersonalBudgetDialog(CollabMemberModel member, bool isOwnRow) {
-    final controller = TextEditingController(
-      text: member.personalBudgetCents != null
-          ? (member.personalBudgetCents! / 100).toStringAsFixed(2)
-          : '',
-    );
-    showDialog<void>(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        title: Text(
-          isOwnRow ? 'My Personal Budget' : '${member.displayName}\'s Budget',
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            color: AppColors.textPrimary,
-          ),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Personal spending cap in ${collab.homeCurrency}',
-              style: const TextStyle(
-                fontSize: 12,
-                color: AppColors.textTertiary,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            TextField(
-              controller: controller,
-              autofocus: true,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
-              ],
-              style: const TextStyle(
-                fontSize: 14,
-                color: AppColors.textPrimary,
-              ),
-              decoration: InputDecoration(
-                hintText: 'e.g. 500.00',
-                hintStyle: const TextStyle(color: AppColors.textTertiary),
-                prefixText: '${collab.homeCurrency} ',
-                prefixStyle: const TextStyle(color: AppColors.textSecondary),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          if (member.personalBudgetCents != null)
-            TextButton(
-              onPressed: () async {
-                context.pop();
-                await ref
-                    .read(collabsProvider.notifier)
-                    .updatePersonalBudget(
-                      collabId: collab.id,
-                      memberId: member.id,
-                      budgetCents: null,
-                    );
-              },
-              child: const Text(
-                'Remove',
-                style: TextStyle(color: AppColors.textSecondary),
-              ),
-            ),
-          TextButton(
-            onPressed: () => context.pop(),
-            child: const Text(
-              'Cancel',
-              style: TextStyle(color: AppColors.textSecondary),
-            ),
-          ),
-          TextButton(
-            onPressed: () async {
-              final amount = double.tryParse(controller.text.trim());
-              context.pop();
-              if (amount != null && amount > 0) {
-                await ref
-                    .read(collabsProvider.notifier)
-                    .updatePersonalBudget(
-                      collabId: collab.id,
-                      memberId: member.id,
-                      budgetCents: (amount * 100).round(),
-                    );
-              }
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-  }
-
   Future<void> _leaveCollab() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -349,7 +250,6 @@ class _MembersBodyState extends ConsumerState<_MembersBody> {
                 final isOwnRow = member.userId == _currentUserId;
                 final spentCents = spentByUser[member.userId] ?? 0;
                 final canRemove = _isOwner && !isOwnRow && collab.isActive;
-                final canEditBudget = (isOwnRow || _isOwner) && collab.isActive;
 
                 return _MemberTile(
                   member: member,
@@ -358,12 +258,8 @@ class _MembersBodyState extends ConsumerState<_MembersBody> {
                   isOwnRow: isOwnRow,
                   isRemoving: _removingIds.contains(member.userId),
                   canRemove: canRemove,
-                  canEditBudget: canEditBudget,
                   onRemove: canRemove
                       ? () => _removeMember(member.userId)
-                      : null,
-                  onEditBudget: canEditBudget
-                      ? () => _showPersonalBudgetDialog(member, isOwnRow)
                       : null,
                 );
               },
@@ -414,9 +310,7 @@ class _MemberTile extends StatelessWidget {
     required this.isOwnRow,
     required this.isRemoving,
     required this.canRemove,
-    required this.canEditBudget,
     this.onRemove,
-    this.onEditBudget,
   });
 
   final CollabMemberModel member;
@@ -425,23 +319,11 @@ class _MemberTile extends StatelessWidget {
   final bool isOwnRow;
   final bool isRemoving;
   final bool canRemove;
-  final bool canEditBudget;
   final VoidCallback? onRemove;
-  final VoidCallback? onEditBudget;
 
   @override
   Widget build(BuildContext context) {
-    final hasBudget =
-        member.personalBudgetCents != null && member.personalBudgetCents! > 0;
-    final budgetCents = member.personalBudgetCents ?? 0;
-    final overBudget = hasBudget && spentCents > budgetCents;
-    final progress = hasBudget
-        ? (spentCents / budgetCents).clamp(0.0, 1.0)
-        : 0.0;
-
-    Widget tile = GestureDetector(
-      onTap: canEditBudget ? onEditBudget : null,
-      child: Container(
+    Widget tile = Container(
         padding: const EdgeInsets.all(AppSpacing.xl),
         decoration: BoxDecoration(
           color: AppColors.surface,
@@ -534,12 +416,10 @@ class _MemberTile extends StatelessWidget {
                   children: [
                     Text(
                       '${collab.homeCurrency} ${(spentCents / 100).toStringAsFixed(2)}',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: overBudget
-                            ? const Color(0xFF993C1D)
-                            : AppColors.textPrimary,
+                        color: AppColors.textPrimary,
                       ),
                     ),
                     const Text(
@@ -565,86 +445,8 @@ class _MemberTile extends StatelessWidget {
                 ],
               ],
             ),
-
-            // Personal budget section
-            if (hasBudget || canEditBudget) ...[
-              const SizedBox(height: AppSpacing.lg),
-              const Divider(height: 1, color: AppColors.border),
-              const SizedBox(height: AppSpacing.lg),
-              if (hasBudget) ...[
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Personal budget',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textTertiary,
-                      ),
-                    ),
-                    Text(
-                      '${collab.homeCurrency} ${(budgetCents / 100).toStringAsFixed(2)}',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textTertiary,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(AppRadius.pill),
-                  child: LinearProgressIndicator(
-                    value: progress,
-                    minHeight: 4,
-                    backgroundColor: AppColors.surfaceMuted,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      overBudget
-                          ? const Color(0xFF993C1D)
-                          : AppColors.budgetOverallBar,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.xs),
-                Text(
-                  overBudget
-                      ? '${collab.homeCurrency} ${((spentCents - budgetCents) / 100).toStringAsFixed(2)} over'
-                      : '${collab.homeCurrency} ${((budgetCents - spentCents) / 100).toStringAsFixed(2)} left',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: overBudget
-                        ? const Color(0xFF993C1D)
-                        : AppColors.textTertiary,
-                  ),
-                ),
-              ] else if (canEditBudget) ...[
-                GestureDetector(
-                  onTap: onEditBudget,
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.add_rounded,
-                        size: 14,
-                        color: AppColors.textTertiary,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        isOwnRow
-                            ? 'Set my personal budget'
-                            : 'Set personal budget',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textTertiary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ],
           ],
         ),
-      ),
     );
 
     if (!canRemove) return tile;

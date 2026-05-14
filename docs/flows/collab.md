@@ -139,23 +139,18 @@ final collabExpenses = await supabase.from('expenses')
 
 Members can only edit/delete their own rows — even though they can see all rows.
 
-## Budget remaining
+## Budget
 
-Computed from the `expenses` table directly:
+The collab-level `budget_cents` column exists in the DB but is not shown in the UI. Instead, each member can set a personal spending cap (`collab_members.personal_budget_cents` in `home_currency`). Only the member themselves sees their own personal budget — no one else, including the owner, can view it.
+
+Personal budget remaining is computed client-side from expenses already loaded for the collab:
 
 ```dart
-final collab = await supabase.from('collabs')
-  .select('budget_cents, home_currency')
-  .eq('id', collabId)
-  .single();
+final mySpent = expenses
+  .where((e) => e.userId == currentUserId)
+  .fold(0, (sum, e) => sum + (e.isIncome ? -e.homeAmountCents : e.homeAmountCents));
 
-final spent = await supabase.from('expenses')
-  .select('home_amount_cents.sum()')
-  .eq('collab_id', collabId)
-  .is_('deleted_at', null)
-  .single();
-
-final remaining = collab['budget_cents'] - (spent['sum'] ?? 0);
+final remaining = member.personalBudgetCents - mySpent;
 ```
 
 ## Closing a collab
@@ -185,6 +180,6 @@ Sets `collab_members.left_at = now()`. The member:
 
 2. **Don't let members edit each other's expenses.** RLS allows SELECT for all members but UPDATE/DELETE is owner-only. Enforce in UI too.
 
-3. **Don't change `collab.currency` or `collab.home_currency` after creation.** They're snapshots used to show the collab-level rate. Each expense's rate is frozen independently at entry time.
+3. **`collab.home_currency` must never change after creation** — it's the owner's home currency snapshot. **`collab.currency` is editable** (owner can switch to a different travel currency mid-collab). Changing it only affects new expenses; existing expenses carry their own frozen `currency` and `conversion_rate`.
 
 4. **Don't show collab expenses in personal analytics without the `collab_id` context.** When a user views "my April spending," their collab expenses are included. That's intentional — filter them out with `WHERE collab_id IS NULL` only if building a "personal-only" view.

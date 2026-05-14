@@ -77,11 +77,11 @@ When **closed**:
 
 ## Budget
 
-`budget_cents` is the **shared total budget** for the collab in `home_currency`. It's optional — NULL means no budget is set.
+`budget_cents` is the **shared total budget** for the collab in `home_currency`. It's optional — NULL means no budget is set. The column exists in the DB but is **not currently surfaced in the UI** — the collab detail screen shows only each member's personal budget (`collab_members.personal_budget_cents`), not a shared group budget.
 
-UI shows remaining budget as: `budget_cents - SUM(expenses.home_amount_cents WHERE collab_id = this.id AND deleted_at IS NULL)`.
+Each member sets their own personal spending cap. Only the member themselves can see and edit it — owners cannot view other members' personal budgets.
 
-This is computed client-side or via a query; there is no server-side budget enforcement. The budget is informational only — members are not blocked from logging expenses that exceed it.
+This is computed client-side; there is no server-side budget enforcement. Budgets are informational only — members are not blocked from logging expenses that exceed them.
 
 ## Currency model
 
@@ -161,6 +161,6 @@ final summary = await supabase.from('expenses')
 
 2. **Don't expect closing a collab to settle outstanding splits.** Closure just marks the collab read-only. Splits can be settled before or after.
 
-3. **Don't change `home_currency` or `currency` after creation.** They're snapshots. If the user is moving across currencies, create a new collab.
+3. **`home_currency` is fixed after creation** — it reflects the owner's home currency at creation time and must never change. **`currency` is editable** in the UI (owner can update it to switch a collab to a different foreign currency, e.g. moving from Japan to Korea). Changing `currency` only affects new expenses; existing expenses store their own `currency` and `conversion_rate` and are unaffected.
 
 4. **Don't enforce budget at the DB layer.** The budget is informational. Show a warning in the UI when spending approaches or exceeds it, but don't block inserts.

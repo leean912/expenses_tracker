@@ -67,23 +67,21 @@ final homeDataProvider = FutureProvider.family<HomeData, HomeFilter>((
         .order('expense_date', ascending: false)
         .order('created_at', ascending: false),
 
-    // 2. Fixed: current calendar month totals (expense type only).
+    // 2. Current calendar month totals (net spend: expenses − income).
     supabase
         .from('expenses')
-        .select('home_amount_cents')
+        .select('home_amount_cents, type')
         .eq('user_id', userId)
-        .eq('type', 'expense')
         .gte('expense_date', thisMonthStart)
         .lte('expense_date', thisMonthEnd)
         .isFilter('deleted_at', null)
         .isFilter('archived_at', null),
 
-    // 3. Fixed: last calendar month totals (expense type only).
+    // 3. Last calendar month totals (net spend: expenses − income).
     supabase
         .from('expenses')
-        .select('home_amount_cents')
+        .select('home_amount_cents, type')
         .eq('user_id', userId)
-        .eq('type', 'expense')
         .gte('expense_date', lastMonthStart)
         .lte('expense_date', lastMonthEnd)
         .isFilter('deleted_at', null)
@@ -132,14 +130,18 @@ final homeDataProvider = FutureProvider.family<HomeData, HomeFilter>((
     }
   }
 
-  final int thisMonthTotalCents = thisMonthRows.fold(
-    0,
-    (sum, r) => sum + ((r as Map)['home_amount_cents'] as int? ?? 0),
-  );
-  final int lastMonthTotalCents = lastMonthRows.fold(
-    0,
-    (sum, r) => sum + ((r as Map)['home_amount_cents'] as int? ?? 0),
-  );
+  int thisMonthTotalCents = 0;
+  for (final r in thisMonthRows) {
+    final row = r as Map<String, dynamic>;
+    final cents = row['home_amount_cents'] as int? ?? 0;
+    thisMonthTotalCents += row['type'] == 'income' ? -cents : cents;
+  }
+  int lastMonthTotalCents = 0;
+  for (final r in lastMonthRows) {
+    final row = r as Map<String, dynamic>;
+    final cents = row['home_amount_cents'] as int? ?? 0;
+    lastMonthTotalCents += row['type'] == 'income' ? -cents : cents;
+  }
   final changeVsLast = thisMonthTotalCents - lastMonthTotalCents;
   // final changePercent = prevTotalCents == 0
   //     ? 0.0

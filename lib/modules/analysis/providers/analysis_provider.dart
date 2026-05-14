@@ -63,17 +63,6 @@ final analysisDataProvider = FutureProvider.family<AnalysisData, AnalysisFilter>
 
     if (isIncome) {
       totalIncomeCents += cents;
-      final existing = catMap[catId];
-      catMap[catId] = (
-        cents: (existing?.cents ?? 0) - cents,
-        name: catName,
-        colorHex: colorHex ?? existing?.colorHex,
-      );
-      final existingAcc = accountMap[accountId];
-      accountMap[accountId] = (
-        cents: (existingAcc?.cents ?? 0) - cents,
-        name: accountName,
-      );
     } else {
       totalSpentCents += cents;
       final existing = catMap[catId];
@@ -90,10 +79,9 @@ final analysisDataProvider = FutureProvider.family<AnalysisData, AnalysisFilter>
     }
   }
 
-  final netSpentCents = totalSpentCents - totalIncomeCents;
-
-  final categoryBreakdown = catMap.entries
-      .where((e) => e.value.cents > 0)
+  final positiveCats = catMap.entries.where((e) => e.value.cents > 0).toList();
+  final catTotal = positiveCats.fold(0, (s, e) => s + e.value.cents);
+  final categoryBreakdown = positiveCats
       .map((e) {
         final color = _hexToColor(e.value.colorHex) ?? const Color(0xFF888780);
         return CategorySpend(
@@ -101,9 +89,7 @@ final analysisDataProvider = FutureProvider.family<AnalysisData, AnalysisFilter>
           categoryName: e.value.name,
           color: color,
           totalCents: e.value.cents,
-          percentage: netSpentCents <= 0
-              ? 0
-              : e.value.cents / netSpentCents * 100,
+          percentage: catTotal <= 0 ? 0 : e.value.cents / catTotal * 100,
         );
       })
       .toList()
@@ -113,6 +99,7 @@ final analysisDataProvider = FutureProvider.family<AnalysisData, AnalysisFilter>
       .where((e) => e.value.cents > 0)
       .toList()
     ..sort((a, b) => b.value.cents.compareTo(a.value.cents));
+  final accountTotal = sortedAccounts.fold(0, (s, e) => s + e.value.cents);
   final accountBreakdown = sortedAccounts.indexed.map((entry) {
     final (i, e) = entry;
     return CategorySpend(
@@ -120,9 +107,7 @@ final analysisDataProvider = FutureProvider.family<AnalysisData, AnalysisFilter>
       categoryName: e.value.name,
       color: _accountPalette[i % _accountPalette.length],
       totalCents: e.value.cents,
-      percentage: netSpentCents <= 0
-          ? 0
-          : e.value.cents / netSpentCents * 100,
+      percentage: accountTotal <= 0 ? 0 : e.value.cents / accountTotal * 100,
     );
   }).toList();
 
