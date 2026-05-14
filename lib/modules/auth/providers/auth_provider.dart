@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../service_locator.dart';
@@ -21,10 +20,9 @@ final authProvider = NotifierProvider<AuthNotifier, AppAuthState>(
 /// All data providers that are user-scoped should watch this so they
 /// automatically rebuild when the account changes.
 final currentUserIdProvider = Provider<String?>((ref) {
-  return ref.watch(authProvider).maybeWhen(
-    authenticated: (user) => user.id,
-    orElse: () => null,
-  );
+  return ref
+      .watch(authProvider)
+      .maybeWhen(authenticated: (user) => user.id, orElse: () => null);
 });
 
 class AuthNotifier extends Notifier<AppAuthState> {
@@ -51,12 +49,13 @@ class AuthNotifier extends Notifier<AppAuthState> {
 
       final config = {
         for (final r in configRows as List)
-          r['key'] as String: r['value'] as String
+          r['key'] as String: r['value'] as String,
       };
 
       if (config.containsKey('privacy_policy_version')) {
-        ref.read(currentPolicyVersionProvider.notifier).state =
-            int.parse(config['privacy_policy_version']!);
+        ref.read(currentPolicyVersionProvider.notifier).state = int.parse(
+          config['privacy_policy_version']!,
+        );
       }
       if (config.containsKey('min_app_version')) {
         ref.read(minAppVersionProvider.notifier).state =
@@ -204,10 +203,13 @@ class AuthNotifier extends Notifier<AppAuthState> {
   Future<UserModel> _writePrivacyAgreement(UserModel profile) async {
     final version = ref.read(currentPolicyVersionProvider);
     final now = DateTime.now();
-    await supabase.from('profiles').update({
-      'privacy_policy_agreed_at': now.toIso8601String(),
-      'privacy_policy_version': version,
-    }).eq('id', profile.id);
+    await supabase
+        .from('profiles')
+        .update({
+          'privacy_policy_agreed_at': now.toIso8601String(),
+          'privacy_policy_version': version,
+        })
+        .eq('id', profile.id);
     return profile.copyWith(
       privacyPolicyAgreedAt: now,
       privacyPolicyVersion: version,
