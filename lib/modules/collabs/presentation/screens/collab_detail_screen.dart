@@ -568,19 +568,50 @@ class _CollabHeader extends StatelessWidget {
                   ),
                 ),
                 const Spacer(),
-                const Icon(
-                  Icons.people_outline_rounded,
-                  size: 14,
-                  color: AppColors.textTertiary,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  '${members.length}',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textTertiary,
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: InkWell(
+                    onTap: () =>
+                        context.push(collabAnalyticsRoute, extra: collab),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.bar_chart_rounded,
+                          size: 14,
+                          color: AppColors.textSecondary,
+                        ),
+                        SizedBox(width: 3),
+                        Text(
+                          'Analytics',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                        Icon(
+                          Icons.chevron_right_outlined,
+                          size: 14,
+                          color: AppColors.textSecondary,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
+                // const SizedBox(height: AppSpacing.md),
+                // const Icon(
+                //   Icons.people_outline_rounded,
+                //   size: 14,
+                //   color: AppColors.textTertiary,
+                // ),
+                // const SizedBox(width: 4),
+                // Text(
+                //   '${members.length}',
+                //   style: const TextStyle(
+                //     fontSize: 12,
+                //     color: AppColors.textTertiary,
+                //   ),
+                // ),
               ],
             ),
 

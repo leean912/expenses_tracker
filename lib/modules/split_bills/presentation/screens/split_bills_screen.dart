@@ -89,9 +89,8 @@ class _SplitBillsScreenState extends ConsumerState<SplitBillsScreen>
       ),
       body: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => _ErrorView(
-          onRetry: () => ref.invalidate(splitBillsProvider),
-        ),
+        error: (e, _) =>
+            _ErrorView(onRetry: () => ref.invalidate(splitBillsProvider)),
         data: (data) {
           final isPending = _filterMode == _FilterMode.pending;
           final filteredBills = data.myBills.where((b) {

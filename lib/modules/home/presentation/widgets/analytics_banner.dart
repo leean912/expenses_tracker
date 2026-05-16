@@ -115,7 +115,11 @@ class AnalyticsBanner extends StatelessWidget {
                       ],
                     ),
                   ),
-
+                  Icon(
+                    Icons.bar_chart_rounded,
+                    size: 14,
+                    color: AppColors.textSecondary,
+                  ),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 4.0),
                     child: Text(

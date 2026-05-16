@@ -5,9 +5,14 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../providers/analysis_state.dart';
 
 class CategoryPieChart extends StatefulWidget {
-  const CategoryPieChart({super.key, required this.categories});
+  const CategoryPieChart({
+    super.key,
+    required this.categories,
+    this.compact = false,
+  });
 
   final List<CategorySpend> categories;
+  final bool compact;
 
   @override
   State<CategoryPieChart> createState() => _CategoryPieChartState();
@@ -18,14 +23,14 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
 
   String _fmtCents(int cents) {
     final rm = cents / 100;
-    final formatted = rm.toStringAsFixed(0);
+    final parts = rm.toStringAsFixed(2).split('.');
     final buf = StringBuffer();
-    final chars = formatted.split('').reversed.toList();
+    final chars = parts[0].split('').reversed.toList();
     for (var i = 0; i < chars.length; i++) {
       if (i > 0 && i % 3 == 0) buf.write(',');
       buf.write(chars[i]);
     }
-    return 'RM ${buf.toString().split('').reversed.join()}';
+    return 'RM ${buf.toString().split('').reversed.join()}.${parts[1]}';
   }
 
   @override
@@ -47,6 +52,11 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
             ? widget.categories[_touchedIndex]
             : null;
 
+    final pieHeight = widget.compact ? 150.0 : 220.0;
+    final outerRadius = widget.compact ? 48.0 : 60.0;
+    final touchedRadius = widget.compact ? 58.0 : 72.0;
+    final centerRadius = widget.compact ? 40.0 : 60.0;
+
     final sections = widget.categories.asMap().entries.map((entry) {
       final i = entry.key;
       final cat = entry.value;
@@ -55,7 +65,7 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
       return PieChartSectionData(
         value: cat.totalCents.toDouble(),
         color: cat.color,
-        radius: isTouched ? 72.0 : 60.0,
+        radius: isTouched ? touchedRadius : outerRadius,
         title: '',
         showTitle: false,
       );
@@ -64,14 +74,14 @@ class _CategoryPieChartState extends State<CategoryPieChart> {
     return Column(
       children: [
         SizedBox(
-          height: 220,
+          height: pieHeight,
           child: Stack(
             alignment: Alignment.center,
             children: [
               PieChart(
                 PieChartData(
                   sections: sections,
-                  centerSpaceRadius: 60,
+                  centerSpaceRadius: centerRadius,
                   sectionsSpace: 2,
                   pieTouchData: PieTouchData(
                     touchCallback: (event, response) {

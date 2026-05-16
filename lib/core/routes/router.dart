@@ -9,6 +9,8 @@ import '../../modules/auth/presentation/screens/login_screen.dart';
 import '../../modules/auth/presentation/screens/referral_onboarding_screen.dart';
 import '../../modules/auth/presentation/screens/splash_screen.dart';
 import '../../modules/auth/presentation/screens/user_name_screen.dart';
+import '../../modules/collabs/data/models/collab_model.dart';
+import '../../modules/collabs/presentation/screens/collab_analysis_screen.dart';
 import '../../modules/collabs/presentation/screens/collab_detail_screen.dart';
 import '../../modules/collabs/presentation/screens/collab_members_screen.dart';
 import '../../modules/contacts/presentation/screens/contacts_screen.dart';
@@ -124,6 +126,12 @@ final router = GoRouter(
               CollabMembersScreen(collabId: state.pathParameters['id']!),
         ),
       ],
+    ),
+    GoRoute(
+      path: collabAnalyticsRoute,
+      builder: (context, state) => CollabAnalysisScreen(
+        collab: state.extra! as CollabModel,
+      ),
     ),
     GoRoute(
       path: privacyPolicyRoute,
