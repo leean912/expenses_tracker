@@ -10,6 +10,7 @@ class CollabExpense {
     required this.currency,
     required this.homeAmountCents,
     required this.homeCurrency,
+    this.actualAmountCents,
     this.conversionRate,
     this.categoryName,
     this.categoryIcon,
@@ -32,6 +33,7 @@ class CollabExpense {
   final String currency;
   final int homeAmountCents;
   final String homeCurrency;
+  final int? actualAmountCents;
   final double? conversionRate;
   final String? categoryName;
   final String? categoryIcon;
@@ -47,6 +49,11 @@ class CollabExpense {
   final String? accountName;
   final String? splitBillId;
 
+  bool get hasActualDifference =>
+      !isIncome &&
+      actualAmountCents != null &&
+      actualAmountCents != homeAmountCents;
+
   factory CollabExpense.fromJson(Map<String, dynamic> json) {
     final owner = json['owner'] as Map<String, dynamic>? ?? {};
     final category = json['category'] as Map<String, dynamic>?;
@@ -59,6 +66,7 @@ class CollabExpense {
       currency: json['currency'] as String,
       homeAmountCents: json['home_amount_cents'] as int? ?? 0,
       homeCurrency: json['home_currency'] as String? ?? '',
+      actualAmountCents: json['actual_amount_cents'] as int?,
       conversionRate: json['conversion_rate'] != null
           ? double.tryParse(json['conversion_rate'].toString())
           : null,
@@ -102,7 +110,7 @@ class CollabExpensesNotifier
     final rows = await supabase
         .from('expenses')
         .select(
-          'id, user_id, type, source, source_split_bill_id, amount_cents, currency, home_amount_cents, home_currency, conversion_rate, note, expense_date, receipt_url, owner:profiles!user_id(id, username, display_name, avatar_url), category:categories(name, icon, color), account:accounts(name)',
+          'id, user_id, type, source, source_split_bill_id, amount_cents, currency, home_amount_cents, actual_amount_cents, home_currency, conversion_rate, note, expense_date, receipt_url, owner:profiles!user_id(id, username, display_name, avatar_url), category:categories(name, icon, color), account:accounts(name)',
         )
         .eq('collab_id', collabId)
         .isFilter('deleted_at', null)

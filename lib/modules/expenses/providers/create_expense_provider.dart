@@ -36,6 +36,7 @@ class CreateExpenseNotifier extends AutoDisposeNotifier<CreateExpenseState> {
         'currency': currency,
         'home_amount_cents': amountCents,
         'home_currency': currency,
+        'actual_amount_cents': amountCents,
         'expense_date': dateStr,
       };
       if (categoryId != null) payload['category_id'] = categoryId;

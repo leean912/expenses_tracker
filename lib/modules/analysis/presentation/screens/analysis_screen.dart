@@ -21,6 +21,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
   AnalysisPeriod _selectedPeriod = AnalysisPeriod.month;
   DateTimeRange? _customRange;
   bool _includeCollabExpenses = true;
+  bool _useActualAmount = false;
 
   String get _dateRangeLabel {
     final (start, end) = _filter.toDateRange();
@@ -50,6 +51,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
     customStart: _customRange?.start,
     customEnd: _customRange?.end,
     includeCollabExpenses: _includeCollabExpenses,
+    useActualAmount: _useActualAmount,
   );
 
   Future<void> _onPeriodSelected(AnalysisPeriod period) async {
@@ -150,56 +152,67 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                     AppSpacing.xl,
                     AppSpacing.sm,
                   ),
-                  child: Row(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    spacing: 8,
                     children: [
-                      Expanded(
-                        child: Text(
-                          _dateRangeLabel,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textTertiary,
-                          ),
-                        ),
-                      ),
-                      GestureDetector(
-                        onTap: () => setState(
-                          () =>
-                              _includeCollabExpenses = !_includeCollabExpenses,
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: Checkbox(
-                                value: _includeCollabExpenses,
-                                onChanged: (v) => setState(
-                                  () => _includeCollabExpenses = v ?? false,
-                                ),
-                                activeColor: AppColors.accent,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                side: const BorderSide(
-                                  color: AppColors.textTertiary,
-                                  width: 1.5,
-                                ),
-                                materialTapTargetSize:
-                                    MaterialTapTargetSize.shrinkWrap,
-                                visualDensity: VisualDensity.compact,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            const Text(
-                              'Include collabs',
-                              style: TextStyle(
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              _dateRangeLabel,
+                              style: const TextStyle(
                                 fontSize: 12,
-                                color: AppColors.textSecondary,
+                                color: AppColors.textTertiary,
                               ),
                             ),
-                          ],
-                        ),
+                          ),
+                          GestureDetector(
+                            onTap: () => setState(
+                              () => _includeCollabExpenses =
+                                  !_includeCollabExpenses,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: Checkbox(
+                                    value: _includeCollabExpenses,
+                                    onChanged: (v) => setState(
+                                      () =>
+                                          _includeCollabExpenses = v ?? false,
+                                    ),
+                                    activeColor: AppColors.accent,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    side: const BorderSide(
+                                      color: AppColors.textTertiary,
+                                      width: 1.5,
+                                    ),
+                                    materialTapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
+                                    visualDensity: VisualDensity.compact,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                const Text(
+                                  'Include collabs',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      _AmountToggle(
+                        useActualAmount: _useActualAmount,
+                        onChanged: (v) => setState(() => _useActualAmount = v),
                       ),
                     ],
                   ),
@@ -337,6 +350,73 @@ class _ChartSection extends StatefulWidget {
 
   @override
   State<_ChartSection> createState() => _ChartSectionState();
+}
+
+class _AmountToggle extends StatelessWidget {
+  const _AmountToggle({
+    required this.useActualAmount,
+    required this.onChanged,
+  });
+
+  final bool useActualAmount;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _Chip(
+          label: 'Total',
+          selected: !useActualAmount,
+          onTap: () => onChanged(false),
+        ),
+        const SizedBox(width: 6),
+        _Chip(
+          label: 'Actual',
+          selected: useActualAmount,
+          onTap: () => onChanged(true),
+        ),
+      ],
+    );
+  }
+}
+
+class _Chip extends StatelessWidget {
+  const _Chip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.accent : AppColors.surface,
+          borderRadius: BorderRadius.circular(AppRadius.pill),
+          border: selected
+              ? null
+              : Border.all(color: AppColors.border, width: 0.5),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: selected ? FontWeight.w500 : FontWeight.w400,
+            color: selected ? AppColors.accentText : AppColors.textSecondary,
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _ChartSectionState extends State<_ChartSection> {

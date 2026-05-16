@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../../../core/routes/routes.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -236,6 +237,9 @@ class MoreScreen extends ConsumerWidget {
               ),
               onTap: () => ref.read(authProvider.notifier).logout(),
             ),
+            const SizedBox(height: AppSpacing.xl),
+            const _AppVersion(),
+            const SizedBox(height: AppSpacing.xl),
           ],
         ),
       ),
@@ -312,6 +316,35 @@ class _ProfileTile extends StatelessWidget {
         color: AppColors.textTertiary,
       ),
       onTap: onTap,
+    );
+  }
+}
+
+class _AppVersion extends StatefulWidget {
+  const _AppVersion();
+
+  @override
+  State<_AppVersion> createState() => _AppVersionState();
+}
+
+class _AppVersionState extends State<_AppVersion> {
+  String _version = '';
+
+  @override
+  void initState() {
+    super.initState();
+    PackageInfo.fromPlatform().then((info) {
+      if (mounted) setState(() => _version = 'v${info.version}');
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Text(
+        _version,
+        style: const TextStyle(fontSize: 12, color: AppColors.textTertiary),
+      ),
     );
   }
 }

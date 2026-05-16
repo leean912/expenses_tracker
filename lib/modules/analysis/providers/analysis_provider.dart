@@ -18,7 +18,7 @@ final analysisDataProvider = FutureProvider.family<AnalysisData, AnalysisFilter>
     var q = supabase
         .from('expenses')
         .select(
-          'home_amount_cents, type, expense_date, category_id, account_id, '
+          'home_amount_cents, actual_amount_cents, type, expense_date, category_id, account_id, '
           'category:categories(name, color), account:accounts(name)',
         )
         .eq('user_id', userId)
@@ -51,7 +51,10 @@ final analysisDataProvider = FutureProvider.family<AnalysisData, AnalysisFilter>
 
   for (final r in expenseRows) {
     final row = r as Map<String, dynamic>;
-    final cents = row['home_amount_cents'] as int? ?? 0;
+    final homeCents = row['home_amount_cents'] as int? ?? 0;
+    final cents = filter.useActualAmount
+        ? (row['actual_amount_cents'] as int? ?? homeCents)
+        : homeCents;
     final isIncome = row['type'] == 'income';
     final catId = row['category_id'] as String? ?? 'uncategorized';
     final catData = row['category'] as Map<String, dynamic>?;
@@ -62,7 +65,7 @@ final analysisDataProvider = FutureProvider.family<AnalysisData, AnalysisFilter>
     final accountName = accountData?['name'] as String? ?? 'No Account';
 
     if (isIncome) {
-      totalIncomeCents += cents;
+      totalIncomeCents += homeCents;
     } else {
       totalSpentCents += cents;
       final existing = catMap[catId];
@@ -118,6 +121,7 @@ final analysisDataProvider = FutureProvider.family<AnalysisData, AnalysisFilter>
     startDate,
     endDate,
     filter.period,
+    filter.useActualAmount,
   );
 
   // ── Budget progress ────────────────────────────────────────────────────────
@@ -156,7 +160,10 @@ final analysisDataProvider = FutureProvider.family<AnalysisData, AnalysisFilter>
       if (catId != null && er['category_id'] != catId) continue;
       final idx = paceIndex(er['expense_date'] as String);
       if (idx < 0) continue;
-      buckets[idx] += er['home_amount_cents'] as int? ?? 0;
+      final homeCents = er['home_amount_cents'] as int? ?? 0;
+      buckets[idx] += filter.useActualAmount
+          ? (er['actual_amount_cents'] as int? ?? homeCents)
+          : homeCents;
     }
     final budgetPerBucket = limitCents / bucketCount;
     var running = 0;
@@ -207,21 +214,22 @@ List<PeriodBucket> _buildPeriodBuckets(
   DateTime startDate,
   DateTime endDate,
   AnalysisPeriod period,
+  bool useActualAmount,
 ) {
   switch (period) {
     case AnalysisPeriod.day:
-      return _bucketByDay(rows, startDate, 1);
+      return _bucketByDay(rows, startDate, 1, useActualAmount);
     case AnalysisPeriod.week:
-      return _bucketByDay(rows, startDate, 7);
+      return _bucketByDay(rows, startDate, 7, useActualAmount);
     case AnalysisPeriod.month:
-      return _bucketByWeekOfMonth(rows, startDate, endDate);
+      return _bucketByWeekOfMonth(rows, startDate, endDate, useActualAmount);
     case AnalysisPeriod.year:
-      return _bucketByMonth(rows, startDate.year);
+      return _bucketByMonth(rows, startDate.year, useActualAmount);
     case AnalysisPeriod.custom:
       final days = endDate.difference(startDate).inDays + 1;
-      if (days <= 14) return _bucketByDay(rows, startDate, days);
-      if (days <= 90) return _bucketByWeek(rows, startDate, endDate);
-      return _bucketByMonth(rows, startDate.year);
+      if (days <= 14) return _bucketByDay(rows, startDate, days, useActualAmount);
+      if (days <= 90) return _bucketByWeek(rows, startDate, endDate, useActualAmount);
+      return _bucketByMonth(rows, startDate.year, useActualAmount);
   }
 }
 
@@ -229,6 +237,7 @@ List<PeriodBucket> _bucketByDay(
   List<dynamic> rows,
   DateTime startDate,
   int count,
+  bool useActualAmount,
 ) {
   const weekdayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   final spendBuckets = List.filled(count, 0);
@@ -239,9 +248,12 @@ List<PeriodBucket> _bucketByDay(
     final date = DateTime.parse(row['expense_date'] as String);
     final idx = date.difference(startDate).inDays;
     if (idx < 0 || idx >= count) continue;
-    final cents = row['home_amount_cents'] as int? ?? 0;
+    final homeCents = row['home_amount_cents'] as int? ?? 0;
+    final cents = useActualAmount
+        ? (row['actual_amount_cents'] as int? ?? homeCents)
+        : homeCents;
     if (row['type'] == 'income') {
-      incomeBuckets[idx] += cents;
+      incomeBuckets[idx] += homeCents;
     } else {
       spendBuckets[idx] += cents;
     }
@@ -262,6 +274,7 @@ List<PeriodBucket> _bucketByWeekOfMonth(
   List<dynamic> rows,
   DateTime startDate,
   DateTime endDate,
+  bool useActualAmount,
 ) {
   final totalDays = endDate.difference(startDate).inDays + 1;
   final weekCount = ((totalDays - 1) ~/ 7) + 1;
@@ -274,9 +287,12 @@ List<PeriodBucket> _bucketByWeekOfMonth(
     final dayOffset = date.difference(startDate).inDays;
     if (dayOffset < 0) continue;
     final weekIdx = (dayOffset ~/ 7).clamp(0, weekCount - 1);
-    final cents = row['home_amount_cents'] as int? ?? 0;
+    final homeCents = row['home_amount_cents'] as int? ?? 0;
+    final cents = useActualAmount
+        ? (row['actual_amount_cents'] as int? ?? homeCents)
+        : homeCents;
     if (row['type'] == 'income') {
-      incomeBuckets[weekIdx] += cents;
+      incomeBuckets[weekIdx] += homeCents;
     } else {
       spendBuckets[weekIdx] += cents;
     }
@@ -296,6 +312,7 @@ List<PeriodBucket> _bucketByWeek(
   List<dynamic> rows,
   DateTime startDate,
   DateTime endDate,
+  bool useActualAmount,
 ) {
   final totalDays = endDate.difference(startDate).inDays + 1;
   final weekCount = ((totalDays - 1) ~/ 7) + 1;
@@ -308,9 +325,12 @@ List<PeriodBucket> _bucketByWeek(
     final dayOffset = date.difference(startDate).inDays;
     if (dayOffset < 0) continue;
     final weekIdx = (dayOffset ~/ 7).clamp(0, weekCount - 1);
-    final cents = row['home_amount_cents'] as int? ?? 0;
+    final homeCents = row['home_amount_cents'] as int? ?? 0;
+    final cents = useActualAmount
+        ? (row['actual_amount_cents'] as int? ?? homeCents)
+        : homeCents;
     if (row['type'] == 'income') {
-      incomeBuckets[weekIdx] += cents;
+      incomeBuckets[weekIdx] += homeCents;
     } else {
       spendBuckets[weekIdx] += cents;
     }
@@ -326,7 +346,7 @@ List<PeriodBucket> _bucketByWeek(
   );
 }
 
-List<PeriodBucket> _bucketByMonth(List<dynamic> rows, int year) {
+List<PeriodBucket> _bucketByMonth(List<dynamic> rows, int year, bool useActualAmount) {
   const monthLabels = [
     'Jan',
     'Feb',
@@ -349,9 +369,12 @@ List<PeriodBucket> _bucketByMonth(List<dynamic> rows, int year) {
     final date = DateTime.parse(row['expense_date'] as String);
     if (date.year != year) continue;
     final monthIdx = date.month - 1;
-    final cents = row['home_amount_cents'] as int? ?? 0;
+    final homeCents = row['home_amount_cents'] as int? ?? 0;
+    final cents = useActualAmount
+        ? (row['actual_amount_cents'] as int? ?? homeCents)
+        : homeCents;
     if (row['type'] == 'income') {
-      incomeBuckets[monthIdx] += cents;
+      incomeBuckets[monthIdx] += homeCents;
     } else {
       spendBuckets[monthIdx] += cents;
     }

@@ -448,6 +448,18 @@ class _CollabExpenseSheetState extends ConsumerState<CollabExpenseSheet>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // ── Drag handle ───────────────────────────────────────────────
+              Center(
+                child: Container(
+                  margin: const EdgeInsets.only(top: AppSpacing.md),
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.textTertiary.withValues(alpha: 0.4),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
               // ── Header ────────────────────────────────────────────────────
               Padding(
                 padding: const EdgeInsets.fromLTRB(

@@ -110,7 +110,7 @@ class _CollabDetailBodyState extends ConsumerState<_CollabDetailBody> {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      enableDrag: false,
+      enableDrag: true,
       backgroundColor: Colors.transparent,
       builder: (_) => CollabExpenseSheet(collab: collab),
     );
@@ -409,16 +409,20 @@ class _CollabDetailBodyState extends ConsumerState<_CollabDetailBody> {
                             isOwn: isOwn,
                             onTap: isOwn
                                 ? () => showModalBottomSheet<void>(
-                                      context: context,
-                                      isScrollControlled: true,
-                                      backgroundColor: Colors.transparent,
-                                      builder: (_) => EditExpenseSheet(
-                                        expenseId: expense.id,
-                                        onSaved: () => ref
-                                            .read(collabExpensesProvider(collab.id).notifier)
-                                            .refresh(),
-                                      ),
-                                    )
+                                    context: context,
+                                    isScrollControlled: true,
+                                    backgroundColor: Colors.transparent,
+                                    builder: (_) => EditExpenseSheet(
+                                      expenseId: expense.id,
+                                      onSaved: () => ref
+                                          .read(
+                                            collabExpensesProvider(
+                                              collab.id,
+                                            ).notifier,
+                                          )
+                                          .refresh(),
+                                    ),
+                                  )
                                 : null,
                           );
                         },
@@ -865,173 +869,183 @@ class _ExpenseTile extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.xl,
-        vertical: AppSpacing.lg,
-      ),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: .start,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-            decoration: BoxDecoration(
-              color: isOwn
-                  ? AppColors.accent.withValues(alpha: 0.1)
-                  : AppColors.surfaceMuted,
-              borderRadius: BorderRadius.circular(AppRadius.pill),
-            ),
-            child: Text(
-              isOwn ? 'You' : expense.ownerDisplayName,
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-                color: isOwn ? AppColors.accent : AppColors.textTertiary,
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.xl,
+          vertical: AppSpacing.lg,
+        ),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Column(
+          crossAxisAlignment: .start,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+              decoration: BoxDecoration(
+                color: isOwn
+                    ? AppColors.accent.withValues(alpha: 0.1)
+                    : AppColors.surfaceMuted,
+                borderRadius: BorderRadius.circular(AppRadius.pill),
               ),
-            ),
-          ),
-          const SizedBox(height: 2),
-          Row(
-            children: [
-              // Category icon
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: catColor.withValues(alpha: 0.12),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  hasCategory
-                      ? iconForName(expense.categoryIcon ?? 'category')
-                      : Icons.receipt_long_outlined,
-                  size: 16,
-                  color: catColor,
+              child: Text(
+                isOwn ? 'You' : expense.ownerDisplayName,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: isOwn ? AppColors.accent : AppColors.textTertiary,
                 ),
               ),
-              const SizedBox(width: AppSpacing.lg),
+            ),
+            const SizedBox(height: 2),
+            Row(
+              children: [
+                // Category icon
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: catColor.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    hasCategory
+                        ? iconForName(expense.categoryIcon ?? 'category')
+                        : Icons.receipt_long_outlined,
+                    size: 16,
+                    color: catColor,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.lg),
 
-              // Owner + note + badges
-              Expanded(
-                child: Column(
-                  spacing: 2,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      expense.note?.isNotEmpty == true
-                          ? expense.note!
-                          : expense.categoryName ?? 'Expense',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.textPrimary,
-                      ),
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-                    if (hasBadges) ...[
-                      Row(
-                        children: [
-                          if (expense.isSplitBill) ...[
-                            _TileBadge(
-                              icon: Icons.call_split_rounded,
-                              label: expense.isIncome
-                                  ? 'Settlement'
-                                  : 'Split bill',
-                              onTap: expense.splitBillId != null
-                                  ? () => context.push(
-                                      '/split-bills/${expense.splitBillId}',
-                                    )
-                                  : null,
-                            ),
-                            const SizedBox(width: AppSpacing.sm),
-                          ],
-                          if (expense.currency != collab.homeCurrency) ...[
-                            _TileBadge(
-                              icon: Icons.language_rounded,
-                              label: expense.currency,
-                            ),
-                            const SizedBox(width: AppSpacing.sm),
-                          ],
-                          if (expense.hasReceipt)
-                            const _TileBadge(
-                              icon: Icons.receipt_long_rounded,
-                              label: 'Receipt',
-                            ),
-                        ],
+                // Owner + note + badges
+                Expanded(
+                  child: Column(
+                    spacing: 2,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        expense.note?.isNotEmpty == true
+                            ? expense.note!
+                            : expense.categoryName ?? 'Expense',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.textPrimary,
+                        ),
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 2),
-                    ],
-                    Row(
-                      children: [
-                        if (hasCategory) ...[
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: AppSpacing.md,
-                              vertical: 1,
-                            ),
-                            decoration: BoxDecoration(
-                              color: catColor.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(AppRadius.sm),
-                            ),
-                            child: Text(
-                              expense.categoryName!,
-                              style: TextStyle(fontSize: 10, color: catColor),
-                            ),
-                          ),
-                          const SizedBox(width: AppSpacing.sm),
-                        ],
-                        if (expense.accountName != null)
-                          Flexible(
-                            child: Text(
-                              expense.accountName!,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 10,
-                                color: AppColors.textTertiary,
+                      if (hasBadges) ...[
+                        Row(
+                          children: [
+                            if (expense.isSplitBill) ...[
+                              _TileBadge(
+                                icon: Icons.call_split_rounded,
+                                label: expense.isIncome
+                                    ? 'Settlement'
+                                    : 'Split bill',
+                                onTap: expense.splitBillId != null
+                                    ? () => context.push(
+                                        '/split-bills/${expense.splitBillId}',
+                                      )
+                                    : null,
+                              ),
+                              const SizedBox(width: AppSpacing.sm),
+                            ],
+                            if (expense.currency != collab.homeCurrency) ...[
+                              _TileBadge(
+                                icon: Icons.language_rounded,
+                                label: expense.currency,
+                              ),
+                              const SizedBox(width: AppSpacing.sm),
+                            ],
+                            if (expense.hasReceipt)
+                              const _TileBadge(
+                                icon: Icons.receipt_long_rounded,
+                                label: 'Receipt',
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                      ],
+                      Row(
+                        children: [
+                          if (hasCategory) ...[
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: AppSpacing.md,
+                                vertical: 1,
+                              ),
+                              decoration: BoxDecoration(
+                                color: catColor.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(
+                                  AppRadius.sm,
+                                ),
+                              ),
+                              child: Text(
+                                expense.categoryName!,
+                                style: TextStyle(fontSize: 10, color: catColor),
                               ),
                             ),
-                          ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: AppSpacing.lg),
-
-              // Amount
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    primaryAmount,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: amountColor,
-                    ),
+                            const SizedBox(width: AppSpacing.sm),
+                          ],
+                          if (expense.accountName != null)
+                            Flexible(
+                              child: Text(
+                                expense.accountName!,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  color: AppColors.textTertiary,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
                   ),
-                  if (homeAmount != null)
+                ),
+                const SizedBox(width: AppSpacing.lg),
+
+                // Amount
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
                     Text(
-                      homeAmount,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: AppColors.textTertiary,
+                      primaryAmount,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: amountColor,
                       ),
                     ),
-                ],
-              ),
-            ],
-          ),
-        ],
+                    if (homeAmount != null)
+                      Text(
+                        homeAmount,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textTertiary,
+                        ),
+                      ),
+                    if (isOwn && expense.hasActualDifference)
+                      Text(
+                        'Actual: ${collab.homeCurrency} ${(expense.actualAmountCents! / 100).toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textTertiary,
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
-    ),
     );
   }
 

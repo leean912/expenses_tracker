@@ -7,19 +7,19 @@ import 'package:intl/intl.dart';
 import '../../../../core/routes/routes.dart';
 import '../../../../core/services/receipt_upload_service.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/widgets/receipt_viewer.dart';
 import '../../../../core/utils/amount_input_formatter.dart';
+import '../../../../core/widgets/receipt_viewer.dart';
 import '../../../../core/widgets/upgrade_sheet.dart';
 import '../../../../service_locator.dart';
 import '../../../auth/providers/auth_provider.dart';
 import '../../../auth/providers/states/auth_state.dart';
-import '../../../subscription/providers/subscription_provider.dart';
 import '../../../contacts/data/models/contact_model.dart';
 import '../../../contacts/data/models/group_model.dart';
 import '../../../contacts/providers/contacts_provider.dart';
 import '../../../contacts/providers/groups_provider.dart';
 import '../../../home/providers/home/home_provider.dart';
 import '../../../split_bills/providers/split_bills_provider.dart';
+import '../../../subscription/providers/subscription_provider.dart';
 import '../../data/models/account_model.dart';
 import '../../data/models/category_model.dart';
 import '../../providers/accounts_provider.dart';
@@ -428,6 +428,7 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet>
         context.pop();
       }
     } catch (e) {
+      debugPrint('Error creating split bill: $e');
       if (mounted) {
         setState(() {
           _splitError = 'Failed to create split bill. Please try again.';
@@ -461,6 +462,18 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // ── Drag handle ────────────────────────────────────────────────
+              Center(
+                child: Container(
+                  margin: const EdgeInsets.only(top: AppSpacing.md),
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.textTertiary.withValues(alpha: 0.4),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
               // ── Header ─────────────────────────────────────────────────────
               Padding(
                 padding: const EdgeInsets.fromLTRB(

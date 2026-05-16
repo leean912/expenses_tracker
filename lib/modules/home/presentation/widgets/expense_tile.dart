@@ -183,6 +183,14 @@ class ExpenseTile extends StatelessWidget {
                       color: AppColors.textTertiary,
                     ),
                   ),
+                if (expense.hasActualDifference)
+                  Text(
+                    'Actual: ${_fmtAmount(expense.actualAmountCents!, isIncome: false)}',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textTertiary,
+                    ),
+                  ),
               ],
             ),
           ],

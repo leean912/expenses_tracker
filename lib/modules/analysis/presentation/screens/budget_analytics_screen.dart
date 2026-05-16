@@ -24,9 +24,13 @@ class BudgetAnalyticsScreen extends ConsumerStatefulWidget {
 
 class _BudgetAnalyticsScreenState extends ConsumerState<BudgetAnalyticsScreen> {
   AnalysisPeriod _selectedPeriod = AnalysisPeriod.month;
+  bool _useActualAmount = false;
 
-  AnalysisFilter get _filter =>
-      AnalysisFilter(period: _selectedPeriod, includeCollabExpenses: true);
+  AnalysisFilter get _filter => AnalysisFilter(
+    period: _selectedPeriod,
+    includeCollabExpenses: true,
+    useActualAmount: _useActualAmount,
+  );
 
   String get _dateRangeLabel {
     final (start, end) = _filter.toDateRange();
@@ -120,12 +124,23 @@ class _BudgetAnalyticsScreenState extends ConsumerState<BudgetAnalyticsScreen> {
                     AppSpacing.xl,
                     AppSpacing.sm,
                   ),
-                  child: Text(
-                    _dateRangeLabel,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textTertiary,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    spacing: 8,
+                    children: [
+                      Text(
+                        _dateRangeLabel,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textTertiary,
+                        ),
+                      ),
+                      _AmountToggle(
+                        useActualAmount: _useActualAmount,
+                        onChanged: (v) =>
+                            setState(() => _useActualAmount = v),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -237,6 +252,73 @@ class _BudgetAnalyticsScreenState extends ConsumerState<BudgetAnalyticsScreen> {
 
               const SliverToBoxAdapter(child: SizedBox(height: 32)),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AmountToggle extends StatelessWidget {
+  const _AmountToggle({
+    required this.useActualAmount,
+    required this.onChanged,
+  });
+
+  final bool useActualAmount;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _ToggleChip(
+          label: 'Total',
+          selected: !useActualAmount,
+          onTap: () => onChanged(false),
+        ),
+        const SizedBox(width: 6),
+        _ToggleChip(
+          label: 'Actual',
+          selected: useActualAmount,
+          onTap: () => onChanged(true),
+        ),
+      ],
+    );
+  }
+}
+
+class _ToggleChip extends StatelessWidget {
+  const _ToggleChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.accent : AppColors.surface,
+          borderRadius: BorderRadius.circular(AppRadius.pill),
+          border: selected
+              ? null
+              : Border.all(color: AppColors.border, width: 0.5),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: selected ? FontWeight.w500 : FontWeight.w400,
+            color: selected ? AppColors.accentText : AppColors.textSecondary,
           ),
         ),
       ),

@@ -54,7 +54,7 @@ final homeDataProvider = FutureProvider.family<HomeData, HomeFilter>((
     supabase
         .from('expenses')
         .select(
-          'id, note, amount_cents, home_amount_cents, type, expense_date, category_id, '
+          'id, note, amount_cents, home_amount_cents, actual_amount_cents, type, expense_date, category_id, '
           'currency, collab_id, source_split_bill_id, source_recurring_expense_id, '
           'source_recurring_split_bill_id, receipt_url, '
           'category:categories(name, color), account:accounts(name)',
@@ -113,34 +113,32 @@ final homeDataProvider = FutureProvider.family<HomeData, HomeFilter>((
     final cents = row['home_amount_cents'] as int? ?? 0;
     final isIncome = row['type'] == 'income';
 
-    if (isIncome) {
-      totalCents -= cents;
-    } else {
-      totalCents += cents;
+    if (isIncome) continue;
 
-      final catId = row['category_id'] as String? ?? '';
-      final catName =
-          (row['category'] as Map<String, dynamic>?)?['name'] as String? ??
-          catId;
-      final existing = spendByCategory[catId];
-      spendByCategory[catId] = (
-        cents: (existing?.cents ?? 0) + cents,
-        name: catName,
-      );
-    }
+    totalCents += cents;
+
+    final catId = row['category_id'] as String? ?? '';
+    final catName =
+        (row['category'] as Map<String, dynamic>?)?['name'] as String? ??
+        catId;
+    final existing = spendByCategory[catId];
+    spendByCategory[catId] = (
+      cents: (existing?.cents ?? 0) + cents,
+      name: catName,
+    );
   }
 
   int thisMonthTotalCents = 0;
   for (final r in thisMonthRows) {
     final row = r as Map<String, dynamic>;
     final cents = row['home_amount_cents'] as int? ?? 0;
-    thisMonthTotalCents += row['type'] == 'income' ? -cents : cents;
+    if (row['type'] != 'income') thisMonthTotalCents += cents;
   }
   int lastMonthTotalCents = 0;
   for (final r in lastMonthRows) {
     final row = r as Map<String, dynamic>;
     final cents = row['home_amount_cents'] as int? ?? 0;
-    lastMonthTotalCents += row['type'] == 'income' ? -cents : cents;
+    if (row['type'] != 'income') lastMonthTotalCents += cents;
   }
   final changeVsLast = thisMonthTotalCents - lastMonthTotalCents;
   // final changePercent = prevTotalCents == 0
@@ -212,6 +210,7 @@ final homeDataProvider = FutureProvider.family<HomeData, HomeFilter>((
       id: row['id'] as String,
       title: row['note'] as String? ?? '',
       amountCents: row['home_amount_cents'] as int? ?? 0,
+      actualAmountCents: row['actual_amount_cents'] as int?,
       isIncome: row['type'] != 'expense',
       categoryName: catMap?['name'] as String? ?? 'Other',
       categoryLight: _lighten(color),

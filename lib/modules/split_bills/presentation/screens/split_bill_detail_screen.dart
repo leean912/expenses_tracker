@@ -50,23 +50,39 @@ class SplitBillDetailScreen extends ConsumerWidget {
       ),
       body: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Failed to load',
-                style: const TextStyle(color: AppColors.textSecondary),
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              TextButton(
-                onPressed: () =>
-                    ref.invalidate(splitBillDetailProvider(billId)),
-                child: const Text('Retry'),
-              ),
-            ],
-          ),
-        ),
+        error: (e, _) {
+          final isDeleted = e.toString().contains('not found or has been deleted');
+          return Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  isDeleted ? 'Split bill not found' : 'Failed to load',
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 16,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  isDeleted
+                      ? 'This split bill has been deleted.'
+                      : 'Something went wrong. Please try again.',
+                  style: const TextStyle(color: AppColors.textSecondary),
+                ),
+                if (!isDeleted) ...[
+                  const SizedBox(height: AppSpacing.lg),
+                  TextButton(
+                    onPressed: () =>
+                        ref.invalidate(splitBillDetailProvider(billId)),
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ],
+            ),
+          );
+        },
         data: (bill) => _BillDetail(bill: bill, billId: billId),
       ),
     );

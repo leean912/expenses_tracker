@@ -34,6 +34,7 @@ class _CollabsScreenState extends ConsumerState<CollabsScreen> {
         backgroundColor: AppColors.background,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
+        centerTitle: true,
         title: const Text(
           'Collabs',
           style: TextStyle(

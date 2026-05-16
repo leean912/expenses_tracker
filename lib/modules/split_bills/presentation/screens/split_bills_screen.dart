@@ -44,95 +44,72 @@ class _SplitBillsScreenState extends ConsumerState<SplitBillsScreen>
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.xl,
-                AppSpacing.lg,
-                AppSpacing.xl,
-                AppSpacing.lg,
-              ),
-              child: Row(
-                children: [
-                  const Expanded(
-                    child: Text(
-                      'Split Bills',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                  ),
-                  // TODO: restore view mode toggle (by bills / by friends)
-                  // _ViewModeButton(
-                  //   current: _viewMode,
-                  //   onSelected: (m) => setState(() => _viewMode = m),
-                  // ),
-                  _FilterModeButton(
-                    current: _filterMode,
-                    onSelected: (f) => setState(() => _filterMode = f),
-                  ),
-                ],
-              ),
+      appBar: AppBar(
+        backgroundColor: AppColors.background,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        foregroundColor: AppColors.textPrimary,
+        title: const Text(
+          'Split Bills',
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textPrimary,
+          ),
+        ),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: AppSpacing.md),
+            child: _FilterModeButton(
+              current: _filterMode,
+              onSelected: (f) => setState(() => _filterMode = f),
             ),
-            TabBar(
-              controller: _tabs,
-              labelColor: AppColors.textPrimary,
-              unselectedLabelColor: AppColors.textTertiary,
-              indicatorColor: AppColors.textPrimary,
-              indicatorSize: TabBarIndicatorSize.label,
-              dividerColor: AppColors.border,
-              labelStyle: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-              ),
-              unselectedLabelStyle: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w400,
-              ),
-              tabs: const [
-                Tab(text: 'I Paid'),
-                Tab(text: 'I Owe'),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.md),
-            Expanded(
-              child: async.when(
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (e, _) => _ErrorView(
-                  onRetry: () => ref.invalidate(splitBillsProvider),
-                ),
-                data: (data) {
-                  final isPending = _filterMode == _FilterMode.pending;
-                  final filteredBills = data.myBills.where((b) {
-                    final allSettled =
-                        b.shares.isNotEmpty &&
-                        b.settledCount == b.shares.length;
-                    return isPending ? !allSettled : allSettled;
-                  }).toList();
-                  final filteredShares = data.myShares.where((s) {
-                    return isPending ? s.share.isPending : !s.share.isPending;
-                  }).toList();
-                  return TabBarView(
-                    controller: _tabs,
-                    children: [
-                      _IPaidTab(bills: filteredBills),
-                      _IOweTab(shares: filteredShares),
-                    ],
-                  );
-                },
-              ),
-            ),
-
-            // TODO: restore by-friends view
-            // if (_viewMode == _ViewMode.byFriends) ...
+          ),
+        ],
+        bottom: TabBar(
+          controller: _tabs,
+          labelColor: AppColors.textPrimary,
+          unselectedLabelColor: AppColors.textTertiary,
+          indicatorColor: AppColors.textPrimary,
+          indicatorSize: TabBarIndicatorSize.label,
+          dividerColor: AppColors.border,
+          labelStyle: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
+          unselectedLabelStyle: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w400,
+          ),
+          tabs: const [
+            Tab(text: 'I Paid'),
+            Tab(text: 'I Owe'),
           ],
         ),
+      ),
+      body: async.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => _ErrorView(
+          onRetry: () => ref.invalidate(splitBillsProvider),
+        ),
+        data: (data) {
+          final isPending = _filterMode == _FilterMode.pending;
+          final filteredBills = data.myBills.where((b) {
+            final allSettled =
+                b.shares.isNotEmpty && b.settledCount == b.shares.length;
+            return isPending ? !allSettled : allSettled;
+          }).toList();
+          final filteredShares = data.myShares.where((s) {
+            return isPending ? s.share.isPending : !s.share.isPending;
+          }).toList();
+          return TabBarView(
+            controller: _tabs,
+            children: [
+              _IPaidTab(bills: filteredBills),
+              _IOweTab(shares: filteredShares),
+            ],
+          );
+        },
       ),
     );
   }

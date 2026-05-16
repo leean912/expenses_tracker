@@ -176,6 +176,7 @@ class ExpenseTileData {
     required this.id,
     required this.title,
     required this.amountCents,
+    this.actualAmountCents,
     required this.isIncome,
     required this.categoryName,
     required this.categoryLight,
@@ -195,6 +196,8 @@ class ExpenseTileData {
   final String id;
   final String title;
   final int amountCents; // always positive; sign decided by isIncome
+  /// User's real out-of-pocket in home currency. Non-null for split_payer expenses.
+  final int? actualAmountCents;
   final bool isIncome;
   final String categoryName;
   final Color categoryLight;
@@ -219,4 +222,9 @@ class ExpenseTileData {
   final String? splitBillId;
 
   bool get isForeignCurrency => currencyCode != null;
+
+  bool get hasActualDifference =>
+      !isIncome &&
+      actualAmountCents != null &&
+      actualAmountCents != amountCents;
 }

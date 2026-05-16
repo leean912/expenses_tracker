@@ -33,6 +33,11 @@ create table expenses (
   home_currency text,
   conversion_rate numeric(20, 10),  -- 1 home_currency = X this.currency
 
+  -- User's real out-of-pocket in home currency (differs from home_amount_cents for split payers)
+  -- personal/settlement: same as home_amount_cents
+  -- split_payer: payer's own share only, not the full bill total
+  actual_amount_cents bigint,
+
   note text,
   expense_date date not null default current_date,
 
@@ -75,9 +80,15 @@ create table expenses (
 - `currency` — ISO code (e.g., 'MYR', 'JPY')
 
 ### Home conversion (snapshot)
-- `home_amount_cents` — equivalent in user's home currency
+- `home_amount_cents` — equivalent in user's home currency (full amount as recorded)
 - `home_currency` — user's home currency at entry time
 - `conversion_rate` — the rate used (1 home = X this.currency)
+- `actual_amount_cents` — user's real out-of-pocket in home currency:
+  - personal/settlement expenses: same as `home_amount_cents`
+  - `split_payer` expenses: payer's own share only (not the full bill total)
+  - income rows: same as `home_amount_cents` (excluded from spend calculations anyway)
+
+  Analytics can toggle between **Total** (`home_amount_cents`) and **Actual** (`actual_amount_cents`) to give different views of spending.
 
 ### Location
 - `google_place_id`, `place_name`, `latitude`, `longitude` — optional venue info
@@ -102,6 +113,8 @@ For analytics, you can filter:
 - "My actual spending" = `where source = 'manual'`
 - "My out-of-pocket spending" = `where type = 'expense'`
 - "My net spending" = sum(expense) - sum(income), regardless of source
+- "Total view" = sum(`home_amount_cents`) where type = 'expense' (includes full split bill amounts for payers)
+- "Actual view" = sum(`actual_amount_cents`) where type = 'expense' (payer's own share only for split bills)
 
 ## Type: 'expense' vs 'income'
 

@@ -35,6 +35,7 @@ create table contacts (
 - `unique (owner_id, friend_id)` — can't have duplicate contact entries
 - `check (owner_id <> friend_id)` — can't add yourself as a contact
 - Both FKs cascade — if either user deletes their account, the contact rows go away
+- **No `deleted_at` column** — contacts are hard-deleted, not soft-deleted. Never use `deleted_at is null` when querying this table in RPCs or Flutter code.
 
 ## The auto-bidirectional model
 

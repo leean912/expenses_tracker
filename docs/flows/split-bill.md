@@ -127,7 +127,11 @@ Database state:
 split_bills:        1 new row
 split_bill_shares:  3 new rows (Alice settled, Bob+Charlie pending)
 expenses:           1 new row (Alice's full RM 120 expense, source='split_payer')
+                    → amount_cents = 12000 (full bill)
+                    → actual_amount_cents = 4000 (Alice's own share only)
 ```
+
+The `actual_amount_cents` on the payer's expense reflects only their own share. This lets analytics show either "Total" (what they paid out) or "Actual" (their real out-of-pocket cost).
 
 Bob and Charlie can now see the bill in their app under "Pending splits."
 

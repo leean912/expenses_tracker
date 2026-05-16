@@ -17,7 +17,7 @@ class AppShell extends ConsumerWidget {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      enableDrag: false,
+      enableDrag: true,
       backgroundColor: Colors.transparent,
       builder: (_) => const AddExpenseSheet(),
     );

@@ -66,6 +66,7 @@ await supabase.from('expenses').insert({
   'currency': 'MYR',
   'home_amount_cents': 5000,
   'home_currency': 'MYR',
+  'actual_amount_cents': 5000,  // same as home_amount_cents for personal expenses
   'conversion_rate': null,  // same currency
   'category_id': foodCategoryId,
   'account_id': maybankAccountId,
@@ -123,6 +124,7 @@ await supabase.from('expenses').insert({
   'currency': 'JPY',
   'home_amount_cents': homeAmountCents, // RM 100 = 10000 cents in MYR
   'home_currency': 'MYR',
+  'actual_amount_cents': homeAmountCents, // same as home_amount_cents for personal expenses
   'conversion_rate': rate,              // 30
   'category_id': travelCategoryId,
   'note': 'Taxi from airport',

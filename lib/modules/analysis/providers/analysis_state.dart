@@ -8,12 +8,17 @@ class AnalysisFilter {
     this.customStart,
     this.customEnd,
     this.includeCollabExpenses = true,
+    this.useActualAmount = false,
   });
 
   final AnalysisPeriod period;
   final DateTime? customStart;
   final DateTime? customEnd;
   final bool includeCollabExpenses;
+
+  /// When true, analytics use actual_amount_cents (user's real share).
+  /// When false, analytics use home_amount_cents (full recorded amount).
+  final bool useActualAmount;
 
   static String _iso(DateTime d) =>
       '${d.year.toString().padLeft(4, '0')}-'
@@ -35,11 +40,12 @@ class AnalysisFilter {
       other.period == period &&
       other.customStart == customStart &&
       other.customEnd == customEnd &&
-      other.includeCollabExpenses == includeCollabExpenses;
+      other.includeCollabExpenses == includeCollabExpenses &&
+      other.useActualAmount == useActualAmount;
 
   @override
   int get hashCode =>
-      Object.hash(period, customStart, customEnd, includeCollabExpenses);
+      Object.hash(period, customStart, customEnd, includeCollabExpenses, useActualAmount);
 }
 
 extension AnalysisPeriodLabel on AnalysisPeriod {
