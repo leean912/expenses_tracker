@@ -66,7 +66,7 @@ final budgetsProvider = FutureProvider.autoDispose<List<BudgetItem>>((
     final (start, end) = ranges[period]!;
     final expenses = await supabase
         .from('expenses')
-        .select('category_id, home_amount_cents, type')
+        .select('category_id, home_amount_cents, actual_amount_cents, type')
         .isFilter('deleted_at', null)
         .isFilter('archived_at', null)
         .gte('expense_date', start)
@@ -77,7 +77,10 @@ final budgetsProvider = FutureProvider.autoDispose<List<BudgetItem>>((
     final Map<String, int> byCategory = {};
     for (final e in (expenses as List)) {
       final catId = e['category_id'] as String?;
-      final cents = (e['home_amount_cents'] as num).toInt();
+      final homeCents = (e['home_amount_cents'] as num).toInt();
+      final cents = e['actual_amount_cents'] != null
+          ? (e['actual_amount_cents'] as num).toInt()
+          : homeCents;
       final isIncome = e['type'] == 'income';
       if (isIncome) {
         total -= cents;

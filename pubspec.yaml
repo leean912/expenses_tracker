@@ -1,7 +1,7 @@
 name: jomspendz
 description: "JomSpendz — Financial habits app for Malaysians."
 publish_to: 'none'
-version: 0.3.1+33
+version: 0.3.2+34
 
 environment:
   sdk: ^3.10.4

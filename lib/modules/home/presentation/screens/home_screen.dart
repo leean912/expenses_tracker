@@ -11,6 +11,7 @@ import '../../../../service_locator.dart';
 import '../../../auth/providers/auth_provider.dart';
 import '../../../auth/providers/states/auth_state.dart';
 import '../../../expenses/presentation/widgets/edit_expense_sheet.dart';
+import 'category_expenses_screen.dart';
 import '../../../subscription/providers/subscription_provider.dart';
 import '../../providers/home/home_provider.dart';
 import '../../providers/home/home_state.dart';
@@ -263,8 +264,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         budgets: homeData.budgets,
                         onAnalyticsTap: () =>
                             context.push(budgetAnalyticsRoute),
-                        onBudgetTap: (_) async {
-                          await context.push(budgetsRoute);
+                        onBudgetTap: (budget) async {
+                          await context.push(
+                            categoryExpensesRoute,
+                            extra: CategoryExpensesRouteArgs(
+                              filter: _filter,
+                              budget: budget,
+                            ),
+                          );
                           if (mounted) {
                             ref.invalidate(homeDataProvider(_filter));
                           }

@@ -91,12 +91,12 @@ class GreetingHeader extends StatelessWidget {
               ],
             ),
           ),
-          _CircleIconButton(
-            background: AppColors.entertainmentLight,
-            iconColor: AppColors.entertainmentDark,
-            icon: Icons.notifications_none_rounded,
-            onTap: onBellTap,
-          ),
+          // _CircleIconButton(
+          //   background: AppColors.entertainmentLight,
+          //   iconColor: AppColors.entertainmentDark,
+          //   icon: Icons.notifications_none_rounded,
+          //   onTap: onBellTap,
+          // ),
           const SizedBox(width: AppSpacing.md),
           _CircleIconButton(
             background: AppColors.foodLight,

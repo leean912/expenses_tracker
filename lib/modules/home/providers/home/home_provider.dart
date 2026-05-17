@@ -106,16 +106,20 @@ final homeDataProvider = FutureProvider.family<HomeData, HomeFilter>((
   // ── Analytics ─────────────────────────────────────────────────────────────
 
   int totalCents = 0;
+  int budgetTotalCents = 0;
   final Map<String, ({int cents, String name})> spendByCategory = {};
+  final Map<String, ({int cents, String name})> budgetSpendByCategory = {};
 
   for (final r in expenseRows) {
     final row = r as Map<String, dynamic>;
-    final cents = row['home_amount_cents'] as int? ?? 0;
+    final homeCents = row['home_amount_cents'] as int? ?? 0;
+    final actualCents = row['actual_amount_cents'] as int? ?? homeCents;
     final isIncome = row['type'] == 'income';
 
     if (isIncome) continue;
 
-    totalCents += cents;
+    totalCents += homeCents;
+    budgetTotalCents += actualCents;
 
     final catId = row['category_id'] as String? ?? '';
     final catName =
@@ -123,7 +127,12 @@ final homeDataProvider = FutureProvider.family<HomeData, HomeFilter>((
         catId;
     final existing = spendByCategory[catId];
     spendByCategory[catId] = (
-      cents: (existing?.cents ?? 0) + cents,
+      cents: (existing?.cents ?? 0) + homeCents,
+      name: catName,
+    );
+    final existingBudget = budgetSpendByCategory[catId];
+    budgetSpendByCategory[catId] = (
+      cents: (existingBudget?.cents ?? 0) + actualCents,
       name: catName,
     );
   }
@@ -179,8 +188,8 @@ final homeDataProvider = FutureProvider.family<HomeData, HomeFilter>((
         final color =
             _hexToColor(catMap?['color'] as String?) ?? const Color(0xFF888780);
         final spentCents = catId == null
-            ? totalCents
-            : (spendByCategory[catId]?.cents ?? 0);
+            ? budgetTotalCents
+            : (budgetSpendByCategory[catId]?.cents ?? 0);
 
         return BudgetMini(
           id: row['id'] as String,
@@ -189,6 +198,7 @@ final homeDataProvider = FutureProvider.family<HomeData, HomeFilter>((
           limitCents: row['limit_cents'] as int,
           barColor: color,
           labelColor: _darken(color),
+          categoryId: catId,
           isOverall: catId == null,
         );
       }).toList()..sort((a, b) {

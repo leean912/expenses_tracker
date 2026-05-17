@@ -218,7 +218,7 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
               options: const [
                 (ExportTransactionType.all, 'All'),
                 (ExportTransactionType.expensesOnly, 'Expenses'),
-                (ExportTransactionType.incomeOnly, 'Income'),
+                (ExportTransactionType.incomeOnly, 'Settlements'),
               ],
               selected: filter.transactionType,
               onSelect: (v) =>

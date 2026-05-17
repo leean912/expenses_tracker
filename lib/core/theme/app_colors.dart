@@ -57,6 +57,8 @@ class AppColors {
   static const Color positiveDark = Color(0xFF3B6D11);
   static const Color premiumStatus = Color(0xFFBA7517);
   static const Color pendingStatus = Color(0xFFF59E0B);
+  static const Color overdueLight = Color(0xFFFFE8E8);
+  static const Color overdueDark = Color(0xFFB91C1C);
 }
 
 /// Spacing tokens (4pt grid).

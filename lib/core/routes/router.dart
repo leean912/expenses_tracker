@@ -16,6 +16,7 @@ import '../../modules/collabs/presentation/screens/collab_members_screen.dart';
 import '../../modules/contacts/presentation/screens/contacts_screen.dart';
 import '../../modules/contacts/presentation/screens/group_detail_screen.dart';
 import '../../modules/export/presentation/screens/export_screen.dart';
+import '../../modules/home/presentation/screens/category_expenses_screen.dart';
 import '../../modules/home/presentation/screens/collabs_screen.dart';
 import '../../modules/home/presentation/screens/home_screen.dart';
 import '../../modules/home/presentation/screens/more_screen.dart';
@@ -68,6 +69,16 @@ final router = GoRouter(
     GoRoute(
       path: budgetAnalyticsRoute,
       builder: (context, state) => const BudgetAnalyticsScreen(),
+    ),
+    GoRoute(
+      path: categoryExpensesRoute,
+      builder: (context, state) {
+        final args = state.extra! as CategoryExpensesRouteArgs;
+        return CategoryExpensesScreen(
+          filter: args.filter,
+          budget: args.budget,
+        );
+      },
     ),
     GoRoute(
       path: settingsCategoriesRoute,

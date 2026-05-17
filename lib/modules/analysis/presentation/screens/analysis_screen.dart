@@ -181,8 +181,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                                   child: Checkbox(
                                     value: _includeCollabExpenses,
                                     onChanged: (v) => setState(
-                                      () =>
-                                          _includeCollabExpenses = v ?? false,
+                                      () => _includeCollabExpenses = v ?? false,
                                     ),
                                     activeColor: AppColors.accent,
                                     shape: RoundedRectangleBorder(
@@ -264,7 +263,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                             'Where your money goes — tap a slice to see the exact amount and share for each category. ',
                       ),
                       TextSpan(
-                        text: 'Income is excluded.',
+                        text: 'Settlements is excluded.',
                         style: TextStyle(fontWeight: FontWeight.w600),
                       ),
                     ],
@@ -281,7 +280,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                             'Which account you spend from the most — tap a slice to see amount and share. ',
                       ),
                       TextSpan(
-                        text: 'Income is excluded.',
+                        text: 'Settlements is excluded.',
                         style: TextStyle(fontWeight: FontWeight.w600),
                       ),
                     ],
@@ -353,10 +352,7 @@ class _ChartSection extends StatefulWidget {
 }
 
 class _AmountToggle extends StatelessWidget {
-  const _AmountToggle({
-    required this.useActualAmount,
-    required this.onChanged,
-  });
+  const _AmountToggle({required this.useActualAmount, required this.onChanged});
 
   final bool useActualAmount;
   final ValueChanged<bool> onChanged;

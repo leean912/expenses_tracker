@@ -151,6 +151,7 @@ class BudgetMini {
     required this.limitCents,
     required this.barColor,
     this.labelColor,
+    this.categoryId,
     this.isOverall = false,
   });
 
@@ -160,6 +161,7 @@ class BudgetMini {
   final int limitCents;
   final Color barColor;
   final Color? labelColor;
+  final String? categoryId;
   final bool isOverall;
 
   double get progress =>

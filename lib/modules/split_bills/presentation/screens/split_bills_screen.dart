@@ -564,6 +564,8 @@ class _ShareCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isPending = item.share.isPending;
+    final isOverdue = isPending &&
+        DateTime.now().difference(item.expenseDate).inDays > 5;
 
     return GestureDetector(
       onTap: () => context.push('$splitBillsRoute/${item.billId}'),
@@ -573,7 +575,11 @@ class _ShareCard extends StatelessWidget {
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(AppRadius.xl),
           border: Border.all(
-            color: isPending ? AppColors.pendingStatus : AppColors.border,
+            color: isOverdue
+                ? AppColors.overdueDark
+                : isPending
+                    ? AppColors.pendingStatus
+                    : AppColors.border,
           ),
         ),
         child: Column(
@@ -592,7 +598,7 @@ class _ShareCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: AppSpacing.md),
-                _StatusBadge(isPending: isPending),
+                _StatusBadge(isPending: isPending, isOverdue: isOverdue),
               ],
             ),
             const SizedBox(height: AppSpacing.sm),
@@ -615,6 +621,14 @@ class _ShareCard extends StatelessWidget {
                 ),
               ],
             ),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              _dateFmt.format(item.expenseDate),
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.textTertiary,
+              ),
+            ),
           ],
         ),
       ),
@@ -623,26 +637,45 @@ class _ShareCard extends StatelessWidget {
 }
 
 class _StatusBadge extends StatelessWidget {
-  const _StatusBadge({required this.isPending});
+  const _StatusBadge({required this.isPending, this.isOverdue = false});
   final bool isPending;
+  final bool isOverdue;
 
   @override
   Widget build(BuildContext context) {
+    final Color bgColor;
+    final Color textColor;
+    final String label;
+
+    if (!isPending) {
+      bgColor = AppColors.positiveLight;
+      textColor = AppColors.positiveDark;
+      label = 'Settled';
+    } else if (isOverdue) {
+      bgColor = AppColors.overdueLight;
+      textColor = AppColors.overdueDark;
+      label = 'Overdue';
+    } else {
+      bgColor = AppColors.pendingStatus;
+      textColor = AppColors.accentText;
+      label = 'Pending';
+    }
+
     return Container(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.md,
         vertical: AppSpacing.xs,
       ),
       decoration: BoxDecoration(
-        color: isPending ? AppColors.pendingStatus : AppColors.positiveLight,
+        color: bgColor,
         borderRadius: BorderRadius.circular(AppRadius.pill),
       ),
       child: Text(
-        isPending ? 'Pending' : 'Settled',
+        label,
         style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w500,
-          color: isPending ? AppColors.accentText : AppColors.positiveDark,
+          color: textColor,
         ),
       ),
     );

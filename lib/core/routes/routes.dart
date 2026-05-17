@@ -27,3 +27,4 @@ const String consentRoute = '/consent';
 const String forceUpdateRoute = '/force-update';
 const String budgetAnalyticsRoute = '/budget-analytics';
 const String collabAnalyticsRoute = '/collab-analytics';
+const String categoryExpensesRoute = '/category-expenses';

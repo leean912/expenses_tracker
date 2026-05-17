@@ -49,12 +49,22 @@ class BudgetGrid extends StatelessWidget {
                 ),
                 TextButton.icon(
                   onPressed: onAnalyticsTap,
-                  label: const Text(
-                    'Paces',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: AppColors.textSecondary,
-                    ),
+                  label: Row(
+                    spacing: 4,
+                    children: [
+                      Icon(
+                        Icons.stacked_line_chart,
+                        size: 12,
+                        color: AppColors.accent,
+                      ),
+                      const Text(
+                        'Paces',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
                   ),
                   icon: const Icon(
                     Icons.arrow_forward_ios_rounded,

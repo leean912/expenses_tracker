@@ -21,16 +21,17 @@ class BudgetVsActualCard extends StatelessWidget {
     final rm = cents / 100;
     if (rm >= 10000) return 'RM ${(rm / 1000).toStringAsFixed(1)}K';
     if (rm >= 1000) {
-      final formatted = rm.toStringAsFixed(0);
+      final formatted = rm.toStringAsFixed(2);
+      final parts = formatted.split('.');
       final buf = StringBuffer();
-      final chars = formatted.split('').reversed.toList();
+      final chars = parts[0].split('').reversed.toList();
       for (var i = 0; i < chars.length; i++) {
         if (i > 0 && i % 3 == 0) buf.write(',');
         buf.write(chars[i]);
       }
-      return 'RM ${buf.toString().split('').reversed.join()}';
+      return 'RM ${buf.toString().split('').reversed.join()}.${parts[1]}';
     }
-    return 'RM ${rm.toStringAsFixed(0)}';
+    return 'RM ${rm.toStringAsFixed(2)}';
   }
 
   Color _barColor(double progress) {

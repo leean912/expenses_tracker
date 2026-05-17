@@ -41,17 +41,27 @@ class _CollabAnalysisScreenState extends ConsumerState<CollabAnalysisScreen> {
   }
 
   CollabAnalysisFilter get _filter => CollabAnalysisFilter(
-        collabId: collab.id,
-        defaultStart: _defaultStart,
-        defaultEnd: _defaultEnd,
-        customStart: _customRange?.start,
-        customEnd: _customRange?.end,
-      );
+    collabId: collab.id,
+    defaultStart: _defaultStart,
+    defaultEnd: _defaultEnd,
+    customStart: _customRange?.start,
+    customEnd: _customRange?.end,
+  );
 
   String _fmtDate(DateTime d) {
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return '${d.day} ${months[d.month - 1]} ${d.year}';
   }
@@ -78,8 +88,9 @@ class _CollabAnalysisScreenState extends ConsumerState<CollabAnalysisScreen> {
     DateTime clamp(DateTime d) =>
         d.isBefore(firstDate) ? firstDate : (d.isAfter(now) ? now : d);
     final safeStart = clamp(_defaultStart);
-    final safeEnd =
-        clamp(_defaultEnd).isBefore(safeStart) ? safeStart : clamp(_defaultEnd);
+    final safeEnd = clamp(_defaultEnd).isBefore(safeStart)
+        ? safeStart
+        : clamp(_defaultEnd);
 
     final range = await showDateRangePicker(
       context: context,
@@ -90,8 +101,9 @@ class _CollabAnalysisScreenState extends ConsumerState<CollabAnalysisScreen> {
           _customRange ?? DateTimeRange(start: safeStart, end: safeEnd),
       builder: (context, child) => Theme(
         data: Theme.of(context).copyWith(
-          colorScheme:
-              Theme.of(context).colorScheme.copyWith(primary: AppColors.accent),
+          colorScheme: Theme.of(
+            context,
+          ).colorScheme.copyWith(primary: AppColors.accent),
         ),
         child: Center(
           child: Padding(
@@ -266,12 +278,15 @@ class _CollabAnalysisScreenState extends ConsumerState<CollabAnalysisScreen> {
                 ),
                 if (data.totalIncomeCents > 0)
                   _SummaryChip(
-                    label: 'Income',
+                    label: 'Settlements',
                     value: '$currency ${_fmtCents(data.totalIncomeCents)}',
                     color: AppColors.positiveDark,
                   ),
                 ...data.memberPeriodSeries.map((s) {
-                  final memberTotal = s.spendCentsByBucket.fold(0, (a, b) => a + b);
+                  final memberTotal = s.spendCentsByBucket.fold(
+                    0,
+                    (a, b) => a + b,
+                  );
                   return _SummaryChip(
                     label: s.displayName,
                     value: '$currency ${_fmtCents(memberTotal)}',
@@ -516,10 +531,7 @@ class _SummaryChip extends StatelessWidget {
         children: [
           Text(
             label,
-            style: const TextStyle(
-              fontSize: 10,
-              color: AppColors.textTertiary,
-            ),
+            style: const TextStyle(fontSize: 10, color: AppColors.textTertiary),
           ),
           const SizedBox(height: 2),
           Text(
