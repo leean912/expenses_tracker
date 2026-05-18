@@ -7,7 +7,7 @@ import '../../../../core/routes/routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../data/models/my_share_item.dart';
 import '../../data/models/split_bill_model.dart';
-import '../../providers/split_bills_provider.dart';
+import '../../providers/split_bills_provider.dart' show myBillsProvider, mySharesProvider;
 
 // enum _ViewMode { byBills, byFriends }
 
@@ -40,7 +40,27 @@ class _SplitBillsScreenState extends ConsumerState<SplitBillsScreen>
 
   @override
   Widget build(BuildContext context) {
-    final async = ref.watch(splitBillsProvider);
+    final billsAsync = ref.watch(myBillsProvider);
+    final sharesAsync = ref.watch(mySharesProvider);
+
+    final isLoading =
+        (billsAsync.isLoading && billsAsync.valueOrNull == null) ||
+        (sharesAsync.isLoading && sharesAsync.valueOrNull == null);
+    final hasError =
+        (billsAsync.hasError && billsAsync.valueOrNull == null) ||
+        (sharesAsync.hasError && sharesAsync.valueOrNull == null);
+
+    final isPending = _filterMode == _FilterMode.pending;
+    final allBills = billsAsync.valueOrNull?.items ?? [];
+    final allShares = sharesAsync.valueOrNull?.items ?? [];
+
+    final filteredBills = allBills.where((b) {
+      final allSettled = b.shares.isNotEmpty && b.settledCount == b.shares.length;
+      return isPending ? !allSettled : allSettled;
+    }).toList();
+    final filteredShares = allShares.where((s) {
+      return isPending ? s.share.isPending : !s.share.isPending;
+    }).toList();
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -87,29 +107,28 @@ class _SplitBillsScreenState extends ConsumerState<SplitBillsScreen>
           ],
         ),
       ),
-      body: async.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) =>
-            _ErrorView(onRetry: () => ref.invalidate(splitBillsProvider)),
-        data: (data) {
-          final isPending = _filterMode == _FilterMode.pending;
-          final filteredBills = data.myBills.where((b) {
-            final allSettled =
-                b.shares.isNotEmpty && b.settledCount == b.shares.length;
-            return isPending ? !allSettled : allSettled;
-          }).toList();
-          final filteredShares = data.myShares.where((s) {
-            return isPending ? s.share.isPending : !s.share.isPending;
-          }).toList();
-          return TabBarView(
-            controller: _tabs,
-            children: [
-              _IPaidTab(bills: filteredBills),
-              _IOweTab(shares: filteredShares),
-            ],
-          );
-        },
-      ),
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : hasError
+          ? _ErrorView(
+              onRetry: () {
+                ref.invalidate(myBillsProvider);
+                ref.invalidate(mySharesProvider);
+              },
+            )
+          : TabBarView(
+              controller: _tabs,
+              children: [
+                _IPaidTab(
+                  bills: filteredBills,
+                  hasMore: billsAsync.valueOrNull?.hasMore ?? false,
+                ),
+                _IOweTab(
+                  shares: filteredShares,
+                  hasMore: sharesAsync.valueOrNull?.hasMore ?? false,
+                ),
+              ],
+            ),
     );
   }
 }
@@ -323,14 +342,15 @@ class _ErrorView extends StatelessWidget {
 // ── Tab: I Paid ────────────────────────────────────────────────────────────────
 
 class _IPaidTab extends ConsumerWidget {
-  const _IPaidTab({required this.bills});
+  const _IPaidTab({required this.bills, required this.hasMore});
   final List<SplitBillModel> bills;
+  final bool hasMore;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (bills.isEmpty) {
       return RefreshIndicator(
-        onRefresh: () async => ref.invalidate(splitBillsProvider),
+        onRefresh: () async => ref.invalidate(myBillsProvider),
         child: ListView(
           children: const [
             SizedBox(height: 120),
@@ -344,18 +364,41 @@ class _IPaidTab extends ConsumerWidget {
         ),
       );
     }
-    return RefreshIndicator(
-      onRefresh: () async => ref.invalidate(splitBillsProvider),
-      child: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.xl,
-          AppSpacing.md,
-          AppSpacing.xl,
-          AppSpacing.xl,
+    return NotificationListener<ScrollNotification>(
+      onNotification: (n) {
+        if (n is ScrollUpdateNotification &&
+            n.metrics.pixels >= n.metrics.maxScrollExtent - 300) {
+          ref.read(myBillsProvider.notifier).fetchMore();
+        }
+        return false;
+      },
+      child: RefreshIndicator(
+        onRefresh: () async => ref.invalidate(myBillsProvider),
+        child: ListView.separated(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.xl,
+            AppSpacing.md,
+            AppSpacing.xl,
+            AppSpacing.xl,
+          ),
+          itemCount: bills.length + (hasMore ? 1 : 0),
+          separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
+          itemBuilder: (context, i) {
+            if (i == bills.length) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 20),
+                child: Center(
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
+              );
+            }
+            return _BillCard(bill: bills[i]);
+          },
         ),
-        itemCount: bills.length,
-        separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
-        itemBuilder: (context, i) => _BillCard(bill: bills[i]),
       ),
     );
   }
@@ -364,14 +407,15 @@ class _IPaidTab extends ConsumerWidget {
 // ── Tab: I Owe ─────────────────────────────────────────────────────────────────
 
 class _IOweTab extends ConsumerWidget {
-  const _IOweTab({required this.shares});
+  const _IOweTab({required this.shares, required this.hasMore});
   final List<MyShareItem> shares;
+  final bool hasMore;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (shares.isEmpty) {
       return RefreshIndicator(
-        onRefresh: () async => ref.invalidate(splitBillsProvider),
+        onRefresh: () async => ref.invalidate(mySharesProvider),
         child: ListView(
           children: const [
             SizedBox(height: 120),
@@ -385,18 +429,41 @@ class _IOweTab extends ConsumerWidget {
         ),
       );
     }
-    return RefreshIndicator(
-      onRefresh: () async => ref.invalidate(splitBillsProvider),
-      child: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.xl,
-          AppSpacing.md,
-          AppSpacing.xl,
-          AppSpacing.xl,
+    return NotificationListener<ScrollNotification>(
+      onNotification: (n) {
+        if (n is ScrollUpdateNotification &&
+            n.metrics.pixels >= n.metrics.maxScrollExtent - 300) {
+          ref.read(mySharesProvider.notifier).fetchMore();
+        }
+        return false;
+      },
+      child: RefreshIndicator(
+        onRefresh: () async => ref.invalidate(mySharesProvider),
+        child: ListView.separated(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.xl,
+            AppSpacing.md,
+            AppSpacing.xl,
+            AppSpacing.xl,
+          ),
+          itemCount: shares.length + (hasMore ? 1 : 0),
+          separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
+          itemBuilder: (context, i) {
+            if (i == shares.length) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 20),
+                child: Center(
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
+              );
+            }
+            return _ShareCard(item: shares[i]);
+          },
         ),
-        itemCount: shares.length,
-        separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
-        itemBuilder: (context, i) => _ShareCard(item: shares[i]),
       ),
     );
   }

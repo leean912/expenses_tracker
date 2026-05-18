@@ -54,9 +54,26 @@ In SQL Editor as anonymous (logged out):
 select * from profiles;        -- should return 0 rows
 ```
 
-## RPC Catalog (24 functions)
+## RPC Catalog (28 functions)
 
 All RPCs are `security definer`. They internally validate `auth.uid()` and reject if null. RPCs are called from Flutter via `supabase.rpc('function_name', params: {...})`.
+
+### Analytics (aggregation RPCs)
+
+These RPCs exist to bypass the PostgREST 1000-row response limit. Because they return a single JSON object (computed entirely inside PostgreSQL), they are immune to the limit regardless of how many underlying expense rows exist. Both home and actual amounts are always returned so Flutter can toggle between display modes without re-fetching.
+
+SQL source: `docs/plans/HOME_RPC.sql` and `docs/plans/COLLAB_RPC.sql`.
+
+| RPC | Params | Purpose |
+|---|---|---|
+| `home_analytics(p_start, p_end)` | `date, date` | Home screen: period totals, avg/day, this/last month change, per-category spend. Returns one JSON. |
+| `analysis_summary(p_start, p_end, p_include_collab)` | `date, date, boolean` | Analysis screen: by-category, by-account, daily buckets, daily-per-category buckets. Returns one JSON with pre-aggregated daily rows (max 365/year); Dart does week/month bucketing. |
+| `collab_summary(p_collab_id)` | `uuid` | Collab detail header + members screen: all-time net spend totals + per-member net spend map. No date filter. |
+| `collab_analytics(p_collab_id, p_start, p_end)` | `uuid, date, date` | Collab analysis screen: self-only category/account breakdowns + daily buckets per member. Returns one JSON. |
+
+**JSON field convention for dual-amount RPCs:**
+- `*_total_cents` — uses `home_amount_cents` (full bill amount, e.g. split payer shows full split bill)
+- `*_actual_cents` — uses `actual_amount_cents` (real out-of-pocket, falls back to `home_amount_cents` when null)
 
 ### Currency
 
@@ -168,16 +185,19 @@ final spending = await supabase.rpc('my_account_spending', params: {
 
 ## Direct Queries Reference
 
-For simple lists where RPC is overkill, use direct queries against tables:
+For simple lists where RPC is overkill, use direct queries against tables.
+
+**Important — PostgREST 1000-row limit**: Any `.select()` call returns at most 1000 rows silently. For lists that could grow large (expense history, split bills, collabs), use `.range(from, to)` for pagination with a `hasMore` flag. For export (full dataset), loop with 500-row pages. For analytics/aggregation on unbounded data, always use an RPC.
 
 ```dart
-// My expenses this month
+// My expenses — paginated (30 per page)
 final expenses = await supabase
   .from('expenses')
   .select('*, category:categories(name, icon, color)')
   .gte('expense_date', '2026-04-01')
   .lte('expense_date', '2026-04-30')
-  .order('expense_date', ascending: false);
+  .order('expense_date', ascending: false)
+  .range(0, 29); // page 0: rows 0–29; page 1: rows 30–59; etc.
 
 // My active categories
 final categories = await supabase

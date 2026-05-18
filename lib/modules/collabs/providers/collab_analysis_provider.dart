@@ -83,132 +83,98 @@ class CollabAnalysisData {
   final String currentUserId;
 }
 
+/// Calls the [collab_analytics] RPC and returns pre-aggregated data for the
+/// analysis screen.  Immune to the 1000-row PostgREST limit — aggregation runs
+/// entirely inside PostgreSQL, returning at most 365 daily rows per period.
 final collabAnalysisProvider =
     FutureProvider.family<CollabAnalysisData, CollabAnalysisFilter>((
   ref,
   filter,
 ) async {
-  final rows = await supabase
-      .from('expenses')
-      .select(
-        'home_amount_cents, type, expense_date, '
-        'category_id, account_id, user_id, '
-        'category:categories(name, color), '
-        'account:accounts(name), '
-        'owner:profiles!user_id(display_name)',
-      )
-      .eq('collab_id', filter.collabId)
-      .gte('expense_date', filter.startIso)
-      .lte('expense_date', filter.endIso)
-      .isFilter('deleted_at', null)
-      .isFilter('archived_at', null)
-      .order('expense_date', ascending: true) as List<dynamic>;
-
   final currentUserId = supabase.auth.currentUser?.id ?? '';
   final startDate = filter.effectiveStart;
   final endDate = filter.effectiveEnd;
 
-  int totalSpentCents = 0;
-  int totalIncomeCents = 0;
+  final rpc = await supabase.rpc('collab_analytics', params: {
+    'p_collab_id': filter.collabId,
+    'p_start': filter.startIso,
+    'p_end': filter.endIso,
+  }) as Map<String, dynamic>;
 
-  final Map<String, ({int cents, String name, String? colorHex})> selfCatMap = {};
-  final Map<String, ({int cents, String name})> selfAccountMap = {};
-  final Map<String, String> memberNames = {};
-  final Map<String, List<dynamic>> memberRowsMap = {};
+  int asInt(dynamic v) => (v as num? ?? 0).toInt();
 
-  for (final r in rows) {
-    final row = r as Map<String, dynamic>;
-    final homeCents = row['home_amount_cents'] as int? ?? 0;
-    final isIncome = row['type'] == 'income';
-    final userId = row['user_id'] as String? ?? 'unknown';
-    final ownerData = row['owner'] as Map<String, dynamic>?;
-    final displayName = ownerData?['display_name'] as String? ?? 'Unknown';
+  final totalSpentCents = asInt(rpc['total_spent_cents']);
+  final totalIncomeCents = asInt(rpc['total_income_cents']);
 
-    memberNames[userId] = displayName;
-    memberRowsMap.putIfAbsent(userId, () => []).add(r);
+  // ── Self category breakdown ────────────────────────────────────────────────
 
-    if (isIncome) {
-      totalIncomeCents += homeCents;
-    } else {
-      totalSpentCents += homeCents;
+  final selfCatRows =
+      (rpc['self_category'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
+  final selfCatTotal =
+      selfCatRows.fold<int>(0, (s, r) => s + asInt(r['total_cents']));
 
-      if (userId == currentUserId) {
-        final catId = row['category_id'] as String? ?? 'uncategorized';
-        final catData = row['category'] as Map<String, dynamic>?;
-        final catName = catData?['name'] as String? ?? 'Other';
-        final colorHex = catData?['color'] as String?;
-        final accountId = row['account_id'] as String? ?? 'none';
-        final accountData = row['account'] as Map<String, dynamic>?;
-        final accountName = accountData?['name'] as String? ?? 'No Account';
-
-        final existingCat = selfCatMap[catId];
-        selfCatMap[catId] = (
-          cents: (existingCat?.cents ?? 0) + homeCents,
-          name: catName,
-          colorHex: colorHex ?? existingCat?.colorHex,
-        );
-
-        final existingAcc = selfAccountMap[accountId];
-        selfAccountMap[accountId] = (
-          cents: (existingAcc?.cents ?? 0) + homeCents,
-          name: accountName,
-        );
-      }
-    }
-  }
-
-  // Self category breakdown
-  final selfCatTotal = selfCatMap.values.fold(0, (s, e) => s + e.cents);
-  final selfCategoryBreakdown = selfCatMap.entries
-      .where((e) => e.value.cents > 0)
-      .map((e) {
-        final color = _hexToColor(e.value.colorHex) ?? const Color(0xFF888780);
+  final selfCategoryBreakdown = selfCatRows
+      .where((r) => asInt(r['total_cents']) > 0)
+      .map((r) {
+        final color =
+            _hexToColor(r['category_color'] as String?) ?? const Color(0xFF888780);
+        final cents = asInt(r['total_cents']);
         return CategorySpend(
-          categoryId: e.key,
-          categoryName: e.value.name,
+          categoryId: r['category_id'] as String? ?? '',
+          categoryName: r['category_name'] as String? ?? 'Other',
           color: color,
-          totalCents: e.value.cents,
-          percentage: selfCatTotal <= 0 ? 0 : e.value.cents / selfCatTotal * 100,
+          totalCents: cents,
+          percentage: selfCatTotal <= 0 ? 0 : cents / selfCatTotal * 100,
         );
       })
       .toList()
     ..sort((a, b) => b.totalCents.compareTo(a.totalCents));
 
-  // Self account breakdown
-  final sortedSelfAccounts = selfAccountMap.entries
-      .where((e) => e.value.cents > 0)
+  // ── Self account breakdown ─────────────────────────────────────────────────
+
+  final selfAccRows =
+      (rpc['self_account'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
+  final sortedSelfAccRows = selfAccRows
+      .where((r) => asInt(r['total_cents']) > 0)
       .toList()
-    ..sort((a, b) => b.value.cents.compareTo(a.value.cents));
-  final selfAccountTotal = sortedSelfAccounts.fold(0, (s, e) => s + e.value.cents);
-  final selfAccountBreakdown = sortedSelfAccounts.indexed.map((entry) {
-    final (i, e) = entry;
+    ..sort((a, b) => asInt(b['total_cents']).compareTo(asInt(a['total_cents'])));
+  final selfAccTotal =
+      sortedSelfAccRows.fold<int>(0, (s, r) => s + asInt(r['total_cents']));
+
+  final selfAccountBreakdown = sortedSelfAccRows.indexed.map((entry) {
+    final (i, r) = entry;
+    final cents = asInt(r['total_cents']);
     return CategorySpend(
-      categoryId: e.key,
-      categoryName: e.value.name,
+      categoryId: r['account_id'] as String? ?? '',
+      categoryName: r['account_name'] as String? ?? 'No Account',
       color: _accountPalette[i % _accountPalette.length],
-      totalCents: e.value.cents,
-      percentage: selfAccountTotal <= 0 ? 0 : e.value.cents / selfAccountTotal * 100,
+      totalCents: cents,
+      percentage: selfAccTotal <= 0 ? 0 : cents / selfAccTotal * 100,
     );
   }).toList();
 
-  // Always daily buckets for the bar chart
+  // ── Daily bucket dates ─────────────────────────────────────────────────────
+
   final dayCount = endDate.difference(startDate).inDays + 1;
   final bucketDates = List.generate(
     dayCount > 0 ? dayCount : 0,
     (i) => startDate.add(Duration(days: i)),
   );
 
-  // Per-member total spend (for ordering and filtering)
-  final memberTotalSpend = <String, int>{};
-  for (final entry in memberRowsMap.entries) {
-    final userRows = entry.value;
-    final total = userRows.fold(0, (sum, r) {
-      final row = r as Map<String, dynamic>;
-      return row['type'] != 'income'
-          ? sum + (row['home_amount_cents'] as int? ?? 0)
-          : sum;
-    });
-    memberTotalSpend[entry.key] = total;
+  // ── Per-member period series ───────────────────────────────────────────────
+
+  final dailyMemberBuckets =
+      (rpc['daily_member_buckets'] as List<dynamic>? ?? [])
+          .cast<Map<String, dynamic>>();
+
+  // Accumulate total spend per member to determine sort order and color.
+  final Map<String, String> memberNames = {};
+  final Map<String, int> memberTotalSpend = {};
+  for (final r in dailyMemberBuckets) {
+    final userId = r['user_id'] as String? ?? '';
+    memberNames[userId] = r['display_name'] as String? ?? 'Unknown';
+    memberTotalSpend[userId] =
+        (memberTotalSpend[userId] ?? 0) + asInt(r['spend_cents']);
   }
 
   final sortedMemberEntries = memberTotalSpend.entries
@@ -219,15 +185,19 @@ final collabAnalysisProvider =
   final memberPeriodSeries = sortedMemberEntries.indexed.map((entry) {
     final (colorIdx, memberEntry) = entry;
     final userId = memberEntry.key;
-    final userRows = memberRowsMap[userId] ?? [];
-    final memberBuckets = dayCount > 0
-        ? _bucketByDay(userRows, startDate, dayCount)
-        : <PeriodBucket>[];
+    final userDailyRows =
+        dailyMemberBuckets.where((r) => r['user_id'] == userId).toList();
+    final buckets = _buildMemberBuckets(
+      userDailyRows,
+      startDate,
+      dayCount > 0 ? dayCount : 0,
+      asInt,
+    );
     return MemberPeriodSeries(
       userId: userId,
       displayName: memberNames[userId] ?? 'Unknown',
       color: _memberPalette[colorIdx % _memberPalette.length],
-      spendCentsByBucket: memberBuckets.map((b) => b.spendCents).toList(),
+      spendCentsByBucket: buckets,
     );
   }).toList();
 
@@ -242,42 +212,25 @@ final collabAnalysisProvider =
   );
 });
 
-// ── Period bucket builders ────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
-List<PeriodBucket> _bucketByDay(
-  List<dynamic> rows,
+List<int> _buildMemberBuckets(
+  List<Map<String, dynamic>> dailyRows,
   DateTime startDate,
   int count,
+  int Function(dynamic) asInt,
 ) {
-  const weekdayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  final spendBuckets = List.filled(count, 0);
-  final incomeBuckets = List.filled(count, 0);
-
-  for (final r in rows) {
-    final row = r as Map<String, dynamic>;
-    final date = DateTime.parse(row['expense_date'] as String);
+  final buckets = List.filled(count, 0);
+  for (final r in dailyRows) {
+    final date = DateTime.parse(r['bucket_date'] as String);
     final idx = date.difference(startDate).inDays;
     if (idx < 0 || idx >= count) continue;
-    final cents = row['home_amount_cents'] as int? ?? 0;
-    if (row['type'] == 'income') {
-      incomeBuckets[idx] += cents;
-    } else {
-      spendBuckets[idx] += cents;
-    }
+    buckets[idx] += asInt(r['spend_cents']);
   }
-
-  return List.generate(count, (i) {
-    final date = startDate.add(Duration(days: i));
-    final label = count <= 7 ? weekdayLabels[date.weekday - 1] : '${date.day}';
-    return PeriodBucket(
-      label: label,
-      spendCents: spendBuckets[i],
-      incomeCents: incomeBuckets[i],
-    );
-  });
+  return buckets;
 }
 
-// ── Palettes & helpers ────────────────────────────────────────────────────────
+// ── Palettes & color helpers ──────────────────────────────────────────────────
 
 const _memberPalette = [
   Color(0xFF5B8CFF),

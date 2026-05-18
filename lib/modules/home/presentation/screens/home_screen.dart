@@ -48,19 +48,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         bannerSliver.geometry != null) {
       final opacity =
           headerSliver.constraints.scrollOffset >
-              bannerSliver.geometry!.scrollExtent
-          ? 1.0
-          : 0.0;
+                  bannerSliver.geometry!.scrollExtent
+              ? 1.0
+              : 0.0;
       if (opacity != _compactOpacity) setState(() => _compactOpacity = opacity);
     }
+
+    // Trigger next page when within 300 px of the bottom.
+    if (notification is ScrollUpdateNotification) {
+      final m = notification.metrics;
+      if (m.pixels >= m.maxScrollExtent - 300) {
+        ref.read(homeExpensesProvider(_filter).notifier).fetchMore();
+      }
+    }
+
     return false;
   }
 
   HomeFilter get _filter => HomeFilter(
-    period: _selectedPeriod,
-    customStart: _customRange?.start,
-    customEnd: _customRange?.end,
-  );
+        period: _selectedPeriod,
+        customStart: _customRange?.start,
+        customEnd: _customRange?.end,
+      );
 
   Future<void> _onPeriodSelected(TimePeriod period) async {
     if (period == TimePeriod.custom) {
@@ -122,7 +131,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         .from('expenses')
         .update({'deleted_at': DateTime.now().toIso8601String()})
         .eq('id', id);
-    ref.invalidate(homeDataProvider(_filter));
+    ref.read(homeExpensesProvider(_filter).notifier).removeExpense(id);
+    ref.invalidate(homeAnalyticsProvider(_filter));
   }
 
   String get _periodTitle {
@@ -157,10 +167,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final displayName = authUser?.displayName;
     final isPremium = ref.watch(isPremiumProvider);
 
-    final homeAsync = ref.watch(homeDataProvider(_filter));
-    final homeData = homeAsync.valueOrNull;
-    final isLoading = homeAsync.isLoading;
-    final hasError = homeAsync.hasError && homeData == null;
+    final analyticsAsync = ref.watch(homeAnalyticsProvider(_filter));
+    final analyticsData = analyticsAsync.valueOrNull;
+
+    final expensesAsync = ref.watch(homeExpensesProvider(_filter));
+    final expensesState = expensesAsync.valueOrNull;
+
+    final isLoading = analyticsAsync.isLoading || expensesAsync.isLoading;
+    final hasError = analyticsAsync.hasError && analyticsData == null;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -171,13 +185,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           child: RefreshIndicator(
             color: AppColors.accent,
             onRefresh: () async {
-              ref.invalidate(homeDataProvider(_filter));
-              await ref.read(homeDataProvider(_filter).future);
+              ref.invalidate(homeAnalyticsProvider(_filter));
+              ref.invalidate(homeExpensesProvider(_filter));
+              await Future.wait([
+                ref.read(homeAnalyticsProvider(_filter).future),
+                ref.read(homeExpensesProvider(_filter).future),
+              ]);
             },
             child: CustomScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
               slivers: [
-                // Thin loading bar shown while refetching (period switch).
                 if (isLoading)
                   const SliverToBoxAdapter(
                     child: LinearProgressIndicator(
@@ -200,8 +217,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           ),
                           const SizedBox(height: 12),
                           TextButton(
-                            onPressed: () =>
-                                ref.invalidate(homeDataProvider(_filter)),
+                            onPressed: () {
+                              ref.invalidate(homeAnalyticsProvider(_filter));
+                              ref.invalidate(homeExpensesProvider(_filter));
+                            },
                             child: const Text('Retry'),
                           ),
                         ],
@@ -209,7 +228,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ),
                   )
                 else ...[
-                  if (homeData != null)
+                  if (analyticsData != null)
                     SliverAppBar(
                       expandedHeight: 200,
                       collapsedHeight: 60,
@@ -223,7 +242,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           duration: const Duration(milliseconds: 200),
                           child: AnalyticsBannerCompact(
                             key: _pinnedHeaderKey,
-                            summary: homeData.analytics,
+                            summary: analyticsData.analytics,
                           ),
                         ),
                       ),
@@ -239,7 +258,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             ),
                             AnalyticsBanner(
                               key: _analyticsBannerKey,
-                              summary: homeData.analytics,
+                              summary: analyticsData.analytics,
                               onTap: () => context.push(analysisRoute),
                             ),
                           ],
@@ -249,6 +268,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       ),
                       pinned: true,
                     ),
+
                   if (kDebugMode)
                     SliverToBoxAdapter(child: _DevPremiumToggle()),
 
@@ -258,10 +278,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       onSelected: _onPeriodSelected,
                     ),
                   ),
-                  if (homeData != null && _selectedPeriod != TimePeriod.custom)
+
+                  if (analyticsData != null &&
+                      _selectedPeriod != TimePeriod.custom)
                     SliverToBoxAdapter(
                       child: BudgetGrid(
-                        budgets: homeData.budgets,
+                        budgets: analyticsData.budgets,
                         onAnalyticsTap: () =>
                             context.push(budgetAnalyticsRoute),
                         onBudgetTap: (budget) async {
@@ -273,25 +295,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             ),
                           );
                           if (mounted) {
-                            ref.invalidate(homeDataProvider(_filter));
+                            ref.invalidate(homeAnalyticsProvider(_filter));
+                            ref.invalidate(homeExpensesProvider(_filter));
                           }
                         },
                       ),
                     ),
 
-                  if (homeData != null)
+                  if (analyticsData != null)
                     SliverToBoxAdapter(
                       child: PeriodSummaryHeader(
                         title: _periodTitle,
-                        totalCents: homeData.periodTotalCents,
+                        totalCents: analyticsData.periodTotalCents,
                         filter: _filter,
                       ),
                     ),
 
-                  if (homeData != null)
+                  if (expensesState != null)
                     SliverToBoxAdapter(
                       child: ExpenseListCard(
-                        expenses: homeData.expenses,
+                        expenses: expensesState.items,
                         timePeriod: _selectedPeriod,
                         onTileTap: (e) {
                           showModalBottomSheet<void>(
@@ -300,8 +323,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             backgroundColor: Colors.transparent,
                             builder: (_) => EditExpenseSheet(
                               expenseId: e.id,
-                              onSaved: () =>
-                                  ref.invalidate(homeDataProvider(_filter)),
+                              onSaved: () {
+                                ref.invalidate(
+                                    homeAnalyticsProvider(_filter));
+                                ref.invalidate(homeExpensesProvider(_filter));
+                              },
                             ),
                           );
                         },
@@ -309,7 +335,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       ),
                     ),
 
-                  if (homeData == null && isLoading)
+                  // Load-more spinner — visible when scrolled to bottom and
+                  // more pages exist.
+                  if (expensesState?.hasMore == true)
+                    const SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(vertical: 20),
+                        child: Center(
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        ),
+                      ),
+                    ),
+
+                  if (analyticsData == null && analyticsAsync.isLoading)
                     const SliverFillRemaining(
                       hasScrollBody: false,
                       child: Center(child: CircularProgressIndicator()),

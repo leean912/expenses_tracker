@@ -54,8 +54,27 @@ Flutter Layer → Supabase RPC / Query → PostgreSQL → RLS check → Response
 
 **RPCs vs direct queries**:
 - Use RPCs for complex multi-row operations (create_split_bill, settle_split_share, close_collab)
-- Use direct queries for simple lists (recent expenses, my categories, my accounts)
+- Use RPCs for any analytics/aggregation on unbounded data — PostgREST silently truncates direct `.select()` results at 1000 rows
+- Use direct queries with `.range(from, to)` for paginated lists (expense history, collab expenses)
+- Use direct queries for bounded lists that will never exceed 1000 rows (categories, accounts, members)
 - RPCs run as `security definer` so they can enforce business logic that crosses RLS boundaries
+
+**PostgREST 1000-row limit mitigation**:
+
+| Data | Strategy | Why safe |
+|---|---|---|
+| Home analytics | `home_analytics` RPC | Aggregates in PostgreSQL, returns 1 JSON object |
+| Analysis charts | `analysis_summary` RPC | Returns ≤365 daily rows as JSON array inside 1 object |
+| Collab summary | `collab_summary` RPC | Aggregates in PostgreSQL, returns 1 JSON object |
+| Collab analytics | `collab_analytics` RPC | Returns ≤365 daily rows as JSON array inside 1 object |
+| Home expense list | Paginated `.range()` 30/page | Each page ≤30 rows; `hasMore` flag drives infinite scroll |
+| Collab expense list | Paginated `.range()` 30/page | Same pattern |
+| Split bills (I Paid) | Paginated `.range()` 30/page | `myBillsProvider`; pending/settled filter applied client-side |
+| Split bills (I Owe) | Paginated `.range()` 30/page | `mySharesProvider`; same pattern |
+| Collabs list | Paginated `.range()` 30/page | `collabsProvider` returns `CollabsState` with `hasMore` |
+| Export (PDF/CSV) | Paginated loop 500/page | `_fetchAllExportRows` loops until page < 500; assembles full list |
+| Categories / accounts | Direct `.select()` | Bounded by per-user limits (≤16 categories, ≤10 accounts) |
+| Split bill shares | Direct `.select()` | Bounded per bill (number of participants) |
 
 ## Key Design Principles
 
@@ -106,7 +125,13 @@ Each user has their OWN set of categories (auto-seeded with 11 defaults). When c
 
 This prevents cross-user category pollution. Alice's "Food" category and Bob's "Food" category are different rows.
 
-### 6. Accounts are tags, not balance trackers
+### 6. Analytics RPCs, paginated lists for large collections
+
+The PostgREST API truncates any `.select()` response at 1000 rows silently — no error, no warning. For users with many expenses this is a correctness bug, not just a performance issue.
+
+**Rule**: Never compute analytics by fetching raw expense rows. Always use an RPC that aggregates inside PostgreSQL. For UI lists, always paginate with `.range(from, to)` and expose a `hasMore` flag for infinite scroll.
+
+### 7. Accounts are tags, not balance trackers
 
 `accounts` table has no `current_balance` column. Each expense optionally tags an account_id. Analytics like "spending by account this month" sum `expenses.home_amount_cents` per `account_id` — the database never stores running balances.
 

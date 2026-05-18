@@ -18,10 +18,11 @@ import '../../../expenses/providers/accounts_provider.dart';
 import '../../../expenses/providers/categories_provider.dart';
 import '../../../expenses/utils/expense_ui_helpers.dart';
 import '../../../home/providers/home/home_provider.dart';
-import '../../../split_bills/providers/split_bills_provider.dart';
+import '../../../split_bills/providers/split_bills_provider.dart' show myBillsProvider;
 import '../../../subscription/providers/subscription_provider.dart';
 import '../../data/models/collab_model.dart';
 import '../../providers/collab_expenses_provider.dart';
+import '../../providers/collab_summary_provider.dart';
 
 class CollabExpenseSheet extends ConsumerStatefulWidget {
   const CollabExpenseSheet({
@@ -331,6 +332,7 @@ class _CollabExpenseSheetState extends ConsumerState<CollabExpenseSheet>
 
       if (mounted) {
         ref.read(collabExpensesProvider(collab.id).notifier).refresh();
+        ref.invalidate(collabSummaryProvider(collab.id));
         context.pop();
       }
     } catch (_) {
@@ -401,9 +403,11 @@ class _CollabExpenseSheetState extends ConsumerState<CollabExpenseSheet>
       );
 
       if (mounted) {
-        ref.invalidate(splitBillsProvider);
-        ref.invalidate(homeDataProvider);
+        ref.invalidate(myBillsProvider);
+        ref.invalidate(homeAnalyticsProvider);
+        ref.invalidate(homeExpensesProvider);
         ref.read(collabExpensesProvider(collab.id).notifier).refresh();
+        ref.invalidate(collabSummaryProvider(collab.id));
         context.pop();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

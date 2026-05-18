@@ -7,7 +7,7 @@ import '../../../../service_locator.dart';
 import '../../../contacts/data/models/contact_model.dart';
 import '../../../contacts/providers/contacts_provider.dart';
 import '../../data/models/collab_model.dart';
-import '../../providers/collab_expenses_provider.dart';
+import '../../providers/collab_summary_provider.dart';
 import '../../providers/collabs_provider.dart';
 
 class CollabMembersScreen extends ConsumerWidget {
@@ -34,7 +34,7 @@ class CollabMembersScreen extends ConsumerWidget {
         ),
       ),
       data: (collabs) {
-        final collab = collabs.where((c) => c.id == collabId).firstOrNull;
+        final collab = collabs.items.where((c) => c.id == collabId).firstOrNull;
         if (collab == null) {
           return Scaffold(
             backgroundColor: AppColors.background,
@@ -188,15 +188,9 @@ class _MembersBodyState extends ConsumerState<_MembersBody> {
 
   @override
   Widget build(BuildContext context) {
-    final expensesAsync = ref.watch(collabExpensesProvider(collab.id));
+    final summaryAsync = ref.watch(collabSummaryProvider(collab.id));
     final activeMembers = collab.members.where((m) => m.isActive).toList();
-
-    // Compute per-member spending from already-loaded expenses
-    final Map<String, int> spentByUser = {};
-    expensesAsync.valueOrNull?.expenses.forEach((e) {
-      final delta = e.isIncome ? -e.homeAmountCents : e.homeAmountCents;
-      spentByUser[e.userId] = (spentByUser[e.userId] ?? 0) + delta;
-    });
+    final spentByUser = summaryAsync.valueOrNull?.memberSpentCents ?? {};
 
     return Scaffold(
       backgroundColor: AppColors.background,

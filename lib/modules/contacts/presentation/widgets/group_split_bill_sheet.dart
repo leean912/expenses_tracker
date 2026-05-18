@@ -22,7 +22,7 @@ import '../../../expenses/providers/accounts_provider.dart';
 import '../../../expenses/providers/categories_provider.dart';
 import '../../../expenses/utils/expense_ui_helpers.dart';
 import '../../../home/providers/home/home_provider.dart';
-import '../../../split_bills/providers/split_bills_provider.dart';
+import '../../../split_bills/providers/split_bills_provider.dart' show myBillsProvider;
 import '../../data/models/group_model.dart';
 
 class GroupSplitBillSheet extends ConsumerStatefulWidget {
@@ -290,8 +290,9 @@ class _GroupSplitBillSheetState extends ConsumerState<GroupSplitBillSheet> {
         },
       );
       if (mounted) {
-        ref.invalidate(splitBillsProvider);
-        ref.invalidate(homeDataProvider);
+        ref.invalidate(myBillsProvider);
+        ref.invalidate(homeAnalyticsProvider);
+        ref.invalidate(homeExpensesProvider);
         context.pop();
         ScaffoldMessenger.of(
           context,

@@ -4,24 +4,56 @@ import '../../../service_locator.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../data/models/collab_model.dart';
 
-class CollabsNotifier extends AsyncNotifier<List<CollabModel>> {
+class CollabsState {
+  const CollabsState({required this.items, required this.hasMore});
+  final List<CollabModel> items;
+  final bool hasMore;
+}
+
+class CollabsNotifier extends AsyncNotifier<CollabsState> {
+  static const _pageSize = 30;
+  var _page = 0;
+  var _hasMore = true;
+  var _isFetchingMore = false;
+  final _items = <CollabModel>[];
+
   @override
-  Future<List<CollabModel>> build() {
+  Future<CollabsState> build() {
     ref.watch(currentUserIdProvider);
-    return _fetch();
+    _page = 0;
+    _hasMore = true;
+    _isFetchingMore = false;
+    _items.clear();
+    return _fetchPage();
   }
 
-  Future<List<CollabModel>> _fetch() async {
+  Future<CollabsState> _fetchPage() async {
+    final from = _page * _pageSize;
     final rows = await supabase
         .from('collabs')
         .select(
           '*, members:collab_members(id, collab_id, user_id, role, joined_at, left_at, personal_budget_cents, user:profiles(id, username, display_name, avatar_url))',
         )
         .isFilter('deleted_at', null)
-        .order('created_at', ascending: false);
-    return (rows as List)
+        .order('created_at', ascending: false)
+        .range(from, from + _pageSize - 1);
+    final page = (rows as List)
         .map((r) => CollabModel.fromJson(r as Map<String, dynamic>))
         .toList();
+    _items.addAll(page);
+    _hasMore = page.length == _pageSize;
+    return CollabsState(items: List.unmodifiable(_items), hasMore: _hasMore);
+  }
+
+  Future<void> fetchMore() async {
+    if (_isFetchingMore || !_hasMore) return;
+    _isFetchingMore = true;
+    _page++;
+    try {
+      state = AsyncData(await _fetchPage());
+    } finally {
+      _isFetchingMore = false;
+    }
   }
 
   /// Returns null on success, error message on failure.
@@ -57,7 +89,7 @@ class CollabsNotifier extends AsyncNotifier<List<CollabModel>> {
       }
 
       await supabase.from('collabs').insert(payload);
-      state = AsyncData(await _fetch());
+      ref.invalidateSelf();
       return null;
     } catch (e) {
       return 'Something went wrong.';
@@ -91,7 +123,7 @@ class CollabsNotifier extends AsyncNotifier<List<CollabModel>> {
       }
 
       await supabase.from('collabs').update(payload).eq('id', collabId);
-      state = AsyncData(await _fetch());
+      ref.invalidateSelf();
       return null;
     } catch (e) {
       return 'Something went wrong.';
@@ -101,7 +133,7 @@ class CollabsNotifier extends AsyncNotifier<List<CollabModel>> {
   Future<String?> closeCollab(String collabId) async {
     try {
       await supabase.rpc('close_collab', params: {'p_collab_id': collabId});
-      state = AsyncData(await _fetch());
+      ref.invalidateSelf();
       return null;
     } catch (e) {
       return 'Something went wrong.';
@@ -114,7 +146,7 @@ class CollabsNotifier extends AsyncNotifier<List<CollabModel>> {
         'p_collab_id': collabId,
         'p_user_id': userId,
       });
-      state = AsyncData(await _fetch());
+      ref.invalidateSelf();
       return null;
     } catch (e) {
       return 'Something went wrong.';
@@ -127,7 +159,7 @@ class CollabsNotifier extends AsyncNotifier<List<CollabModel>> {
         'p_collab_id': collabId,
         'p_user_id': userId,
       });
-      state = AsyncData(await _fetch());
+      ref.invalidateSelf();
       return null;
     } catch (e) {
       return 'Something went wrong.';
@@ -137,15 +169,21 @@ class CollabsNotifier extends AsyncNotifier<List<CollabModel>> {
   Future<String?> deleteCollab(String collabId) async {
     final current = state.valueOrNull;
     if (current != null) {
-      state = AsyncData(current.where((c) => c.id != collabId).toList());
+      state = AsyncData(
+        CollabsState(
+          items: current.items.where((c) => c.id != collabId).toList(),
+          hasMore: current.hasMore,
+        ),
+      );
     }
     try {
       await supabase.from('collabs').update({
         'deleted_at': DateTime.now().toIso8601String(),
       }).eq('id', collabId);
+      _items.removeWhere((c) => c.id == collabId);
       return null;
     } catch (e) {
-      state = AsyncData(await _fetch());
+      ref.invalidateSelf();
       return 'Something went wrong.';
     }
   }
@@ -153,7 +191,7 @@ class CollabsNotifier extends AsyncNotifier<List<CollabModel>> {
   Future<String?> leaveCollab(String collabId) async {
     try {
       await supabase.rpc('leave_collab', params: {'p_collab_id': collabId});
-      state = AsyncData(await _fetch());
+      ref.invalidateSelf();
       return null;
     } catch (e) {
       return 'Something went wrong.';
@@ -170,7 +208,7 @@ class CollabsNotifier extends AsyncNotifier<List<CollabModel>> {
           .from('collab_members')
           .update({'personal_budget_cents': budgetCents})
           .eq('id', memberId);
-      state = AsyncData(await _fetch());
+      ref.invalidateSelf();
       return null;
     } catch (e) {
       return 'Something went wrong.';
@@ -179,6 +217,4 @@ class CollabsNotifier extends AsyncNotifier<List<CollabModel>> {
 }
 
 final collabsProvider =
-    AsyncNotifierProvider<CollabsNotifier, List<CollabModel>>(
-      CollabsNotifier.new,
-    );
+    AsyncNotifierProvider<CollabsNotifier, CollabsState>(CollabsNotifier.new);

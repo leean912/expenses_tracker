@@ -10,7 +10,8 @@ import '../../../../service_locator.dart';
 import '../../../auth/providers/auth_provider.dart';
 import '../../../auth/providers/states/auth_state.dart';
 import '../../../collabs/data/models/collab_model.dart';
-import '../../../collabs/providers/collabs_provider.dart';
+import '../../../collabs/providers/collabs_provider.dart'
+    show CollabsState, collabsProvider;
 
 enum _CollabFilter { all, ongoing, closed }
 
@@ -52,102 +53,127 @@ class _CollabsScreenState extends ConsumerState<CollabsScreen> {
         ],
       ),
       floatingActionButton: _CreateButton(collabsAsync: collabsAsync),
-      body: collabsAsync.when(
-        skipLoadingOnRefresh: true,
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Failed to load collabs.',
-                style: TextStyle(color: AppColors.textSecondary),
+      body: Builder(
+        builder: (context) {
+          final isLoading =
+              collabsAsync.isLoading && collabsAsync.valueOrNull == null;
+          final hasError =
+              collabsAsync.hasError && collabsAsync.valueOrNull == null;
+
+          if (isLoading) return const Center(child: CircularProgressIndicator());
+          if (hasError) {
+            return Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Failed to load collabs.',
+                    style: TextStyle(color: AppColors.textSecondary),
+                  ),
+                  const SizedBox(height: 12),
+                  TextButton(
+                    onPressed: () => ref.invalidate(collabsProvider),
+                    child: const Text('Retry'),
+                  ),
+                ],
               ),
-              const SizedBox(height: 12),
-              TextButton(
-                onPressed: () => ref.invalidate(collabsProvider),
-                child: const Text('Retry'),
-              ),
-            ],
-          ),
-        ),
-        data: (collabs) {
-          final List<CollabModel> visible;
-          if (_filter == _CollabFilter.ongoing) {
-            visible = collabs.where((c) => c.isActive).toList();
-          } else if (_filter == _CollabFilter.closed) {
-            visible = collabs.where((c) => c.isClosed).toList();
-          } else {
-            visible = collabs;
+            );
           }
 
-          return RefreshIndicator(
-            onRefresh: () => ref.refresh(collabsProvider.future),
-            color: AppColors.accent,
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.xl,
-                AppSpacing.md,
-                AppSpacing.xl,
-                AppSpacing.xxl,
-              ),
-              children: [
-                if (visible.isEmpty)
-                  SizedBox(
-                    height: MediaQuery.of(context).size.height * 0.65,
-                    child: Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 64,
-                            height: 64,
-                            decoration: BoxDecoration(
-                              color: AppColors.surfaceMuted,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.group_work_outlined,
-                              size: 28,
-                              color: AppColors.textTertiary,
-                            ),
-                          ),
-                          const SizedBox(height: AppSpacing.xl),
-                          Text(
-                            _filter == _CollabFilter.closed
-                                ? 'No closed collabs.'
-                                : _filter == _CollabFilter.ongoing
-                                ? 'No ongoing collabs.'
-                                : 'No collabs yet.',
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                          if (_filter != _CollabFilter.closed) ...[
-                            const SizedBox(height: AppSpacing.sm),
-                            const Text(
-                              'Create one to share expenses\nwith friends on a trip or event.',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 13,
+          final allItems = collabsAsync.valueOrNull?.items ?? [];
+          final hasMore = collabsAsync.valueOrNull?.hasMore ?? false;
+
+          final List<CollabModel> visible;
+          if (_filter == _CollabFilter.ongoing) {
+            visible = allItems.where((c) => c.isActive).toList();
+          } else if (_filter == _CollabFilter.closed) {
+            visible = allItems.where((c) => c.isClosed).toList();
+          } else {
+            visible = allItems;
+          }
+
+          return NotificationListener<ScrollNotification>(
+            onNotification: (n) {
+              if (n is ScrollUpdateNotification &&
+                  n.metrics.pixels >= n.metrics.maxScrollExtent - 300) {
+                ref.read(collabsProvider.notifier).fetchMore();
+              }
+              return false;
+            },
+            child: RefreshIndicator(
+              onRefresh: () async => ref.invalidate(collabsProvider),
+              color: AppColors.accent,
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.xl,
+                  AppSpacing.md,
+                  AppSpacing.xl,
+                  AppSpacing.xxl,
+                ),
+                children: [
+                  if (visible.isEmpty)
+                    SizedBox(
+                      height: MediaQuery.of(context).size.height * 0.65,
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 64,
+                              height: 64,
+                              decoration: BoxDecoration(
+                                color: AppColors.surfaceMuted,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.group_work_outlined,
+                                size: 28,
                                 color: AppColors.textTertiary,
                               ),
                             ),
+                            const SizedBox(height: AppSpacing.xl),
+                            Text(
+                              _filter == _CollabFilter.closed
+                                  ? 'No closed collabs.'
+                                  : _filter == _CollabFilter.ongoing
+                                  ? 'No ongoing collabs.'
+                                  : 'No collabs yet.',
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                            if (_filter != _CollabFilter.closed) ...[
+                              const SizedBox(height: AppSpacing.sm),
+                              const Text(
+                                'Create one to share expenses\nwith friends on a trip or event.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: AppColors.textTertiary,
+                                ),
+                              ),
+                            ],
                           ],
-                        ],
+                        ),
+                      ),
+                    )
+                  else ...[
+                    ...visible.map(
+                      (c) => Padding(
+                        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                        child: _CollabTile(collab: c),
                       ),
                     ),
-                  )
-                else
-                  ...visible.map(
-                    (c) => Padding(
-                      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                      child: _CollabTile(collab: c),
-                    ),
-                  ),
-              ],
+                    if (hasMore)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: AppSpacing.xl),
+                        child: Center(child: CircularProgressIndicator()),
+                      ),
+                  ],
+                ],
+              ),
             ),
           );
         },
@@ -255,7 +281,7 @@ class _FilterMenuButton extends StatelessWidget {
 class _CreateButton extends ConsumerWidget {
   const _CreateButton({required this.collabsAsync});
 
-  final AsyncValue<List<CollabModel>> collabsAsync;
+  final AsyncValue<CollabsState> collabsAsync;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

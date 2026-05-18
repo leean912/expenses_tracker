@@ -121,9 +121,32 @@ extension TimePeriodRange on TimePeriod {
       '${d.day.toString().padLeft(2, '0')}';
 }
 
+/// Analytics + budgets returned by the [homeAnalyticsProvider] RPC call.
+class HomeAnalyticsData {
+  const HomeAnalyticsData({
+    required this.analytics,
+    required this.budgets,
+    required this.periodTotalCents,
+    required this.periodActualCents,
+  });
+
+  final AnalyticsSummary analytics;
+  final List<BudgetMini> budgets;
+  final int periodTotalCents;
+  final int periodActualCents;
+}
+
+/// Paginated expense list state from [homeExpensesProvider].
+class HomeExpensesState {
+  const HomeExpensesState({required this.items, required this.hasMore});
+
+  final List<ExpenseTileData> items;
+
+  /// True when more pages exist and [fetchMore] can be called.
+  final bool hasMore;
+}
+
 /// Aggregated analytics for the top banner.
-///
-/// In production, populate from a Supabase RPC or computed query.
 class AnalyticsSummary {
   const AnalyticsSummary({
     required this.totalSpentCents,

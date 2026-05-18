@@ -12,6 +12,7 @@ import '../../../expenses/presentation/widgets/edit_expense_sheet.dart';
 import '../../../expenses/utils/expense_ui_helpers.dart';
 import '../../data/models/collab_model.dart';
 import '../../providers/collab_expenses_provider.dart';
+import '../../providers/collab_summary_provider.dart';
 import '../../providers/collabs_provider.dart';
 import '../widgets/collab_split_bill_sheet.dart';
 
@@ -39,7 +40,7 @@ class CollabDetailScreen extends ConsumerWidget {
         ),
       ),
       data: (collabs) {
-        final collab = collabs.where((c) => c.id == collabId).firstOrNull;
+        final collab = collabs.items.where((c) => c.id == collabId).firstOrNull;
         if (collab == null) {
           return Scaffold(
             backgroundColor: AppColors.background,
@@ -262,10 +263,29 @@ class _CollabDetailBodyState extends ConsumerState<_CollabDetailBody> {
     );
   }
 
+  bool _handleScrollNotification(ScrollNotification notification) {
+    if (notification is ScrollUpdateNotification) {
+      final m = notification.metrics;
+      if (m.pixels >= m.maxScrollExtent - 300) {
+        ref.read(collabExpensesProvider(collab.id).notifier).fetchMore();
+      }
+    }
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
     final expensesAsync = ref.watch(collabExpensesProvider(collab.id));
+    final summaryAsync = ref.watch(collabSummaryProvider(collab.id));
+    final expensesState = expensesAsync.valueOrNull;
+    final summaryData = summaryAsync.valueOrNull;
     final activeMembers = collab.members.where((m) => m.isActive).toList();
+    final currentMember = collab.members
+        .where((m) => m.userId == _currentUserId && m.isActive)
+        .firstOrNull;
+
+    final totalSpentCents = summaryData?.totalSpentCents ?? 0;
+    final mySpentCents = summaryData?.memberSpentCents[_currentUserId] ?? 0;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -323,117 +343,147 @@ class _CollabDetailBodyState extends ConsumerState<_CollabDetailBody> {
         ),
         data: (state) {
           final grouped = _groupByDate(state.expenses);
-          final currentMember = collab.members
-              .where((m) => m.userId == _currentUserId && m.isActive)
-              .firstOrNull;
-          final mySpentCents = state.expenses.fold<int>(0, (sum, e) {
-            if (e.userId != _currentUserId) return sum;
-            return sum + (e.isIncome ? -e.homeAmountCents : e.homeAmountCents);
-          });
-          return RefreshIndicator(
-            color: AppColors.accent,
-            onRefresh: () => Future.wait([
-              ref.refresh(collabsProvider.future),
-              ref.refresh(collabExpensesProvider(collab.id).future),
-            ]),
-            child: CustomScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              slivers: [
-                // ── Header ───────────────────────────────────────────────────
-                SliverToBoxAdapter(
-                  child: _CollabHeader(
-                    collab: collab,
-                    members: activeMembers,
-                    spentCents: state.totalHomeAmountCents,
-                    onMembersTap: () =>
-                        context.push('$collabDetailRoute/${collab.id}/members'),
-                    currentMember: currentMember,
-                    mySpentCents: mySpentCents,
-                    onBudgetTap: currentMember != null && collab.isActive
-                        ? () => _showPersonalBudgetDialog(currentMember)
-                        : null,
-                  ),
-                ),
-
-                // ── Empty state ───────────────────────────────────────────────
-                if (state.expenses.isEmpty)
-                  const SliverFillRemaining(
-                    child: Center(
-                      child: Text(
-                        'No expenses yet.\nTap + to add the first one.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: AppColors.textTertiary,
-                        ),
-                      ),
+          return NotificationListener<ScrollNotification>(
+            onNotification: _handleScrollNotification,
+            child: RefreshIndicator(
+              color: AppColors.accent,
+              onRefresh: () => Future.wait([
+                ref.refresh(collabsProvider.future),
+                ref.refresh(collabSummaryProvider(collab.id).future),
+                ref.refresh(collabExpensesProvider(collab.id).future),
+              ]),
+              child: CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                slivers: [
+                  // ── Header ─────────────────────────────────────────────────
+                  SliverToBoxAdapter(
+                    child: _CollabHeader(
+                      collab: collab,
+                      members: activeMembers,
+                      spentCents: totalSpentCents,
+                      onMembersTap: () =>
+                          context.push('$collabDetailRoute/${collab.id}/members'),
+                      currentMember: currentMember,
+                      mySpentCents: mySpentCents,
+                      onBudgetTap: currentMember != null && collab.isActive
+                          ? () => _showPersonalBudgetDialog(currentMember)
+                          : null,
                     ),
-                  )
-                else ...[
-                  for (final entry in grouped.entries) ...[
-                    // Date header
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(
-                          AppSpacing.xl,
-                          AppSpacing.xl,
-                          AppSpacing.xl,
-                          AppSpacing.sm,
-                        ),
+                  ),
+
+                  // ── Empty state ─────────────────────────────────────────────
+                  if (state.expenses.isEmpty)
+                    const SliverFillRemaining(
+                      child: Center(
                         child: Text(
-                          entry.key,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
+                          'No expenses yet.\nTap + to add the first one.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 14,
                             color: AppColors.textTertiary,
-                            letterSpacing: 0.4,
                           ),
                         ),
                       ),
-                    ),
-                    // Expense rows
-                    SliverPadding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.xl,
+                    )
+                  else ...[
+                    for (final entry in grouped.entries) ...[
+                      // Date header
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(
+                            AppSpacing.xl,
+                            AppSpacing.xl,
+                            AppSpacing.xl,
+                            AppSpacing.sm,
+                          ),
+                          child: Text(
+                            entry.key,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textTertiary,
+                              letterSpacing: 0.4,
+                            ),
+                          ),
+                        ),
                       ),
-                      sliver: SliverList.separated(
-                        itemCount: entry.value.length,
-                        separatorBuilder: (_, _) =>
-                            const SizedBox(height: AppSpacing.sm),
-                        itemBuilder: (context, i) {
-                          final expense = entry.value[i];
-                          final isOwn = expense.userId == _currentUserId;
-                          return _ExpenseTile(
-                            expense: expense,
-                            collab: collab,
-                            isOwn: isOwn,
-                            onTap: isOwn
-                                ? () => showModalBottomSheet<void>(
-                                    context: context,
-                                    isScrollControlled: true,
-                                    backgroundColor: Colors.transparent,
-                                    builder: (_) => EditExpenseSheet(
-                                      expenseId: expense.id,
-                                      onSaved: () => ref
-                                          .read(
-                                            collabExpensesProvider(
-                                              collab.id,
-                                            ).notifier,
-                                          )
-                                          .refresh(),
-                                    ),
-                                  )
-                                : null,
-                          );
-                        },
+                      // Expense rows
+                      SliverPadding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.xl,
+                        ),
+                        sliver: SliverList.separated(
+                          itemCount: entry.value.length,
+                          separatorBuilder: (_, _) =>
+                              const SizedBox(height: AppSpacing.sm),
+                          itemBuilder: (context, i) {
+                            final expense = entry.value[i];
+                            final isOwn = expense.userId == _currentUserId;
+                            return _ExpenseTile(
+                              expense: expense,
+                              collab: collab,
+                              isOwn: isOwn,
+                              onTap: isOwn
+                                  ? () => showModalBottomSheet<void>(
+                                      context: context,
+                                      isScrollControlled: true,
+                                      backgroundColor: Colors.transparent,
+                                      builder: (_) => EditExpenseSheet(
+                                        expenseId: expense.id,
+                                        onSaved: () {
+                                          ref
+                                              .read(
+                                                collabExpensesProvider(
+                                                  collab.id,
+                                                ).notifier,
+                                              )
+                                              .refresh();
+                                          ref.invalidate(
+                                            collabSummaryProvider(collab.id),
+                                          );
+                                        },
+                                        onDeleted: (id) {
+                                          ref
+                                              .read(
+                                                collabExpensesProvider(
+                                                  collab.id,
+                                                ).notifier,
+                                              )
+                                              .removeExpense(id);
+                                          ref.invalidate(
+                                            collabSummaryProvider(collab.id),
+                                          );
+                                        },
+                                      ),
+                                    )
+                                  : null,
+                            );
+                          },
+                        ),
                       ),
+                    ],
+
+                    // Load-more spinner
+                    if (expensesState?.hasMore == true)
+                      const SliverToBoxAdapter(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(vertical: 20),
+                          child: Center(
+                            child: SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          ),
+                        ),
+                      ),
+
+                    const SliverToBoxAdapter(
+                      child: SizedBox(height: AppSpacing.xxl * 4),
                     ),
                   ],
-                  const SliverToBoxAdapter(
-                    child: SizedBox(height: AppSpacing.xxl * 4),
-                  ),
                 ],
-              ],
+              ),
             ),
           );
         },

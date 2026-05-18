@@ -9,7 +9,7 @@ import '../../../../service_locator.dart';
 import '../../data/models/friend_split_summary.dart';
 import '../../data/models/my_share_item.dart';
 import '../../data/models/split_bill_model.dart';
-import '../../providers/split_bills_provider.dart';
+import '../../providers/split_bills_provider.dart' show myBillsProvider, mySharesProvider;
 
 class FriendSplitDetailScreen extends ConsumerStatefulWidget {
   const FriendSplitDetailScreen({super.key, required this.friendId});
@@ -39,8 +39,32 @@ class _FriendSplitDetailScreenState
 
   @override
   Widget build(BuildContext context) {
-    final async = ref.watch(splitBillsProvider);
+    final billsAsync = ref.watch(myBillsProvider);
+    final sharesAsync = ref.watch(mySharesProvider);
     final currentUserId = supabase.auth.currentUser!.id;
+
+    final bills = billsAsync.valueOrNull?.items ?? [];
+    final shares = sharesAsync.valueOrNull?.items ?? [];
+    final isLoading =
+        (billsAsync.isLoading && billsAsync.valueOrNull == null) ||
+        (sharesAsync.isLoading && sharesAsync.valueOrNull == null);
+    final hasError =
+        (billsAsync.hasError && billsAsync.valueOrNull == null) ||
+        (sharesAsync.hasError && sharesAsync.valueOrNull == null);
+
+    void onRetry() {
+      ref.invalidate(myBillsProvider);
+      ref.invalidate(mySharesProvider);
+    }
+
+    Future<void> onRefresh() async {
+      ref.invalidate(myBillsProvider);
+      ref.invalidate(mySharesProvider);
+    }
+
+    final summaries = FriendSplitSummary.fromData(bills, shares, currentUserId);
+    final summary =
+        summaries.where((s) => s.friend.id == widget.friendId).firstOrNull;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -68,36 +92,16 @@ class _FriendSplitDetailScreenState
                     ),
                   ),
                   Expanded(
-                    child:
-                        async.whenOrNull(
-                          data: (data) {
-                            final summaries = FriendSplitSummary.fromData(
-                              data,
-                              currentUserId,
-                            );
-                            final summary = summaries
-                                .where((s) => s.friend.id == widget.friendId)
-                                .firstOrNull;
-                            return Text(
-                              summary?.friend.displayName ??
-                                  summary?.friend.username ??
-                                  'Friend',
-                              style: const TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.textPrimary,
-                              ),
-                            );
-                          },
-                        ) ??
-                        const Text(
+                    child: Text(
+                      summary?.friend.displayName ??
+                          summary?.friend.username ??
                           'Friend',
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -124,58 +128,46 @@ class _FriendSplitDetailScreenState
             ),
             const SizedBox(height: AppSpacing.md),
             Expanded(
-              child: async.when(
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (e, _) => Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text(
-                        'Failed to load',
-                        style: TextStyle(color: AppColors.textSecondary),
+              child: isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : hasError
+                  ? Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            'Failed to load',
+                            style: TextStyle(color: AppColors.textSecondary),
+                          ),
+                          const SizedBox(height: AppSpacing.lg),
+                          TextButton(
+                            onPressed: onRetry,
+                            child: const Text('Retry'),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: AppSpacing.lg),
-                      TextButton(
-                        onPressed: () => ref.invalidate(splitBillsProvider),
-                        child: const Text('Retry'),
-                      ),
-                    ],
-                  ),
-                ),
-                data: (data) {
-                  final summaries = FriendSplitSummary.fromData(
-                    data,
-                    currentUserId,
-                  );
-                  final summary = summaries
-                      .where((s) => s.friend.id == widget.friendId)
-                      .firstOrNull;
-
-                  if (summary == null) {
-                    return const Center(
+                    )
+                  : summary == null
+                  ? const Center(
                       child: Text(
                         'No bills found.',
                         style: TextStyle(color: AppColors.textTertiary),
                       ),
-                    );
-                  }
-
-                  return TabBarView(
-                    controller: _tabs,
-                    children: [
-                      _TheyOweYouTab(
-                        bills: summary.billsIPaid,
-                        friendId: widget.friendId,
-                        onRefresh: () => ref.refresh(splitBillsProvider.future),
-                      ),
-                      _YouOweThemTab(
-                        shares: summary.billsFriendPaid,
-                        onRefresh: () => ref.refresh(splitBillsProvider.future),
-                      ),
-                    ],
-                  );
-                },
-              ),
+                    )
+                  : TabBarView(
+                      controller: _tabs,
+                      children: [
+                        _TheyOweYouTab(
+                          bills: summary.billsIPaid,
+                          friendId: widget.friendId,
+                          onRefresh: onRefresh,
+                        ),
+                        _YouOweThemTab(
+                          shares: summary.billsFriendPaid,
+                          onRefresh: onRefresh,
+                        ),
+                      ],
+                    ),
             ),
           ],
         ),

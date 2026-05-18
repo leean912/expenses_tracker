@@ -135,6 +135,51 @@ class ExportPdfNotifier extends Notifier<ExportPdfFilter> {
 
   void setIncludeReceipts(bool v) => state = state.copyWith(includeReceipts: v);
 
+  static const _exportPageSize = 500;
+
+  Future<List<Map<String, dynamic>>> _fetchAllExportRows(
+    ExportPdfFilter filter,
+    String userId,
+    String startStr,
+    String endStr,
+  ) async {
+    final all = <Map<String, dynamic>>[];
+    var from = 0;
+    while (true) {
+      var query = supabase
+          .from('expenses')
+          .select(
+            'id, type, amount_cents, currency, home_amount_cents, home_currency, '
+            'expense_date, note, category_id, account_id, source, receipt_url',
+          )
+          .isFilter('deleted_at', null)
+          .isFilter('archived_at', null)
+          .eq('user_id', userId)
+          .gte('expense_date', startStr)
+          .lte('expense_date', endStr);
+
+      if (filter.transactionType == ExportTransactionType.expensesOnly) {
+        query = query.eq('type', 'expense');
+      } else if (filter.transactionType == ExportTransactionType.incomeOnly) {
+        query = query.eq('type', 'income');
+      }
+      if (!filter.includeSplitBill) {
+        query = query.isFilter('source_split_bill_id', null);
+      }
+      if (!filter.includeRecurring) {
+        query = query.isFilter('source_recurring_expense_id', null);
+      }
+
+      final page = List<Map<String, dynamic>>.from(
+        (await query.range(from, from + _exportPageSize - 1)) as List,
+      );
+      all.addAll(page);
+      if (page.length < _exportPageSize) break;
+      from += _exportPageSize;
+    }
+    return all;
+  }
+
   Future<void> export(
     List<CategoryModel> allCategories,
     List<AccountModel> allAccounts,
@@ -145,33 +190,7 @@ class ExportPdfNotifier extends Notifier<ExportPdfFilter> {
     final startStr = DateFormat('yyyy-MM-dd').format(filter.startDate);
     final endStr = DateFormat('yyyy-MM-dd').format(filter.endDate);
 
-    var query = supabase
-        .from('expenses')
-        .select(
-          'id, type, amount_cents, currency, home_amount_cents, home_currency, '
-          'expense_date, note, category_id, account_id, source, receipt_url',
-        )
-        .isFilter('deleted_at', null)
-        .isFilter('archived_at', null)
-        .eq('user_id', userId)
-        .gte('expense_date', startStr)
-        .lte('expense_date', endStr);
-
-    if (filter.transactionType == ExportTransactionType.expensesOnly) {
-      query = query.eq('type', 'expense');
-    } else if (filter.transactionType == ExportTransactionType.incomeOnly) {
-      query = query.eq('type', 'income');
-    }
-
-    if (!filter.includeSplitBill) {
-      query = query.isFilter('source_split_bill_id', null);
-    }
-
-    if (!filter.includeRecurring) {
-      query = query.isFilter('source_recurring_expense_id', null);
-    }
-
-    final rows = List<Map<String, dynamic>>.from((await query) as List);
+    final rows = await _fetchAllExportRows(filter, userId, startStr, endStr);
 
     switch (filter.sortOrder) {
       case ExportSortOrder.dateDesc:

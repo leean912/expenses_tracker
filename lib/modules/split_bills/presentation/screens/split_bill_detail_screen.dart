@@ -17,7 +17,7 @@ import '../../../subscription/providers/subscription_provider.dart';
 import '../../data/models/split_bill_model.dart';
 import '../../data/models/split_share_model.dart';
 import '../../providers/split_bill_detail_provider.dart';
-import '../../providers/split_bills_provider.dart';
+import '../../providers/split_bills_provider.dart' show myBillsProvider, mySharesProvider;
 
 class SplitBillDetailScreen extends ConsumerWidget {
   const SplitBillDetailScreen({super.key, required this.billId});
@@ -181,7 +181,7 @@ class _DeleteButtonState extends ConsumerState<_DeleteButton> {
 
     setState(() => _loading = true);
     final error = await ref
-        .read(splitBillsProvider.notifier)
+        .read(myBillsProvider.notifier)
         .deleteSplitBill(
           widget.billId,
           deleteRelatedExpenses: result.deleteExpenses,
@@ -747,7 +747,7 @@ class _CreatorShareOptionsSheetState
 
     setState(() => _markPaidLoading = true);
     final error = await ref
-        .read(splitBillsProvider.notifier)
+        .read(myBillsProvider.notifier)
         .creatorMarkSharePaid(widget.share.id);
     if (!mounted) return;
     setState(() => _markPaidLoading = false);
@@ -956,7 +956,7 @@ class _EditAmountSheetState extends ConsumerState<_EditAmountSheet> {
 
     setState(() => _loading = true);
     final error = await ref
-        .read(splitBillsProvider.notifier)
+        .read(myBillsProvider.notifier)
         .updateShareAmount(shareId: widget.share.id, newCents: newCents);
     if (!mounted) return;
     setState(() => _loading = false);
@@ -1275,7 +1275,7 @@ class _SettleSheetState extends ConsumerState<_SettleSheet> {
   Future<void> _confirm() async {
     setState(() => _loading = true);
     final error = await ref
-        .read(splitBillsProvider.notifier)
+        .read(mySharesProvider.notifier)
         .settleShare(
           shareId: widget.share.id,
           categoryId: _category!.id,
@@ -1290,7 +1290,8 @@ class _SettleSheetState extends ConsumerState<_SettleSheet> {
       return;
     }
     ref.invalidate(splitBillDetailProvider(widget.billId));
-    ref.invalidate(homeDataProvider);
+    ref.invalidate(homeAnalyticsProvider);
+        ref.invalidate(homeExpensesProvider);
     context.pop();
   }
 }

@@ -58,7 +58,9 @@ The `Env` singleton in `lib/service_locator.dart` switches between debug/prod ba
 **Module structure** (`lib/modules/`): Features are organized by domain — `expenses/`, `split_bills/`, `contacts/`, `analysis/`, `profile/`. These are currently scaffolded but empty.
 
 **Data access pattern**: Flutter → Supabase SDK → PostgreSQL (with RLS enforced at DB layer)
-- Simple reads: direct Supabase queries (`.from('expenses').select(...)`)
+- Simple reads: direct Supabase queries (`.from('expenses').select(...)`) — but only for bounded datasets
+- Analytics/aggregation on unbounded data: always use an RPC — PostgREST silently truncates `.select()` results at 1000 rows
+- Paginated lists: use `.range(from, to)` with a `hasMore` flag for infinite scroll (home expenses, collab expenses)
 - Complex multi-row writes: RPCs (`supabase.rpc('create_split_bill', params: {...})`)
 - RPCs run as `security definer` to enforce business logic across RLS boundaries
 
@@ -87,6 +89,10 @@ The `Env` singleton in `lib/service_locator.dart` switches between debug/prod ba
 - **Collab budget is informational**: `collabs.budget_cents` is a shared total in `home_currency`. Compute remaining as `budget_cents - SUM(expenses.home_amount_cents WHERE collab_id = ...)`. No DB enforcement.
 
 **Key RPCs** (defined on Supabase, called via `supabase.rpc(...)`):
+- `home_analytics(p_start, p_end)` — home screen aggregated totals + category spend (immune to 1000-row limit)
+- `analysis_summary(p_start, p_end, p_include_collab)` — analysis screen: by-category, by-account, daily buckets
+- `collab_summary(p_collab_id)` — collab header + members screen: all-time net spend per member
+- `collab_analytics(p_collab_id, p_start, p_end)` — collab analysis screen: breakdowns + daily member buckets
 - `create_split_bill` — creates bill + shares + payer expense atomically
 - `settle_split_share` — creates settlement + expense rows, updates share status
 - `close_collab` — marks collab read-only (no import step needed)

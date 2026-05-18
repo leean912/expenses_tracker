@@ -24,10 +24,12 @@ class EditExpenseSheet extends ConsumerStatefulWidget {
     super.key,
     required this.expenseId,
     this.onSaved,
+    this.onDeleted,
   });
 
   final String expenseId;
   final VoidCallback? onSaved;
+  final void Function(String id)? onDeleted;
 
   @override
   ConsumerState<EditExpenseSheet> createState() => _EditExpenseSheetState();
@@ -264,7 +266,8 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
       await supabase.from('expenses').update(payload).eq('id', widget.expenseId);
 
       if (mounted) {
-        ref.invalidate(homeDataProvider);
+        ref.invalidate(homeAnalyticsProvider);
+        ref.invalidate(homeExpensesProvider);
         widget.onSaved?.call();
         context.pop();
       }
@@ -310,7 +313,8 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
       }).eq('id', widget.expenseId);
 
       if (mounted) {
-        ref.invalidate(homeDataProvider);
+        ref.invalidate(homeAnalyticsProvider);
+        widget.onDeleted?.call(widget.expenseId);
         widget.onSaved?.call();
         context.pop();
       }

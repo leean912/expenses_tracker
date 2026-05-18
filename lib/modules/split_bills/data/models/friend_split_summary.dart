@@ -1,4 +1,3 @@
-import '../../providers/split_bills_provider.dart';
 import 'my_share_item.dart';
 import 'profile_summary.dart';
 import 'split_bill_model.dart';
@@ -31,14 +30,15 @@ class FriendSplitSummary {
   int get totalBills => billsIPaid.length + billsFriendPaid.length;
 
   static List<FriendSplitSummary> fromData(
-    SplitBillsData data,
+    List<SplitBillModel> myBills,
+    List<MyShareItem> myShares,
     String currentUserId,
   ) {
     final profiles = <String, ProfileSummary>{};
     final paidByMe = <String, List<SplitBillModel>>{};
     final paidByFriend = <String, List<MyShareItem>>{};
 
-    for (final bill in data.myBills) {
+    for (final bill in myBills) {
       for (final share in bill.shares) {
         if (share.userId == currentUserId || share.user == null) continue;
         final fid = share.user!.id;
@@ -47,7 +47,7 @@ class FriendSplitSummary {
       }
     }
 
-    for (final item in data.myShares) {
+    for (final item in myShares) {
       if (item.payer == null) continue;
       final fid = item.payer!.id;
       profiles[fid] ??= item.payer!;

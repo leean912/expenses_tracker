@@ -89,53 +89,100 @@ class CollabExpense {
 
 class CollabExpensesState {
   const CollabExpensesState({
-    this.expenses = const [],
-    this.totalHomeAmountCents = 0,
-    this.isLoading = false,
-    this.error,
+    required this.expenses,
+    required this.hasMore,
   });
 
   final List<CollabExpense> expenses;
-  final int totalHomeAmountCents;
-  final bool isLoading;
-  final String? error;
+
+  /// True when more pages exist and [fetchMore] can be called.
+  final bool hasMore;
 }
 
 class CollabExpensesNotifier
     extends AutoDisposeFamilyAsyncNotifier<CollabExpensesState, String> {
-  @override
-  Future<CollabExpensesState> build(String collabId) => _fetch(collabId);
+  static const _pageSize = 30;
 
-  Future<CollabExpensesState> _fetch(String collabId) async {
+  var _page = 0;
+  var _hasMore = true;
+  var _isFetchingMore = false;
+  final _items = <CollabExpense>[];
+
+  @override
+  Future<CollabExpensesState> build(String collabId) async {
+    _page = 0;
+    _hasMore = true;
+    _isFetchingMore = false;
+    _items.clear();
+    return _fetchPage(collabId);
+  }
+
+  Future<CollabExpensesState> _fetchPage(String collabId) async {
+    final from = _page * _pageSize;
+
     final rows = await supabase
         .from('expenses')
         .select(
-          'id, user_id, type, source, source_split_bill_id, amount_cents, currency, home_amount_cents, actual_amount_cents, home_currency, conversion_rate, note, expense_date, receipt_url, owner:profiles!user_id(id, username, display_name, avatar_url), category:categories(name, icon, color), account:accounts(name)',
+          'id, user_id, type, source, source_split_bill_id, amount_cents, '
+          'currency, home_amount_cents, actual_amount_cents, home_currency, '
+          'conversion_rate, note, expense_date, receipt_url, '
+          'owner:profiles!user_id(id, username, display_name, avatar_url), '
+          'category:categories(name, icon, color), account:accounts(name)',
         )
         .eq('collab_id', collabId)
         .isFilter('deleted_at', null)
         .order('expense_date', ascending: false)
-        .order('created_at', ascending: false);
+        .order('created_at', ascending: false)
+        .range(from, from + _pageSize - 1) as List<dynamic>;
 
-    final expenses = (rows as List)
-        .map((r) => CollabExpense.fromJson(r as Map<String, dynamic>))
-        .toList();
-
-    final total = expenses.fold<int>(
-      0,
-      (sum, e) => e.isIncome ? sum - e.homeAmountCents : sum + e.homeAmountCents,
+    _hasMore = rows.length == _pageSize;
+    _items.addAll(
+      rows.map((r) => CollabExpense.fromJson(r as Map<String, dynamic>)),
     );
+    _page++;
+    return CollabExpensesState(
+      expenses: List.unmodifiable(_items),
+      hasMore: _hasMore,
+    );
+  }
 
-    return CollabExpensesState(expenses: expenses, totalHomeAmountCents: total);
+  /// Removes a single expense from the local list without re-fetching.
+  void removeExpense(String id) {
+    final current = state.valueOrNull;
+    if (current == null) return;
+    _items.removeWhere((e) => e.id == id);
+    state = AsyncData(CollabExpensesState(
+      expenses: List.unmodifiable(_items),
+      hasMore: _hasMore,
+    ));
+  }
+
+  /// Fetches the next page and appends to the existing list.
+  /// Safe to call multiple times — guarded by [_isFetchingMore].
+  Future<void> fetchMore() async {
+    if (!_hasMore || _isFetchingMore || state.isLoading) return;
+    _isFetchingMore = true;
+    try {
+      final next = await _fetchPage(arg);
+      state = AsyncData(next);
+    } catch (_) {
+      // Keep existing data on pagination error.
+    } finally {
+      _isFetchingMore = false;
+    }
   }
 
   Future<void> refresh() async {
+    _page = 0;
+    _hasMore = true;
+    _isFetchingMore = false;
+    _items.clear();
     state = const AsyncLoading();
-    state = await AsyncValue.guard(() => _fetch(arg));
+    state = await AsyncValue.guard(() => _fetchPage(arg));
   }
 }
 
 final collabExpensesProvider = AsyncNotifierProvider.autoDispose
     .family<CollabExpensesNotifier, CollabExpensesState, String>(
-      CollabExpensesNotifier.new,
-    );
+  CollabExpensesNotifier.new,
+);

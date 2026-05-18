@@ -46,7 +46,8 @@ class RecurringExpensesNotifier
         'p_note': note,
       });
       ref.invalidateSelf();
-      ref.invalidate(homeDataProvider);
+      ref.invalidate(homeAnalyticsProvider);
+      ref.invalidate(homeExpensesProvider);
       return null;
     } catch (e) {
       if (e.toString().contains('upgrade_required')) return 'upgrade_required';

@@ -18,7 +18,7 @@ import '../../../contacts/data/models/group_model.dart';
 import '../../../contacts/providers/contacts_provider.dart';
 import '../../../contacts/providers/groups_provider.dart';
 import '../../../home/providers/home/home_provider.dart';
-import '../../../split_bills/providers/split_bills_provider.dart';
+import '../../../split_bills/providers/split_bills_provider.dart' show myBillsProvider;
 import '../../../subscription/providers/subscription_provider.dart';
 import '../../data/models/account_model.dart';
 import '../../data/models/category_model.dart';
@@ -366,7 +366,8 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet>
         );
 
     if (ok && mounted) {
-      ref.invalidate(homeDataProvider);
+      ref.invalidate(homeAnalyticsProvider);
+        ref.invalidate(homeExpensesProvider);
       context.pop();
     }
   }
@@ -423,8 +424,9 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet>
       );
 
       if (mounted) {
-        ref.invalidate(splitBillsProvider);
-        ref.invalidate(homeDataProvider);
+        ref.invalidate(myBillsProvider);
+        ref.invalidate(homeAnalyticsProvider);
+        ref.invalidate(homeExpensesProvider);
         context.pop();
       }
     } catch (e) {

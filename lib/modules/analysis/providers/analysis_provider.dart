@@ -4,127 +4,106 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../service_locator.dart';
 import 'analysis_state.dart';
 
-final analysisDataProvider = FutureProvider.family<AnalysisData, AnalysisFilter>((
-  ref,
-  filter,
-) async {
+final analysisDataProvider =
+    FutureProvider.family<AnalysisData, AnalysisFilter>((ref, filter) async {
   final userId = supabase.auth.currentUser!.id;
   final (start, end) = filter.toDateRange();
   final startDate = DateTime.parse(start);
   final endDate = DateTime.parse(end);
   final budgetPeriod = filter.period.budgetPeriod;
 
-  final expensesFuture = () {
-    var q = supabase
-        .from('expenses')
-        .select(
-          'home_amount_cents, actual_amount_cents, type, expense_date, category_id, account_id, '
-          'category:categories(name, color), account:accounts(name)',
-        )
-        .eq('user_id', userId)
-        .gte('expense_date', start)
-        .lte('expense_date', end)
-        .isFilter('deleted_at', null)
-        .isFilter('archived_at', null);
-    if (!filter.includeCollabExpenses) {
-      q = q.isFilter('collab_id', null);
-    }
-    return q.order('expense_date', ascending: true);
-  }();
-
-  final expenseRows = await expensesFuture as List<dynamic>;
-  final budgetRows = budgetPeriod == null
-      ? <dynamic>[]
-      : await supabase
+  // RPC returns aggregated daily data — no 1000-row risk regardless of how
+  // many expenses exist in the period.
+  final results = await Future.wait<dynamic>([
+    supabase.rpc('analysis_summary', params: {
+      'p_start': start,
+      'p_end': end,
+      'p_include_collab': filter.includeCollabExpenses,
+    }),
+    budgetPeriod == null
+        ? Future<dynamic>.value(<dynamic>[])
+        : supabase
             .from('budgets')
-            .select('limit_cents, category_id, category:categories(name, color)')
+            .select(
+                'limit_cents, category_id, category:categories(name, color)')
             .eq('user_id', userId)
             .eq('period', budgetPeriod)
-            .isFilter('deleted_at', null) as List<dynamic>;
+            .isFilter('deleted_at', null),
+  ]);
+
+  final rpc = results[0] as Map<String, dynamic>;
+  final budgetRows = results[1] as List<dynamic>;
+
+  // ── Parse RPC payload ──────────────────────────────────────────────────────
+
+  int asInt(dynamic v) => (v as num? ?? 0).toInt();
+
+  final totalSpentCents = asInt(rpc['total_spent_cents']);
+  final totalActualCents = asInt(rpc['total_actual_cents']);
+  final totalIncomeCents = asInt(rpc['total_income_cents']);
+
+  final byCategoryRows = (rpc['by_category'] as List<dynamic>? ?? [])
+      .cast<Map<String, dynamic>>();
+  final byAccountRows = (rpc['by_account'] as List<dynamic>? ?? [])
+      .cast<Map<String, dynamic>>();
+  final dailyBuckets = (rpc['daily_buckets'] as List<dynamic>? ?? [])
+      .cast<Map<String, dynamic>>();
+  final dailyCatBuckets = (rpc['daily_category_buckets'] as List<dynamic>? ?? [])
+      .cast<Map<String, dynamic>>();
 
   // ── Category breakdown ─────────────────────────────────────────────────────
 
-  int totalSpentCents = 0;
-  int totalIncomeCents = 0;
-  final Map<String, ({int cents, String name, String? colorHex})> catMap = {};
-  final Map<String, ({int cents, String name})> accountMap = {};
+  final catTotal = byCategoryRows.fold<int>(0, (s, r) {
+    return s +
+        (filter.useActualAmount ? asInt(r['actual_cents']) : asInt(r['total_cents']));
+  });
 
-  for (final r in expenseRows) {
-    final row = r as Map<String, dynamic>;
-    final homeCents = row['home_amount_cents'] as int? ?? 0;
+  final categoryBreakdown = byCategoryRows.map((r) {
     final cents = filter.useActualAmount
-        ? (row['actual_amount_cents'] as int? ?? homeCents)
-        : homeCents;
-    final isIncome = row['type'] == 'income';
-    final catId = row['category_id'] as String? ?? 'uncategorized';
-    final catData = row['category'] as Map<String, dynamic>?;
-    final catName = catData?['name'] as String? ?? 'Other';
-    final colorHex = catData?['color'] as String?;
-    final accountId = row['account_id'] as String? ?? 'none';
-    final accountData = row['account'] as Map<String, dynamic>?;
-    final accountName = accountData?['name'] as String? ?? 'No Account';
-
-    if (isIncome) {
-      totalIncomeCents += homeCents;
-    } else {
-      totalSpentCents += cents;
-      final existing = catMap[catId];
-      catMap[catId] = (
-        cents: (existing?.cents ?? 0) + cents,
-        name: catName,
-        colorHex: colorHex ?? existing?.colorHex,
-      );
-      final existingAcc = accountMap[accountId];
-      accountMap[accountId] = (
-        cents: (existingAcc?.cents ?? 0) + cents,
-        name: accountName,
-      );
-    }
-  }
-
-  final positiveCats = catMap.entries.where((e) => e.value.cents > 0).toList();
-  final catTotal = positiveCats.fold(0, (s, e) => s + e.value.cents);
-  final categoryBreakdown = positiveCats
-      .map((e) {
-        final color = _hexToColor(e.value.colorHex) ?? const Color(0xFF888780);
-        return CategorySpend(
-          categoryId: e.key,
-          categoryName: e.value.name,
-          color: color,
-          totalCents: e.value.cents,
-          percentage: catTotal <= 0 ? 0 : e.value.cents / catTotal * 100,
-        );
-      })
-      .toList()
+        ? asInt(r['actual_cents'])
+        : asInt(r['total_cents']);
+    final color =
+        _hexToColor(r['category_color'] as String?) ?? const Color(0xFF888780);
+    return CategorySpend(
+      categoryId: r['category_id'] as String? ?? '',
+      categoryName: r['category_name'] as String? ?? 'Other',
+      color: color,
+      totalCents: cents,
+      percentage: catTotal <= 0 ? 0 : cents / catTotal * 100,
+    );
+  }).where((c) => c.totalCents > 0).toList()
     ..sort((a, b) => b.totalCents.compareTo(a.totalCents));
 
-  final sortedAccounts = accountMap.entries
-      .where((e) => e.value.cents > 0)
-      .toList()
-    ..sort((a, b) => b.value.cents.compareTo(a.value.cents));
-  final accountTotal = sortedAccounts.fold(0, (s, e) => s + e.value.cents);
-  final accountBreakdown = sortedAccounts.indexed.map((entry) {
-    final (i, e) = entry;
+  // ── Account breakdown ──────────────────────────────────────────────────────
+
+  final accTotal = byAccountRows.fold<int>(0, (s, r) {
+    return s +
+        (filter.useActualAmount ? asInt(r['actual_cents']) : asInt(r['total_cents']));
+  });
+
+  final accountBreakdown = byAccountRows.indexed.map((entry) {
+    final (i, r) = entry;
+    final cents = filter.useActualAmount
+        ? asInt(r['actual_cents'])
+        : asInt(r['total_cents']);
     return CategorySpend(
-      categoryId: e.key,
-      categoryName: e.value.name,
+      categoryId: r['account_id'] as String? ?? '',
+      categoryName: r['account_name'] as String? ?? 'No Account',
       color: _accountPalette[i % _accountPalette.length],
-      totalCents: e.value.cents,
-      percentage: accountTotal <= 0 ? 0 : e.value.cents / accountTotal * 100,
+      totalCents: cents,
+      percentage: accTotal <= 0 ? 0 : cents / accTotal * 100,
     );
-  }).toList();
+  }).where((a) => a.totalCents > 0).toList();
 
   // ── Period breakdown (bar chart) ──────────────────────────────────────────
 
   final periodBreakdown = _buildPeriodBuckets(
-    expenseRows,
+    dailyBuckets,
     startDate,
     endDate,
     filter.period,
     filter.useActualAmount,
   );
-
-  // ── Budget progress ────────────────────────────────────────────────────────
 
   // ── Budget progress + pace points ─────────────────────────────────────────
 
@@ -154,17 +133,28 @@ final analysisDataProvider = FutureProvider.family<AnalysisData, AnalysisFilter>
   List<SpendVsBudgetPoint> buildPacePoints(String? catId, int limitCents) {
     if (!buildPace) return const [];
     final buckets = List.filled(bucketCount, 0);
-    for (final r in expenseRows) {
-      final er = r as Map<String, dynamic>;
-      if (er['type'] == 'income') continue;
-      if (catId != null && er['category_id'] != catId) continue;
-      final idx = paceIndex(er['expense_date'] as String);
-      if (idx < 0) continue;
-      final homeCents = er['home_amount_cents'] as int? ?? 0;
-      buckets[idx] += filter.useActualAmount
-          ? (er['actual_amount_cents'] as int? ?? homeCents)
-          : homeCents;
+
+    if (catId == null) {
+      // Overall budget — sum from the pre-aggregated daily totals.
+      for (final r in dailyBuckets) {
+        final idx = paceIndex(r['bucket_date'] as String);
+        if (idx < 0) continue;
+        buckets[idx] += filter.useActualAmount
+            ? asInt(r['actual_cents'])
+            : asInt(r['spend_cents']);
+      }
+    } else {
+      // Category budget — use the per-category daily aggregates.
+      for (final r in dailyCatBuckets) {
+        if (r['category_id'] != catId) continue;
+        final idx = paceIndex(r['bucket_date'] as String);
+        if (idx < 0) continue;
+        buckets[idx] += filter.useActualAmount
+            ? asInt(r['actual_cents'])
+            : asInt(r['spend_cents']);
+      }
     }
+
     final budgetPerBucket = limitCents / bucketCount;
     var running = 0;
     return List.generate(bucketCount, (i) {
@@ -177,6 +167,9 @@ final analysisDataProvider = FutureProvider.family<AnalysisData, AnalysisFilter>
     });
   }
 
+  final displayedSpent =
+      filter.useActualAmount ? totalActualCents : totalSpentCents;
+
   final budgetProgress = budgetRows.map((b) {
     final row = b as Map<String, dynamic>;
     final catId = row['category_id'] as String?;
@@ -185,9 +178,21 @@ final analysisDataProvider = FutureProvider.family<AnalysisData, AnalysisFilter>
     final color =
         _hexToColor(catData?['color'] as String?) ?? const Color(0xFFBA7517);
     final limitCents = row['limit_cents'] as int;
-    final spentCents = catId == null
-        ? (totalSpentCents - totalIncomeCents).clamp(0, totalSpentCents)
-        : (catMap[catId]?.cents ?? 0);
+
+    int spentCents;
+    if (catId == null) {
+      spentCents =
+          (displayedSpent - totalIncomeCents).clamp(0, displayedSpent);
+    } else {
+      final catRow =
+          byCategoryRows.where((r) => r['category_id'] == catId).firstOrNull;
+      spentCents = catRow == null
+          ? 0
+          : (filter.useActualAmount
+              ? asInt(catRow['actual_cents'])
+              : asInt(catRow['total_cents']));
+    }
+
     return BudgetProgress(
       label: label,
       spentCents: spentCents,
@@ -195,22 +200,25 @@ final analysisDataProvider = FutureProvider.family<AnalysisData, AnalysisFilter>
       barColor: color,
       pacePoints: buildPacePoints(catId, limitCents),
     );
-  }).toList()..sort((a, b) => b.spentCents.compareTo(a.spentCents));
+  }).toList()
+    ..sort((a, b) => b.spentCents.compareTo(a.spentCents));
 
   return AnalysisData(
     categoryBreakdown: categoryBreakdown,
     accountBreakdown: accountBreakdown,
     periodBreakdown: periodBreakdown,
     budgetProgress: budgetProgress,
-    totalSpentCents: totalSpentCents,
+    totalSpentCents: displayedSpent,
     totalIncomeCents: totalIncomeCents,
   );
 });
 
 // ── Period bucket builders ────────────────────────────────────────────────────
+// These operate on pre-aggregated daily rows from the RPC — not raw expense
+// rows — so bucketing in Dart is safe regardless of how many expenses exist.
 
 List<PeriodBucket> _buildPeriodBuckets(
-  List<dynamic> rows,
+  List<Map<String, dynamic>> dailyBuckets,
   DateTime startDate,
   DateTime endDate,
   AnalysisPeriod period,
@@ -218,23 +226,28 @@ List<PeriodBucket> _buildPeriodBuckets(
 ) {
   switch (period) {
     case AnalysisPeriod.day:
-      return _bucketByDay(rows, startDate, 1, useActualAmount);
+      return _bucketByDay(dailyBuckets, startDate, 1, useActualAmount);
     case AnalysisPeriod.week:
-      return _bucketByDay(rows, startDate, 7, useActualAmount);
+      return _bucketByDay(dailyBuckets, startDate, 7, useActualAmount);
     case AnalysisPeriod.month:
-      return _bucketByWeekOfMonth(rows, startDate, endDate, useActualAmount);
+      return _bucketByWeekOfMonth(
+          dailyBuckets, startDate, endDate, useActualAmount);
     case AnalysisPeriod.year:
-      return _bucketByMonth(rows, startDate.year, useActualAmount);
+      return _bucketByMonth(dailyBuckets, startDate.year, useActualAmount);
     case AnalysisPeriod.custom:
       final days = endDate.difference(startDate).inDays + 1;
-      if (days <= 14) return _bucketByDay(rows, startDate, days, useActualAmount);
-      if (days <= 90) return _bucketByWeek(rows, startDate, endDate, useActualAmount);
-      return _bucketByMonth(rows, startDate.year, useActualAmount);
+      if (days <= 14) {
+        return _bucketByDay(dailyBuckets, startDate, days, useActualAmount);
+      }
+      if (days <= 90) {
+        return _bucketByWeek(dailyBuckets, startDate, endDate, useActualAmount);
+      }
+      return _bucketByMonth(dailyBuckets, startDate.year, useActualAmount);
   }
 }
 
 List<PeriodBucket> _bucketByDay(
-  List<dynamic> rows,
+  List<Map<String, dynamic>> dailyBuckets,
   DateTime startDate,
   int count,
   bool useActualAmount,
@@ -243,20 +256,14 @@ List<PeriodBucket> _bucketByDay(
   final spendBuckets = List.filled(count, 0);
   final incomeBuckets = List.filled(count, 0);
 
-  for (final r in rows) {
-    final row = r as Map<String, dynamic>;
-    final date = DateTime.parse(row['expense_date'] as String);
+  for (final row in dailyBuckets) {
+    final date = DateTime.parse(row['bucket_date'] as String);
     final idx = date.difference(startDate).inDays;
     if (idx < 0 || idx >= count) continue;
-    final homeCents = row['home_amount_cents'] as int? ?? 0;
-    final cents = useActualAmount
-        ? (row['actual_amount_cents'] as int? ?? homeCents)
-        : homeCents;
-    if (row['type'] == 'income') {
-      incomeBuckets[idx] += homeCents;
-    } else {
-      spendBuckets[idx] += cents;
-    }
+    spendBuckets[idx] += useActualAmount
+        ? (row['actual_cents'] as num? ?? 0).toInt()
+        : (row['spend_cents'] as num? ?? 0).toInt();
+    incomeBuckets[idx] += (row['income_cents'] as num? ?? 0).toInt();
   }
 
   return List.generate(count, (i) {
@@ -271,7 +278,7 @@ List<PeriodBucket> _bucketByDay(
 }
 
 List<PeriodBucket> _bucketByWeekOfMonth(
-  List<dynamic> rows,
+  List<Map<String, dynamic>> dailyBuckets,
   DateTime startDate,
   DateTime endDate,
   bool useActualAmount,
@@ -281,21 +288,15 @@ List<PeriodBucket> _bucketByWeekOfMonth(
   final spendBuckets = List.filled(weekCount, 0);
   final incomeBuckets = List.filled(weekCount, 0);
 
-  for (final r in rows) {
-    final row = r as Map<String, dynamic>;
-    final date = DateTime.parse(row['expense_date'] as String);
+  for (final row in dailyBuckets) {
+    final date = DateTime.parse(row['bucket_date'] as String);
     final dayOffset = date.difference(startDate).inDays;
     if (dayOffset < 0) continue;
     final weekIdx = (dayOffset ~/ 7).clamp(0, weekCount - 1);
-    final homeCents = row['home_amount_cents'] as int? ?? 0;
-    final cents = useActualAmount
-        ? (row['actual_amount_cents'] as int? ?? homeCents)
-        : homeCents;
-    if (row['type'] == 'income') {
-      incomeBuckets[weekIdx] += homeCents;
-    } else {
-      spendBuckets[weekIdx] += cents;
-    }
+    spendBuckets[weekIdx] += useActualAmount
+        ? (row['actual_cents'] as num? ?? 0).toInt()
+        : (row['spend_cents'] as num? ?? 0).toInt();
+    incomeBuckets[weekIdx] += (row['income_cents'] as num? ?? 0).toInt();
   }
 
   return List.generate(
@@ -309,7 +310,7 @@ List<PeriodBucket> _bucketByWeekOfMonth(
 }
 
 List<PeriodBucket> _bucketByWeek(
-  List<dynamic> rows,
+  List<Map<String, dynamic>> dailyBuckets,
   DateTime startDate,
   DateTime endDate,
   bool useActualAmount,
@@ -319,21 +320,15 @@ List<PeriodBucket> _bucketByWeek(
   final spendBuckets = List.filled(weekCount, 0);
   final incomeBuckets = List.filled(weekCount, 0);
 
-  for (final r in rows) {
-    final row = r as Map<String, dynamic>;
-    final date = DateTime.parse(row['expense_date'] as String);
+  for (final row in dailyBuckets) {
+    final date = DateTime.parse(row['bucket_date'] as String);
     final dayOffset = date.difference(startDate).inDays;
     if (dayOffset < 0) continue;
     final weekIdx = (dayOffset ~/ 7).clamp(0, weekCount - 1);
-    final homeCents = row['home_amount_cents'] as int? ?? 0;
-    final cents = useActualAmount
-        ? (row['actual_amount_cents'] as int? ?? homeCents)
-        : homeCents;
-    if (row['type'] == 'income') {
-      incomeBuckets[weekIdx] += homeCents;
-    } else {
-      spendBuckets[weekIdx] += cents;
-    }
+    spendBuckets[weekIdx] += useActualAmount
+        ? (row['actual_cents'] as num? ?? 0).toInt()
+        : (row['spend_cents'] as num? ?? 0).toInt();
+    incomeBuckets[weekIdx] += (row['income_cents'] as num? ?? 0).toInt();
   }
 
   return List.generate(
@@ -346,38 +341,26 @@ List<PeriodBucket> _bucketByWeek(
   );
 }
 
-List<PeriodBucket> _bucketByMonth(List<dynamic> rows, int year, bool useActualAmount) {
+List<PeriodBucket> _bucketByMonth(
+  List<Map<String, dynamic>> dailyBuckets,
+  int year,
+  bool useActualAmount,
+) {
   const monthLabels = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
   ];
   final spendBuckets = List.filled(12, 0);
   final incomeBuckets = List.filled(12, 0);
 
-  for (final r in rows) {
-    final row = r as Map<String, dynamic>;
-    final date = DateTime.parse(row['expense_date'] as String);
+  for (final row in dailyBuckets) {
+    final date = DateTime.parse(row['bucket_date'] as String);
     if (date.year != year) continue;
     final monthIdx = date.month - 1;
-    final homeCents = row['home_amount_cents'] as int? ?? 0;
-    final cents = useActualAmount
-        ? (row['actual_amount_cents'] as int? ?? homeCents)
-        : homeCents;
-    if (row['type'] == 'income') {
-      incomeBuckets[monthIdx] += homeCents;
-    } else {
-      spendBuckets[monthIdx] += cents;
-    }
+    spendBuckets[monthIdx] += useActualAmount
+        ? (row['actual_cents'] as num? ?? 0).toInt()
+        : (row['spend_cents'] as num? ?? 0).toInt();
+    incomeBuckets[monthIdx] += (row['income_cents'] as num? ?? 0).toInt();
   }
 
   return List.generate(

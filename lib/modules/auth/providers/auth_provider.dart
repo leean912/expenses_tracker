@@ -115,7 +115,8 @@ class AuthNotifier extends Notifier<AppAuthState> {
 
       unawaited(paymentService.identify(finalProfile.id));
       unawaited(syncSubscriptionTier(finalProfile.id));
-      ref.invalidate(homeDataProvider);
+      ref.invalidate(homeAnalyticsProvider);
+      ref.invalidate(homeExpensesProvider);
       state = AppAuthState.authenticated(finalProfile);
     } catch (e) {
       debugPrint('login error: $e');
