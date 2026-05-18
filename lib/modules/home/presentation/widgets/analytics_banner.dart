@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../settings/expense_type/providers/expense_type_provider.dart';
 import '../../providers/home/home_state.dart';
 
 String _fmtCents(int cents) {
@@ -17,13 +19,20 @@ String _fmtCents(int cents) {
 }
 
 /// Compact single-row banner pinned at top when the full banner scrolls away.
-class AnalyticsBannerCompact extends StatelessWidget {
+class AnalyticsBannerCompact extends ConsumerWidget {
   const AnalyticsBannerCompact({super.key, required this.summary});
 
   final AnalyticsSummary summary;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isActual =
+        ref.watch(expenseTypeProvider).valueOrNull == ExpenseType.actual;
+    final displayCents = isActual
+        ? summary.actualSpentCents
+        : summary.totalSpentCents;
+    final label = isActual ? 'Actual expenses' : 'Total expenses';
+
     return Container(
       color: AppColors.background,
       padding: const EdgeInsets.symmetric(
@@ -32,17 +41,17 @@ class AnalyticsBannerCompact extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Text(
-            'Total expenses',
-            style: TextStyle(fontSize: 12, color: AppColors.textTertiary),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 12, color: AppColors.textTertiary),
           ),
           const Spacer(),
           Text(
-            _fmtCents(summary.totalSpentCents),
+            _fmtCents(displayCents),
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w700,
-              color: summary.totalSpentCents < 0
+              color: displayCents < 0
                   ? AppColors.incomeDark
                   : AppColors.expenseLight,
             ),
@@ -55,16 +64,28 @@ class AnalyticsBannerCompact extends StatelessWidget {
 
 /// Banner card showing total spent + 3-stat row.
 /// Tappable — navigates to analytics detail.
-class AnalyticsBanner extends StatelessWidget {
+class AnalyticsBanner extends ConsumerWidget {
   const AnalyticsBanner({super.key, required this.summary, this.onTap});
 
   final AnalyticsSummary summary;
   final VoidCallback? onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     // final isDownFromLast = summary.changePercent < 0;
     // final changePct = summary.changePercent.abs().round();
+    final isActual =
+        ref.watch(expenseTypeProvider).valueOrNull == ExpenseType.actual;
+    final displayCents = isActual
+        ? summary.actualSpentCents
+        : summary.totalSpentCents;
+    final avgCents = isActual
+        ? summary.actualAvgPerDayCents
+        : summary.avgPerDayCents;
+    final changeVsLast = isActual
+        ? summary.actualChangeVsLastMonthCents
+        : summary.changeVsLastMonthCents;
+    final label = isActual ? 'Actual expenses' : 'Total expenses';
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
@@ -94,20 +115,20 @@ class AnalyticsBanner extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Total expenses',
-                          style: TextStyle(
+                        Text(
+                          label,
+                          style: const TextStyle(
                             fontSize: 12,
                             color: AppColors.textTertiary,
                           ),
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          _fmtCents(summary.totalSpentCents),
+                          _fmtCents(displayCents),
                           style: TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.w700,
-                            color: summary.totalSpentCents < 0
+                            color: displayCents < 0
                                 ? AppColors.incomeDark
                                 : AppColors.expenseLight,
                           ),
@@ -141,7 +162,7 @@ class AnalyticsBanner extends StatelessWidget {
                   Expanded(
                     child: _StatItem(
                       label: 'Avg/day',
-                      value: _fmtCents(summary.avgPerDayCents),
+                      value: _fmtCents(avgCents),
                     ),
                   ),
                   Expanded(
@@ -154,8 +175,8 @@ class AnalyticsBanner extends StatelessWidget {
                     child: _StatItem(
                       label: 'Current vs last month',
                       value:
-                          '${summary.changeVsLastMonthCents < 0 ? "−" : "+"}${_fmtCents(summary.changeVsLastMonthCents)}',
-                      valueColor: summary.changeVsLastMonthCents < 0
+                          '${changeVsLast < 0 ? "−" : "+"}${_fmtCents(changeVsLast)}',
+                      valueColor: changeVsLast < 0
                           ? AppColors.positiveDark
                           : AppColors.expenseLight,
                     ),

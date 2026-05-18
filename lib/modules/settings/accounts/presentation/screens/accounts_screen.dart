@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../core/widgets/upgrade_sheet.dart';
 import '../../../../../service_locator.dart';
 import '../../../../auth/providers/auth_provider.dart';
 import '../../../../auth/providers/states/auth_state.dart';
@@ -55,6 +56,23 @@ class AccountsScreen extends ConsumerWidget {
           final freeCustomCount = accounts
               .where((a) => !a.isDefault && !a.requiresPremium)
               .length;
+
+          const typeOrder = [
+            'wallet', 'bank', 'cash', 'credit_card',
+            'investment', 'loan', 'other',
+          ];
+          final grouped = <String, List<AccountModel>>{};
+          for (final t in typeOrder) {
+            final group = accounts.where((a) => a.accountType == t).toList();
+            if (group.isNotEmpty) grouped[t] = group;
+          }
+          final ungrouped = accounts
+              .where((a) => !typeOrder.contains(a.accountType))
+              .toList();
+          if (ungrouped.isNotEmpty) grouped['other'] = [...(grouped['other'] ?? []), ...ungrouped];
+
+          final sections = grouped.entries.toList();
+
           return Column(
             children: [
               if (!isPremium) ...[
@@ -66,20 +84,54 @@ class AccountsScreen extends ConsumerWidget {
                 const SizedBox(height: AppSpacing.sm),
               ],
               Expanded(
-                child: ListView.separated(
-                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-                  itemCount: accounts.length,
-                  separatorBuilder: (_, _) =>
-                      const Divider(height: 1, color: AppColors.border),
-                  itemBuilder: (context, i) {
-                    final acc = accounts[i];
-                    final isGreyed = !isPremium && acc.requiresPremium;
-                    return _AccountTile(
-                      account: acc,
-                      isGreyed: isGreyed,
-                      onDelete: acc.isDefault
-                          ? null
-                          : () => _confirmDelete(context, ref, acc.id),
+                child: ListView.builder(
+                  padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                  itemCount: sections.length,
+                  itemBuilder: (context, si) {
+                    final label = const {
+                      'wallet': 'Wallet',
+                      'bank': 'Bank',
+                      'cash': 'Cash',
+                      'credit_card': 'Credit Card',
+                      'investment': 'Investment',
+                      'loan': 'Loan',
+                      'other': 'Other',
+                    }[sections[si].key] ?? sections[si].key;
+                    final group = sections[si].value;
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(
+                            AppSpacing.xl, AppSpacing.lg, AppSpacing.xl, AppSpacing.xs,
+                          ),
+                          child: Text(
+                            label,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textSecondary,
+                              letterSpacing: 0.4,
+                            ),
+                          ),
+                        ),
+                        const Divider(height: 1, color: AppColors.border),
+                        ...group.map((acc) {
+                          final isGreyed = !isPremium && acc.requiresPremium;
+                          return Column(
+                            children: [
+                              _AccountTile(
+                                account: acc,
+                                isGreyed: isGreyed,
+                                onDelete: acc.isDefault
+                                    ? null
+                                    : () => _confirmDelete(context, ref, acc.id),
+                              ),
+                              const Divider(height: 1, color: AppColors.border),
+                            ],
+                          );
+                        }),
+                      ],
                     );
                   },
                 ),
@@ -170,10 +222,11 @@ class AccountsScreen extends ConsumerWidget {
   }
 
   void _showUpgradeSheet(BuildContext context, int limit) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _UpgradeSheet(feature: 'accounts', limit: limit),
+    UpgradeSheet.show(
+      context,
+      title: "You've used all $limit custom accounts!",
+      description:
+          'Upgrade to Premium for unlimited categories, accounts, and groups.',
     );
   }
 }
@@ -404,10 +457,11 @@ class _AddAccountSheetState extends ConsumerState<_AddAccountSheet> {
       if (e.hint == 'upgrade_required') {
         if (mounted) {
           context.pop();
-          showModalBottomSheet(
-            context: context,
-            backgroundColor: Colors.transparent,
-            builder: (_) => const _UpgradeSheet(feature: 'accounts', limit: 5),
+          UpgradeSheet.show(
+            context,
+            title: "You've used all 5 custom accounts!",
+            description:
+                'Upgrade to Premium for unlimited categories, accounts, and groups.',
           );
         }
       } else if (e.hint == 'duplicate_name') {
@@ -630,7 +684,7 @@ class _AddAccountSheetState extends ConsumerState<_AddAccountSheet> {
                   border: Border.all(color: AppColors.border),
                 ),
                 child: Wrap(
-                  children: kIconNames.map((name) {
+                  children: kAccountIconNames.map((name) {
                     final isSelected = name == _selectedIcon;
                     final color = hexToColor(_selectedColor);
                     return GestureDetector(
@@ -692,85 +746,6 @@ class _AddAccountSheetState extends ConsumerState<_AddAccountSheet> {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-// ── Upgrade sheet ─────────────────────────────────────────────────────────────
-
-class _UpgradeSheet extends StatelessWidget {
-  const _UpgradeSheet({required this.feature, required this.limit});
-
-  final String feature;
-  final int limit;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(
-        AppSpacing.xl,
-        0,
-        AppSpacing.xl,
-        AppSpacing.xl,
-      ),
-      padding: const EdgeInsets.all(AppSpacing.xxl),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.xxl),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(
-            Icons.workspace_premium_rounded,
-            size: 40,
-            color: AppColors.budgetOverallBar,
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          Text(
-            "You've used all $limit custom $feature!",
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: AppSpacing.md),
-          const Text(
-            'Upgrade to Premium for unlimited categories, accounts, and groups.',
-            style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: AppSpacing.xxl),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: () {},
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.budgetOverallBar,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppRadius.lg),
-                ),
-              ),
-              child: const Text(
-                'Upgrade to Premium',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-              ),
-            ),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          TextButton(
-            onPressed: () => context.pop(),
-            child: const Text(
-              'Maybe later',
-              style: TextStyle(color: AppColors.textTertiary),
-            ),
-          ),
-        ],
       ),
     );
   }

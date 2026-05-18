@@ -1,9 +1,9 @@
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:jomspendz/modules/home/providers/home/home_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:jomspendz/modules/home/providers/home/home_provider.dart';
 
 import '../../../../core/services/receipt_upload_service.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -51,7 +51,9 @@ class SplitBillDetailScreen extends ConsumerWidget {
       body: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) {
-          final isDeleted = e.toString().contains('not found or has been deleted');
+          final isDeleted = e.toString().contains(
+            'not found or has been deleted',
+          );
           return Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -139,9 +141,8 @@ class _DeleteButtonState extends ConsumerState<_DeleteButton> {
                         height: 24,
                         child: Checkbox(
                           value: deleteExpenses,
-                          onChanged: (v) => setStatDialog(
-                            () => deleteExpenses = v ?? false,
-                          ),
+                          onChanged: (v) =>
+                              setStatDialog(() => deleteExpenses = v ?? false),
                           materialTapTargetSize:
                               MaterialTapTargetSize.shrinkWrap,
                         ),
@@ -149,7 +150,7 @@ class _DeleteButtonState extends ConsumerState<_DeleteButton> {
                       const SizedBox(width: 8),
                       const Expanded(
                         child: Text(
-                          'Also delete my personal expense and settlement income records',
+                          'Also delete my personal expense and settlement records',
                           style: TextStyle(fontSize: 13),
                         ),
                       ),
@@ -164,9 +165,8 @@ class _DeleteButtonState extends ConsumerState<_DeleteButton> {
                 child: const Text('Cancel'),
               ),
               TextButton(
-                onPressed: () => ctx.pop(
-                  (confirmed: true, deleteExpenses: deleteExpenses),
-                ),
+                onPressed: () =>
+                    ctx.pop((confirmed: true, deleteExpenses: deleteExpenses)),
                 child: const Text(
                   'Delete',
                   style: TextStyle(color: Color(0xFFE24B4A)),
@@ -623,10 +623,7 @@ class _ShareRow extends StatelessWidget {
 
     if (!_tappable) return content;
 
-    return InkWell(
-      onTap: () => _openOptions(context),
-      child: content,
-    );
+    return InkWell(onTap: () => _openOptions(context), child: content);
   }
 }
 
@@ -860,8 +857,7 @@ class _OptionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color =
-        disabled ? AppColors.textTertiary : AppColors.textPrimary;
+    final color = disabled ? AppColors.textTertiary : AppColors.textPrimary;
 
     return InkWell(
       onTap: onTap,
@@ -872,7 +868,13 @@ class _OptionTile extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(icon, size: 20, color: disabled ? AppColors.textTertiary : AppColors.textSecondary),
+            Icon(
+              icon,
+              size: 20,
+              color: disabled
+                  ? AppColors.textTertiary
+                  : AppColors.textSecondary,
+            ),
             const SizedBox(width: AppSpacing.xl),
             Expanded(
               child: Column(
@@ -974,7 +976,9 @@ class _EditAmountSheetState extends ConsumerState<_EditAmountSheet> {
         (double.tryParse(_controller.text.trim()) ?? 0) > 0 && !_loading;
 
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
       child: Container(
         margin: const EdgeInsets.fromLTRB(
           AppSpacing.xl,
@@ -1003,7 +1007,9 @@ class _EditAmountSheetState extends ConsumerState<_EditAmountSheet> {
             TextField(
               controller: _controller,
               autofocus: true,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               onChanged: (_) => setState(() {}),
               decoration: InputDecoration(
                 prefixText: '${widget.currency} ',

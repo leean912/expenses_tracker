@@ -362,14 +362,11 @@ class _GroupsTabState extends ConsumerState<_GroupsTab> {
 
     if (!isPremium && freeGroupCount >= 2) {
       if (!mounted) return;
-      showModalBottomSheet<void>(
-        context: context,
-        backgroundColor: Colors.transparent,
-        builder: (_) => const UpgradeSheet(
-          title: "You've used all 2 groups!",
-          description:
-              'Upgrade to Premium for unlimited groups, categories, and accounts.',
-        ),
+      UpgradeSheet.show(
+        context,
+        title: "You've used all 2 groups!",
+        description:
+            'Upgrade to Premium for unlimited groups, categories, and accounts.',
       );
       return;
     }
@@ -557,14 +554,11 @@ class _GroupsTabState extends ConsumerState<_GroupsTab> {
                             isLocked: isLocked,
                             onDelete: () => _handleDelete(group.id, group.name),
                             onTap: isLocked
-                                ? () => showModalBottomSheet<void>(
-                                    context: context,
-                                    backgroundColor: Colors.transparent,
-                                    builder: (_) => const UpgradeSheet(
-                                      title: 'Premium group',
-                                      description:
-                                          'This group was created with Premium. Upgrade to unlock it.',
-                                    ),
+                                ? () => UpgradeSheet.show(
+                                    context,
+                                    title: 'Premium group',
+                                    description:
+                                        'This group was created with Premium. Upgrade to unlock it.',
                                   )
                                 : () => context.push(
                                     '$groupDetailRoute/${group.id}',

@@ -127,17 +127,23 @@ extension TimePeriodRange on TimePeriod {
 class AnalyticsSummary {
   const AnalyticsSummary({
     required this.totalSpentCents,
+    required this.actualSpentCents,
     // required this.changePercent, // negative = spent less than last month
     required this.avgPerDayCents,
+    required this.actualAvgPerDayCents,
     required this.topCategory,
     required this.changeVsLastMonthCents,
+    required this.actualChangeVsLastMonthCents,
   });
 
   final int totalSpentCents;
+  final int actualSpentCents;
   // final double changePercent;
   final int avgPerDayCents;
+  final int actualAvgPerDayCents;
   final String topCategory;
   final int changeVsLastMonthCents;
+  final int actualChangeVsLastMonthCents;
 }
 
 /// A budget card for the grid.

@@ -70,7 +70,7 @@ final homeDataProvider = FutureProvider.family<HomeData, HomeFilter>((
     // 2. Current calendar month totals (net spend: expenses − income).
     supabase
         .from('expenses')
-        .select('home_amount_cents, type')
+        .select('home_amount_cents, actual_amount_cents, type')
         .eq('user_id', userId)
         .gte('expense_date', thisMonthStart)
         .lte('expense_date', thisMonthEnd)
@@ -80,7 +80,7 @@ final homeDataProvider = FutureProvider.family<HomeData, HomeFilter>((
     // 3. Last calendar month totals (net spend: expenses − income).
     supabase
         .from('expenses')
-        .select('home_amount_cents, type')
+        .select('home_amount_cents, actual_amount_cents, type')
         .eq('user_id', userId)
         .gte('expense_date', lastMonthStart)
         .lte('expense_date', lastMonthEnd)
@@ -106,6 +106,7 @@ final homeDataProvider = FutureProvider.family<HomeData, HomeFilter>((
   // ── Analytics ─────────────────────────────────────────────────────────────
 
   int totalCents = 0;
+  int actualTotalCents = 0;
   int budgetTotalCents = 0;
   final Map<String, ({int cents, String name})> spendByCategory = {};
   final Map<String, ({int cents, String name})> budgetSpendByCategory = {};
@@ -119,6 +120,7 @@ final homeDataProvider = FutureProvider.family<HomeData, HomeFilter>((
     if (isIncome) continue;
 
     totalCents += homeCents;
+    actualTotalCents += actualCents;
     budgetTotalCents += actualCents;
 
     final catId = row['category_id'] as String? ?? '';
@@ -138,18 +140,27 @@ final homeDataProvider = FutureProvider.family<HomeData, HomeFilter>((
   }
 
   int thisMonthTotalCents = 0;
+  int thisMonthActualCents = 0;
   for (final r in thisMonthRows) {
     final row = r as Map<String, dynamic>;
-    final cents = row['home_amount_cents'] as int? ?? 0;
-    if (row['type'] != 'income') thisMonthTotalCents += cents;
+    if (row['type'] == 'income') continue;
+    final home = row['home_amount_cents'] as int? ?? 0;
+    final actual = row['actual_amount_cents'] as int? ?? home;
+    thisMonthTotalCents += home;
+    thisMonthActualCents += actual;
   }
   int lastMonthTotalCents = 0;
+  int lastMonthActualCents = 0;
   for (final r in lastMonthRows) {
     final row = r as Map<String, dynamic>;
-    final cents = row['home_amount_cents'] as int? ?? 0;
-    if (row['type'] != 'income') lastMonthTotalCents += cents;
+    if (row['type'] == 'income') continue;
+    final home = row['home_amount_cents'] as int? ?? 0;
+    final actual = row['actual_amount_cents'] as int? ?? home;
+    lastMonthTotalCents += home;
+    lastMonthActualCents += actual;
   }
   final changeVsLast = thisMonthTotalCents - lastMonthTotalCents;
+  final actualChangeVsLast = thisMonthActualCents - lastMonthActualCents;
   // final changePercent = prevTotalCents == 0
   //     ? 0.0
   //     : (changeVsLast / prevTotalCents) * 100.0;
@@ -169,12 +180,18 @@ final homeDataProvider = FutureProvider.family<HomeData, HomeFilter>((
       DateTime.parse(end).difference(DateTime.parse(start)).inDays + 1;
   final avgPerDayCents = periodDays > 0 ? totalCents ~/ periodDays : 0;
 
+  final actualAvgPerDayCents =
+      periodDays > 0 ? actualTotalCents ~/ periodDays : 0;
+
   final analytics = AnalyticsSummary(
     totalSpentCents: totalCents,
+    actualSpentCents: actualTotalCents,
     // changePercent: changePercent,
     avgPerDayCents: avgPerDayCents,
+    actualAvgPerDayCents: actualAvgPerDayCents,
     topCategory: topCategory,
     changeVsLastMonthCents: changeVsLast,
+    actualChangeVsLastMonthCents: actualChangeVsLast,
   );
 
   // ── Budgets ───────────────────────────────────────────────────────────────

@@ -21,28 +21,12 @@ class ExportScreen extends ConsumerStatefulWidget {
 }
 
 class _ExportScreenState extends ConsumerState<ExportScreen> {
-  late TextEditingController _fileNameController;
   bool _exporting = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _fileNameController = TextEditingController(
-      text: ref.read(exportPdfProvider).fileName,
-    );
-  }
-
-  @override
-  void dispose() {
-    _fileNameController.dispose();
-    super.dispose();
-  }
 
   Future<void> _export(
     List<CategoryModel> cats,
     List<AccountModel> accs,
   ) async {
-    ref.read(exportPdfProvider.notifier).setFileName(_fileNameController.text);
     setState(() => _exporting = true);
     try {
       await ref.read(exportPdfProvider.notifier).export(cats, accs);
@@ -195,19 +179,6 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
               end: filter.endDate,
               onChanged: (s, e) =>
                   ref.read(exportPdfProvider.notifier).setDateRange(s, e),
-            ),
-            const SizedBox(height: AppSpacing.xxl),
-
-            // ── File name ───────────────────────────────────────────────────
-            _SectionLabel('Output File Name'),
-            const SizedBox(height: AppSpacing.md),
-            TextField(
-              controller: _fileNameController,
-              style: const TextStyle(
-                fontSize: 14,
-                color: AppColors.textPrimary,
-              ),
-              decoration: _inputDecoration('e.g. my_expenses_june'),
             ),
             const SizedBox(height: AppSpacing.xxl),
 
@@ -403,28 +374,6 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
     );
   }
 
-  InputDecoration _inputDecoration(String hint) => InputDecoration(
-    hintText: hint,
-    hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 14),
-    filled: true,
-    fillColor: AppColors.surface,
-    border: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(AppRadius.lg),
-      borderSide: const BorderSide(color: AppColors.border),
-    ),
-    enabledBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(AppRadius.lg),
-      borderSide: const BorderSide(color: AppColors.border),
-    ),
-    focusedBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(AppRadius.lg),
-      borderSide: const BorderSide(color: AppColors.accent, width: 1.5),
-    ),
-    contentPadding: const EdgeInsets.symmetric(
-      horizontal: AppSpacing.lg,
-      vertical: AppSpacing.lg,
-    ),
-  );
 }
 
 // ── Date range picker ─────────────────────────────────────────────────────────

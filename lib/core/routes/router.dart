@@ -30,6 +30,7 @@ import '../../modules/referral/presentation/screens/referral_screen.dart';
 import '../../modules/settings/accounts/presentation/screens/accounts_screen.dart';
 import '../../modules/settings/budget/presentation/screens/budget_list_screen.dart';
 import '../../modules/settings/categories/presentation/screens/categories_screen.dart';
+import '../../modules/settings/expense_type/presentation/screens/expense_type_screen.dart';
 import '../../modules/split_bills/presentation/screens/friend_split_detail_screen.dart';
 import '../../modules/split_bills/presentation/screens/split_bill_detail_screen.dart';
 import '../../modules/split_bills/presentation/screens/split_bills_screen.dart';
@@ -87,6 +88,10 @@ final router = GoRouter(
     GoRoute(
       path: settingsAccountsRoute,
       builder: (context, state) => const AccountsScreen(),
+    ),
+    GoRoute(
+      path: settingsExpenseTypeRoute,
+      builder: (context, state) => const ExpenseTypeScreen(),
     ),
     GoRoute(
       path: budgetsRoute,
