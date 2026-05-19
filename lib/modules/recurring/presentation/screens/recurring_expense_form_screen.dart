@@ -32,7 +32,7 @@ class _RecurringExpenseFormScreenState
   final _amountController = TextEditingController();
   final _noteController = TextEditingController();
 
-  String _type = 'expense';
+  final String _type = 'expense';
   String _frequency = 'monthly';
   DateTime _runAt = DateTime.now();
   String? _categoryId;
@@ -49,7 +49,6 @@ class _RecurringExpenseFormScreenState
     if (e != null) {
       _titleController.text = e.title;
       _amountController.text = (e.amountCents / 100).toStringAsFixed(2);
-      _type = e.type;
       _frequency = e.frequency;
       _runAt = e.nextRunAt;
       _categoryId = e.categoryId;
@@ -203,55 +202,6 @@ class _RecurringExpenseFormScreenState
 
               const SizedBox(height: AppSpacing.xxl),
 
-              const FormLabel('Type'),
-              const SizedBox(height: AppSpacing.md),
-              Row(
-                children: [
-                  for (final entry in [
-                    ('expense', 'Expense'),
-                    ('income', 'Income'),
-                  ])
-                    Expanded(
-                      child: Padding(
-                        padding: EdgeInsets.only(
-                          right: entry.$1 == 'expense' ? AppSpacing.sm : 0,
-                        ),
-                        child: GestureDetector(
-                          onTap: () => setState(() => _type = entry.$1),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 150),
-                            padding: const EdgeInsets.symmetric(vertical: 10),
-                            decoration: BoxDecoration(
-                              color: _type == entry.$1
-                                  ? AppColors.accent
-                                  : AppColors.surface,
-                              borderRadius: BorderRadius.circular(AppRadius.lg),
-                              border: Border.all(
-                                color: _type == entry.$1
-                                    ? AppColors.accent
-                                    : AppColors.border,
-                              ),
-                            ),
-                            child: Text(
-                              entry.$2,
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                                color: _type == entry.$1
-                                    ? AppColors.accentText
-                                    : AppColors.textSecondary,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-
-              const SizedBox(height: AppSpacing.xxl),
-
               const FormLabel('Amount (RM)'),
               const SizedBox(height: AppSpacing.md),
               TextField(
@@ -321,6 +271,29 @@ class _RecurringExpenseFormScreenState
 
               const SizedBox(height: AppSpacing.xxl),
 
+              const FormLabel('Description (Optional)'),
+              const SizedBox(height: AppSpacing.md),
+              TextField(
+                controller: _noteController,
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: AppColors.textPrimary,
+                ),
+                decoration: formInputDecoration(hint: 'Add a description'),
+              ),
+
+              if (_error != null) ...[
+                const SizedBox(height: AppSpacing.lg),
+                Text(
+                  _error!,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFFE24B4A),
+                  ),
+                ),
+              ],
+              const SizedBox(height: AppSpacing.xxl),
+
               const FormLabel('Category (Optional)'),
               const SizedBox(height: AppSpacing.md),
               categoriesAsync.when(
@@ -357,30 +330,6 @@ class _RecurringExpenseFormScreenState
                 loading: () => const _PickerLoading(),
                 error: (_, _) => const _PickerError('Failed to load accounts'),
               ),
-
-              const SizedBox(height: AppSpacing.xxl),
-
-              const FormLabel('Note (Optional)'),
-              const SizedBox(height: AppSpacing.md),
-              TextField(
-                controller: _noteController,
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: AppColors.textPrimary,
-                ),
-                decoration: formInputDecoration(hint: 'Add a note'),
-              ),
-
-              if (_error != null) ...[
-                const SizedBox(height: AppSpacing.lg),
-                Text(
-                  _error!,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFFE24B4A),
-                  ),
-                ),
-              ],
 
               const SizedBox(height: AppSpacing.xxl),
 

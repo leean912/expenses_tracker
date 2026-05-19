@@ -41,8 +41,18 @@ class _BudgetAnalyticsScreenState extends ConsumerState<BudgetAnalyticsScreen> {
   }
 
   String _monthShort(int m) => const [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
   ][m - 1];
 
   @override
@@ -84,8 +94,7 @@ class _BudgetAnalyticsScreenState extends ConsumerState<BudgetAnalyticsScreen> {
                       color: AppColors.textPrimary,
                     ),
                   ),
-                  centerTitle: false,
-                  titlePadding: EdgeInsets.only(left: 52, bottom: 16),
+                  centerTitle: true,
                 ),
                 pinned: true,
               ),
@@ -137,8 +146,7 @@ class _BudgetAnalyticsScreenState extends ConsumerState<BudgetAnalyticsScreen> {
                       ),
                       _AmountToggle(
                         useActualAmount: _useActualAmount,
-                        onChanged: (v) =>
-                            setState(() => _useActualAmount = v),
+                        onChanged: (v) => setState(() => _useActualAmount = v),
                       ),
                     ],
                   ),
@@ -260,10 +268,7 @@ class _BudgetAnalyticsScreenState extends ConsumerState<BudgetAnalyticsScreen> {
 }
 
 class _AmountToggle extends StatelessWidget {
-  const _AmountToggle({
-    required this.useActualAmount,
-    required this.onChanged,
-  });
+  const _AmountToggle({required this.useActualAmount, required this.onChanged});
 
   final bool useActualAmount;
   final ValueChanged<bool> onChanged;

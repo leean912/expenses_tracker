@@ -17,6 +17,7 @@ import '../../modules/contacts/presentation/screens/contacts_screen.dart';
 import '../../modules/contacts/presentation/screens/group_detail_screen.dart';
 import '../../modules/export/presentation/screens/export_screen.dart';
 import '../../modules/home/presentation/screens/category_expenses_screen.dart';
+import '../../modules/home/presentation/screens/feedback_screen.dart';
 import '../../modules/home/presentation/screens/collabs_screen.dart';
 import '../../modules/home/presentation/screens/home_screen.dart';
 import '../../modules/home/presentation/screens/more_screen.dart';
@@ -120,6 +121,10 @@ final router = GoRouter(
     GoRoute(
       path: profileRoute,
       builder: (context, state) => const ProfileScreen(),
+    ),
+    GoRoute(
+      path: feedbackRoute,
+      builder: (context, state) => const FeedbackScreen(),
     ),
     GoRoute(
       path: '/split-bills/friend/:friendId',

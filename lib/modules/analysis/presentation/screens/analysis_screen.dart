@@ -130,7 +130,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                       color: AppColors.textPrimary,
                     ),
                   ),
-                  centerTitle: false,
+                  centerTitle: true,
                 ),
                 pinned: true,
               ),

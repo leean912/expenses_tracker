@@ -7,8 +7,8 @@ import 'package:intl/intl.dart';
 import '../../../../core/routes/routes.dart';
 import '../../../../core/services/receipt_upload_service.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/widgets/receipt_viewer.dart';
 import '../../../../core/utils/amount_input_formatter.dart';
+import '../../../../core/widgets/receipt_viewer.dart';
 import '../../../../core/widgets/upgrade_sheet.dart';
 import '../../../../service_locator.dart';
 import '../../../home/providers/home/home_provider.dart';
@@ -39,6 +39,7 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
   final _amountController = TextEditingController();
   final _homeAmountController = TextEditingController();
   final _conversionRateController = TextEditingController();
+  final _actualAmountController = TextEditingController();
   final _noteController = TextEditingController();
 
   String? _selectedCategoryId;
@@ -83,6 +84,7 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
     _amountController.dispose();
     _homeAmountController.dispose();
     _conversionRateController.dispose();
+    _actualAmountController.dispose();
     _noteController.dispose();
     super.dispose();
   }
@@ -122,7 +124,7 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
       final row = await supabase
           .from('expenses')
           .select(
-            'id, note, amount_cents, home_amount_cents, currency, home_currency, '
+            'id, note, amount_cents, home_amount_cents, actual_amount_cents, currency, home_currency, '
             'conversion_rate, expense_date, category_id, account_id, '
             'source_split_bill_id, source_recurring_expense_id, '
             'source_recurring_split_bill_id, collab_id, receipt_url',
@@ -134,6 +136,8 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
 
       final amountCents = row['amount_cents'] as int? ?? 0;
       final homeAmountCents = row['home_amount_cents'] as int? ?? 0;
+      final actualAmountCents =
+          row['actual_amount_cents'] as int? ?? homeAmountCents;
       final conversionRate = row['conversion_rate'];
       final expenseDate = row['expense_date'] as String;
 
@@ -143,9 +147,11 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
         _receiptUrl = row['receipt_url'] as String?;
         _splitBillId = row['source_split_bill_id'] as String?;
         _collabId = row['collab_id'] as String?;
-        _isSplitBill = _splitBillId != null ||
+        _isSplitBill =
+            _splitBillId != null ||
             row['source_recurring_split_bill_id'] != null;
-        _isRecurring = row['source_recurring_expense_id'] != null ||
+        _isRecurring =
+            row['source_recurring_expense_id'] != null ||
             row['source_recurring_split_bill_id'] != null;
         _isCollab = _collabId != null;
         _selectedCategoryId = row['category_id'] as String?;
@@ -154,6 +160,8 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
         _noteController.text = row['note'] as String? ?? '';
         _amountController.text = (amountCents / 100).toStringAsFixed(2);
         _homeAmountController.text = (homeAmountCents / 100).toStringAsFixed(2);
+        _actualAmountController.text = (actualAmountCents / 100)
+            .toStringAsFixed(2);
         _conversionRateController.text = conversionRate != null
             ? conversionRate.toString()
             : '';
@@ -170,11 +178,23 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
         date.year == now.year && date.month == now.month && date.day == now.day;
     if (isToday) return 'Today';
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     final m = months[date.month - 1];
-    return date.year == now.year ? '$m ${date.day}' : '$m ${date.day}, ${date.year}';
+    return date.year == now.year
+        ? '$m ${date.day}'
+        : '$m ${date.day}, ${date.year}';
   }
 
   Future<void> _pickReceipt() async {
@@ -253,17 +273,43 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
       if (_isForeignCurrency) {
         final homeAmountText = _homeAmountController.text.trim();
         final homeAmount = double.tryParse(homeAmountText);
+        int? homeAmountCents;
         if (homeAmount != null && homeAmount > 0) {
-          payload['home_amount_cents'] = (homeAmount * 100).round();
+          homeAmountCents = (homeAmount * 100).round();
+          payload['home_amount_cents'] = homeAmountCents;
         }
         final rateText = _conversionRateController.text.trim();
         final rate = double.tryParse(rateText);
         payload['conversion_rate'] = rate;
+
+        if (_isSplitBill) {
+          final actualText = _actualAmountController.text.trim();
+          final actualAmount = double.tryParse(actualText);
+          payload['actual_amount_cents'] =
+              (actualAmount != null && actualAmount > 0)
+              ? (actualAmount * 100).round()
+              : homeAmountCents;
+        } else {
+          payload['actual_amount_cents'] = homeAmountCents;
+        }
       } else {
         payload['home_amount_cents'] = amountCents;
+        if (_isSplitBill) {
+          final actualText = _actualAmountController.text.trim();
+          final actualAmount = double.tryParse(actualText);
+          payload['actual_amount_cents'] =
+              (actualAmount != null && actualAmount > 0)
+              ? (actualAmount * 100).round()
+              : amountCents;
+        } else {
+          payload['actual_amount_cents'] = amountCents;
+        }
       }
 
-      await supabase.from('expenses').update(payload).eq('id', widget.expenseId);
+      await supabase
+          .from('expenses')
+          .update(payload)
+          .eq('id', widget.expenseId);
 
       if (mounted) {
         ref.invalidate(homeAnalyticsProvider);
@@ -308,9 +354,10 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
       if (_receiptUrl != null) {
         ReceiptUploadService.deleteByUrl(_receiptUrl!);
       }
-      await supabase.from('expenses').update({
-        'deleted_at': DateTime.now().toIso8601String(),
-      }).eq('id', widget.expenseId);
+      await supabase
+          .from('expenses')
+          .update({'deleted_at': DateTime.now().toIso8601String()})
+          .eq('id', widget.expenseId);
 
       if (mounted) {
         ref.invalidate(homeAnalyticsProvider);
@@ -425,7 +472,10 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           // ── Type badges ─────────────────────────────────
-                          if (_isSplitBill || _isRecurring || _isCollab || _isForeignCurrency) ...[
+                          if (_isSplitBill ||
+                              _isRecurring ||
+                              _isCollab ||
+                              _isForeignCurrency) ...[
                             Wrap(
                               spacing: AppSpacing.sm,
                               runSpacing: AppSpacing.sm,
@@ -436,8 +486,8 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
                                     label: 'Split Bill',
                                     onTap: _splitBillId != null
                                         ? () => context.push(
-                                              '/split-bills/$_splitBillId',
-                                            )
+                                            '/split-bills/$_splitBillId',
+                                          )
                                         : null,
                                   ),
                                 if (_isRecurring)
@@ -450,7 +500,9 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
                                     icon: Icons.group_outlined,
                                     label: 'Collab',
                                     onTap: _collabId != null
-                                        ? () => context.push('/collabs/$_collabId')
+                                        ? () => context.push(
+                                            '/collabs/$_collabId',
+                                          )
                                         : null,
                                   ),
                                 if (_isForeignCurrency)
@@ -491,8 +543,8 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
                                     controller: _amountController,
                                     keyboardType:
                                         const TextInputType.numberWithOptions(
-                                      decimal: true,
-                                    ),
+                                          decimal: true,
+                                        ),
                                     inputFormatters: [AmountInputFormatter()],
                                     style: const TextStyle(
                                       fontSize: 32,
@@ -529,6 +581,67 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
                             ),
                           ],
 
+                          // ── Actual amount (split bill, same currency) ────
+                          if (_isSplitBill && !_isForeignCurrency) ...[
+                            const SizedBox(height: AppSpacing.lg),
+                            _SectionLabel(
+                              'Your Actual Amount ($_homeCurrency)',
+                            ),
+                            const SizedBox(height: AppSpacing.md),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: AppSpacing.lg,
+                                vertical: AppSpacing.sm,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.surface,
+                                borderRadius: BorderRadius.circular(
+                                  AppRadius.lg,
+                                ),
+                                border: Border.all(color: AppColors.border),
+                              ),
+                              child: Row(
+                                children: [
+                                  Text(
+                                    _homeCurrency,
+                                    style: const TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.w500,
+                                      color: AppColors.textTertiary,
+                                    ),
+                                  ),
+                                  const SizedBox(width: AppSpacing.md),
+                                  Expanded(
+                                    child: TextField(
+                                      controller: _actualAmountController,
+                                      keyboardType:
+                                          const TextInputType.numberWithOptions(
+                                            decimal: true,
+                                          ),
+                                      inputFormatters: [AmountInputFormatter()],
+                                      style: const TextStyle(
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.textPrimary,
+                                      ),
+                                      textAlign: TextAlign.right,
+                                      decoration: const InputDecoration(
+                                        hintText: '0.00',
+                                        hintStyle: TextStyle(
+                                          color: AppColors.textTertiary,
+                                          fontSize: 24,
+                                        ),
+                                        border: InputBorder.none,
+                                        isDense: true,
+                                        contentPadding: EdgeInsets.zero,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+
                           // ── Home amount + rate (foreign currency only) ───
                           if (_isForeignCurrency) ...[
                             const SizedBox(height: AppSpacing.lg),
@@ -541,7 +654,9 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
                               ),
                               decoration: BoxDecoration(
                                 color: AppColors.surface,
-                                borderRadius: BorderRadius.circular(AppRadius.lg),
+                                borderRadius: BorderRadius.circular(
+                                  AppRadius.lg,
+                                ),
                                 border: Border.all(color: AppColors.border),
                               ),
                               child: Row(
@@ -560,8 +675,8 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
                                       controller: _homeAmountController,
                                       keyboardType:
                                           const TextInputType.numberWithOptions(
-                                        decimal: true,
-                                      ),
+                                            decimal: true,
+                                          ),
                                       inputFormatters: [AmountInputFormatter()],
                                       style: const TextStyle(
                                         fontSize: 24,
@@ -593,8 +708,8 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
                               controller: _conversionRateController,
                               keyboardType:
                                   const TextInputType.numberWithOptions(
-                                decimal: true,
-                              ),
+                                    decimal: true,
+                                  ),
                               style: const TextStyle(
                                 fontSize: 14,
                                 color: AppColors.textPrimary,
@@ -608,20 +723,25 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
                                 filled: true,
                                 fillColor: AppColors.surface,
                                 border: OutlineInputBorder(
-                                  borderRadius:
-                                      BorderRadius.circular(AppRadius.lg),
-                                  borderSide:
-                                      const BorderSide(color: AppColors.border),
+                                  borderRadius: BorderRadius.circular(
+                                    AppRadius.lg,
+                                  ),
+                                  borderSide: const BorderSide(
+                                    color: AppColors.border,
+                                  ),
                                 ),
                                 enabledBorder: OutlineInputBorder(
-                                  borderRadius:
-                                      BorderRadius.circular(AppRadius.lg),
-                                  borderSide:
-                                      const BorderSide(color: AppColors.border),
+                                  borderRadius: BorderRadius.circular(
+                                    AppRadius.lg,
+                                  ),
+                                  borderSide: const BorderSide(
+                                    color: AppColors.border,
+                                  ),
                                 ),
                                 focusedBorder: OutlineInputBorder(
-                                  borderRadius:
-                                      BorderRadius.circular(AppRadius.lg),
+                                  borderRadius: BorderRadius.circular(
+                                    AppRadius.lg,
+                                  ),
                                   borderSide: const BorderSide(
                                     color: AppColors.accent,
                                     width: 1.5,
@@ -633,6 +753,67 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
                                 ),
                               ),
                             ),
+                            if (_isSplitBill) ...[
+                              const SizedBox(height: AppSpacing.lg),
+                              _SectionLabel(
+                                'Your Actual Amount ($_homeCurrency)',
+                              ),
+                              const SizedBox(height: AppSpacing.md),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: AppSpacing.lg,
+                                  vertical: AppSpacing.sm,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.surface,
+                                  borderRadius: BorderRadius.circular(
+                                    AppRadius.lg,
+                                  ),
+                                  border: Border.all(color: AppColors.border),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Text(
+                                      _homeCurrency,
+                                      style: const TextStyle(
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.w500,
+                                        color: AppColors.textTertiary,
+                                      ),
+                                    ),
+                                    const SizedBox(width: AppSpacing.md),
+                                    Expanded(
+                                      child: TextField(
+                                        controller: _actualAmountController,
+                                        keyboardType:
+                                            const TextInputType.numberWithOptions(
+                                              decimal: true,
+                                            ),
+                                        inputFormatters: [
+                                          AmountInputFormatter(),
+                                        ],
+                                        style: const TextStyle(
+                                          fontSize: 24,
+                                          fontWeight: FontWeight.w600,
+                                          color: AppColors.textPrimary,
+                                        ),
+                                        textAlign: TextAlign.right,
+                                        decoration: const InputDecoration(
+                                          hintText: '0.00',
+                                          hintStyle: TextStyle(
+                                            color: AppColors.textTertiary,
+                                            fontSize: 24,
+                                          ),
+                                          border: InputBorder.none,
+                                          isDense: true,
+                                          contentPadding: EdgeInsets.zero,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ],
 
                           const SizedBox(height: AppSpacing.xxl),
@@ -647,13 +828,68 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
 
                           const SizedBox(height: AppSpacing.xxl),
 
+                          // ── Description ─────────────────────────────────
+                          const _SectionLabel('Description'),
+                          const SizedBox(height: AppSpacing.md),
+                          TextField(
+                            controller: _noteController,
+                            maxLines: 3,
+                            minLines: 1,
+                            textCapitalization: TextCapitalization.sentences,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: AppColors.textPrimary,
+                            ),
+                            decoration: InputDecoration(
+                              hintText: 'Add a note...',
+                              hintStyle: const TextStyle(
+                                color: AppColors.textTertiary,
+                                fontSize: 14,
+                              ),
+                              filled: true,
+                              fillColor: AppColors.surface,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(
+                                  AppRadius.lg,
+                                ),
+                                borderSide: const BorderSide(
+                                  color: AppColors.border,
+                                ),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(
+                                  AppRadius.lg,
+                                ),
+                                borderSide: const BorderSide(
+                                  color: AppColors.border,
+                                ),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(
+                                  AppRadius.lg,
+                                ),
+                                borderSide: const BorderSide(
+                                  color: AppColors.accent,
+                                  width: 1.5,
+                                ),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: AppSpacing.lg,
+                                vertical: AppSpacing.lg,
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(height: AppSpacing.xxl),
+
                           // ── Category ────────────────────────────────────
                           const _SectionLabel('Category'),
                           const SizedBox(height: AppSpacing.md),
                           Consumer(
                             builder: (context, ref, _) {
-                              final categoriesAsync =
-                                  ref.watch(pickerCategoriesProvider);
+                              final categoriesAsync = ref.watch(
+                                pickerCategoriesProvider,
+                              );
                               return categoriesAsync.when(
                                 data: (cats) => _CategoryPicker(
                                   categories: cats,
@@ -694,8 +930,9 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
                           const SizedBox(height: AppSpacing.md),
                           Consumer(
                             builder: (context, ref, _) {
-                              final accountsAsync =
-                                  ref.watch(pickerAccountsProvider);
+                              final accountsAsync = ref.watch(
+                                pickerAccountsProvider,
+                              );
                               return accountsAsync.when(
                                 data: (accounts) => _AccountPicker(
                                   accounts: accounts,
@@ -743,8 +980,9 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
                               ),
                               decoration: BoxDecoration(
                                 color: AppColors.surface,
-                                borderRadius:
-                                    BorderRadius.circular(AppRadius.lg),
+                                borderRadius: BorderRadius.circular(
+                                  AppRadius.lg,
+                                ),
                                 border: Border.all(color: AppColors.border),
                               ),
                               child: Row(
@@ -776,55 +1014,6 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
 
                           const SizedBox(height: AppSpacing.xxl),
 
-                          // ── Description ─────────────────────────────────
-                          const _SectionLabel('Description'),
-                          const SizedBox(height: AppSpacing.md),
-                          TextField(
-                            controller: _noteController,
-                            maxLines: 3,
-                            minLines: 1,
-                            textCapitalization: TextCapitalization.sentences,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: AppColors.textPrimary,
-                            ),
-                            decoration: InputDecoration(
-                              hintText: 'Add a note...',
-                              hintStyle: const TextStyle(
-                                color: AppColors.textTertiary,
-                                fontSize: 14,
-                              ),
-                              filled: true,
-                              fillColor: AppColors.surface,
-                              border: OutlineInputBorder(
-                                borderRadius:
-                                    BorderRadius.circular(AppRadius.lg),
-                                borderSide:
-                                    const BorderSide(color: AppColors.border),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius:
-                                    BorderRadius.circular(AppRadius.lg),
-                                borderSide:
-                                    const BorderSide(color: AppColors.border),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius:
-                                    BorderRadius.circular(AppRadius.lg),
-                                borderSide: const BorderSide(
-                                  color: AppColors.accent,
-                                  width: 1.5,
-                                ),
-                              ),
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: AppSpacing.lg,
-                                vertical: AppSpacing.lg,
-                              ),
-                            ),
-                          ),
-
-                          const SizedBox(height: AppSpacing.xxl),
-
                           // ── Save button ─────────────────────────────────
                           SizedBox(
                             width: double.infinity,
@@ -833,11 +1022,13 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
                               style: FilledButton.styleFrom(
                                 backgroundColor: AppColors.accent,
                                 foregroundColor: AppColors.accentText,
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 16),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
+                                ),
                                 shape: RoundedRectangleBorder(
-                                  borderRadius:
-                                      BorderRadius.circular(AppRadius.lg),
+                                  borderRadius: BorderRadius.circular(
+                                    AppRadius.lg,
+                                  ),
                                 ),
                               ),
                               child: _saving
@@ -894,7 +1085,9 @@ class _InfoBadge extends StatelessWidget {
             : AppColors.surfaceMuted,
         borderRadius: BorderRadius.circular(AppRadius.pill),
         border: Border.all(
-          color: tappable ? AppColors.accent.withValues(alpha: 0.4) : AppColors.border,
+          color: tappable
+              ? AppColors.accent.withValues(alpha: 0.4)
+              : AppColors.border,
         ),
       ),
       child: Row(
@@ -1028,7 +1221,11 @@ class _CategoryPicker extends StatelessWidget {
             child: const Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.add_rounded, size: 14, color: AppColors.textSecondary),
+                Icon(
+                  Icons.add_rounded,
+                  size: 14,
+                  color: AppColors.textSecondary,
+                ),
                 SizedBox(width: 4),
                 Text(
                   'Add',
@@ -1236,7 +1433,11 @@ class _AccountPicker extends StatelessWidget {
             child: const Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.add_rounded, size: 14, color: AppColors.textSecondary),
+                Icon(
+                  Icons.add_rounded,
+                  size: 14,
+                  color: AppColors.textSecondary,
+                ),
                 SizedBox(width: 4),
                 Text(
                   'Add',

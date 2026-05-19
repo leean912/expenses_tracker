@@ -18,7 +18,8 @@ import '../../../contacts/data/models/group_model.dart';
 import '../../../contacts/providers/contacts_provider.dart';
 import '../../../contacts/providers/groups_provider.dart';
 import '../../../home/providers/home/home_provider.dart';
-import '../../../split_bills/providers/split_bills_provider.dart' show myBillsProvider;
+import '../../../split_bills/providers/split_bills_provider.dart'
+    show myBillsProvider;
 import '../../../subscription/providers/subscription_provider.dart';
 import '../../data/models/account_model.dart';
 import '../../data/models/category_model.dart';
@@ -367,7 +368,7 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet>
 
     if (ok && mounted) {
       ref.invalidate(homeAnalyticsProvider);
-        ref.invalidate(homeExpensesProvider);
+      ref.invalidate(homeExpensesProvider);
       context.pop();
     }
   }
@@ -812,6 +813,47 @@ class _ExpenseForm extends ConsumerWidget {
 
           const SizedBox(height: AppSpacing.xxl),
 
+          // ── Note ───────────────────────────────────────────────────────
+          const _SectionLabel('Description'),
+          const SizedBox(height: AppSpacing.md),
+          TextField(
+            controller: noteController,
+            maxLines: 3,
+            minLines: 1,
+            textCapitalization: TextCapitalization.sentences,
+            style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
+            decoration: InputDecoration(
+              hintText: 'Add a note...',
+              hintStyle: const TextStyle(
+                color: AppColors.textTertiary,
+                fontSize: 14,
+              ),
+              filled: true,
+              fillColor: AppColors.surface,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadius.lg),
+                borderSide: const BorderSide(color: AppColors.border),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadius.lg),
+                borderSide: const BorderSide(color: AppColors.border),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadius.lg),
+                borderSide: const BorderSide(
+                  color: AppColors.accent,
+                  width: 1.5,
+                ),
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.lg,
+                vertical: AppSpacing.lg,
+              ),
+            ),
+          ),
+
+          const SizedBox(height: AppSpacing.xxl),
+
           // ── Category ───────────────────────────────────────────────────
           const _SectionLabel('Category'),
           const SizedBox(height: AppSpacing.md),
@@ -912,47 +954,6 @@ class _ExpenseForm extends ConsumerWidget {
                     color: AppColors.textTertiary,
                   ),
                 ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: AppSpacing.xxl),
-
-          // ── Note ───────────────────────────────────────────────────────
-          const _SectionLabel('Description'),
-          const SizedBox(height: AppSpacing.md),
-          TextField(
-            controller: noteController,
-            maxLines: 3,
-            minLines: 1,
-            textCapitalization: TextCapitalization.sentences,
-            style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
-            decoration: InputDecoration(
-              hintText: 'Add a note...',
-              hintStyle: const TextStyle(
-                color: AppColors.textTertiary,
-                fontSize: 14,
-              ),
-              filled: true,
-              fillColor: AppColors.surface,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppRadius.lg),
-                borderSide: const BorderSide(color: AppColors.border),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppRadius.lg),
-                borderSide: const BorderSide(color: AppColors.border),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppRadius.lg),
-                borderSide: const BorderSide(
-                  color: AppColors.accent,
-                  width: 1.5,
-                ),
-              ),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.lg,
-                vertical: AppSpacing.lg,
               ),
             ),
           ),
@@ -1089,163 +1090,6 @@ class _SplitBillForm extends ConsumerWidget {
               style: const TextStyle(fontSize: 12, color: Color(0xFFE24B4A)),
             ),
           ],
-
-          const SizedBox(height: AppSpacing.xxl),
-
-          // ── Receipt ─────────────────────────────────────────────────────
-          _ReceiptRow(
-            receiptUrl: receiptUrl,
-            isUploading: receiptUploading,
-            onAdd: onAddReceipt,
-            onDelete: onDeleteReceipt,
-          ),
-
-          const SizedBox(height: AppSpacing.xxl),
-
-          // ── Category ───────────────────────────────────────────────────
-          const _SectionLabel('Category'),
-          const SizedBox(height: AppSpacing.md),
-          categoriesAsync.when(
-            data: (cats) => _CategoryPicker(
-              categories: cats,
-              selectedId: selectedCategoryId,
-              onSelect: onCategorySelect,
-              onAddTap: onAddCategory,
-            ),
-            loading: () => const SizedBox(
-              height: 40,
-              child: Center(
-                child: SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: AppColors.textTertiary,
-                  ),
-                ),
-              ),
-            ),
-            error: (_, _) => const Text(
-              'Failed to load categories',
-              style: TextStyle(fontSize: 12, color: AppColors.textTertiary),
-            ),
-          ),
-
-          const SizedBox(height: AppSpacing.xxl),
-
-          // ── Account ────────────────────────────────────────────────────
-          const _SectionLabel('Account'),
-          const SizedBox(height: AppSpacing.md),
-          accountsAsync.when(
-            data: (accounts) => _AccountPicker(
-              accounts: accounts,
-              selectedId: selectedAccountId,
-              onSelect: onAccountSelect,
-              onAddTap: onAddAccount,
-            ),
-            loading: () => const SizedBox(
-              height: 40,
-              child: Center(
-                child: SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: AppColors.textTertiary,
-                  ),
-                ),
-              ),
-            ),
-            error: (_, _) => const Text(
-              'Failed to load accounts',
-              style: TextStyle(fontSize: 12, color: AppColors.textTertiary),
-            ),
-          ),
-
-          const SizedBox(height: AppSpacing.xxl),
-
-          // ── Date ───────────────────────────────────────────────────────
-          const _SectionLabel('Date'),
-          const SizedBox(height: AppSpacing.md),
-          GestureDetector(
-            onTap: onDateTap,
-            child: Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.lg,
-                vertical: AppSpacing.lg,
-              ),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(AppRadius.lg),
-                border: Border.all(color: AppColors.border),
-              ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.calendar_today_rounded,
-                    size: 16,
-                    color: AppColors.textSecondary,
-                  ),
-                  const SizedBox(width: AppSpacing.md),
-                  Text(
-                    formattedDate,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  const Spacer(),
-                  const Icon(
-                    Icons.chevron_right_rounded,
-                    size: 18,
-                    color: AppColors.textTertiary,
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: AppSpacing.xxl),
-
-          // ── Note ───────────────────────────────────────────────────────
-          const _SectionLabel('Description'),
-          const SizedBox(height: AppSpacing.md),
-          TextField(
-            controller: noteController,
-            maxLines: 2,
-            minLines: 1,
-            textCapitalization: TextCapitalization.sentences,
-            style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
-            decoration: InputDecoration(
-              hintText: 'What was this for?',
-              hintStyle: const TextStyle(
-                color: AppColors.textTertiary,
-                fontSize: 14,
-              ),
-              filled: true,
-              fillColor: AppColors.surface,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppRadius.lg),
-                borderSide: const BorderSide(color: AppColors.border),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppRadius.lg),
-                borderSide: const BorderSide(color: AppColors.border),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppRadius.lg),
-                borderSide: const BorderSide(
-                  color: AppColors.accent,
-                  width: 1.5,
-                ),
-              ),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.lg,
-                vertical: AppSpacing.lg,
-              ),
-            ),
-          ),
 
           const SizedBox(height: AppSpacing.xxl),
 
@@ -1402,6 +1246,163 @@ class _SplitBillForm extends ConsumerWidget {
               ],
             ),
           ],
+
+          const SizedBox(height: AppSpacing.xxl),
+
+          // ── Receipt ─────────────────────────────────────────────────────
+          _ReceiptRow(
+            receiptUrl: receiptUrl,
+            isUploading: receiptUploading,
+            onAdd: onAddReceipt,
+            onDelete: onDeleteReceipt,
+          ),
+
+          const SizedBox(height: AppSpacing.xxl),
+
+          // ── Note ───────────────────────────────────────────────────────
+          const _SectionLabel('Description'),
+          const SizedBox(height: AppSpacing.md),
+          TextField(
+            controller: noteController,
+            maxLines: 2,
+            minLines: 1,
+            textCapitalization: TextCapitalization.sentences,
+            style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
+            decoration: InputDecoration(
+              hintText: 'What was this for?',
+              hintStyle: const TextStyle(
+                color: AppColors.textTertiary,
+                fontSize: 14,
+              ),
+              filled: true,
+              fillColor: AppColors.surface,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadius.lg),
+                borderSide: const BorderSide(color: AppColors.border),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadius.lg),
+                borderSide: const BorderSide(color: AppColors.border),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadius.lg),
+                borderSide: const BorderSide(
+                  color: AppColors.accent,
+                  width: 1.5,
+                ),
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.lg,
+                vertical: AppSpacing.lg,
+              ),
+            ),
+          ),
+
+          const SizedBox(height: AppSpacing.xxl),
+
+          // ── Category ───────────────────────────────────────────────────
+          const _SectionLabel('Category'),
+          const SizedBox(height: AppSpacing.md),
+          categoriesAsync.when(
+            data: (cats) => _CategoryPicker(
+              categories: cats,
+              selectedId: selectedCategoryId,
+              onSelect: onCategorySelect,
+              onAddTap: onAddCategory,
+            ),
+            loading: () => const SizedBox(
+              height: 40,
+              child: Center(
+                child: SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.textTertiary,
+                  ),
+                ),
+              ),
+            ),
+            error: (_, _) => const Text(
+              'Failed to load categories',
+              style: TextStyle(fontSize: 12, color: AppColors.textTertiary),
+            ),
+          ),
+
+          const SizedBox(height: AppSpacing.xxl),
+
+          // ── Account ────────────────────────────────────────────────────
+          const _SectionLabel('Account'),
+          const SizedBox(height: AppSpacing.md),
+          accountsAsync.when(
+            data: (accounts) => _AccountPicker(
+              accounts: accounts,
+              selectedId: selectedAccountId,
+              onSelect: onAccountSelect,
+              onAddTap: onAddAccount,
+            ),
+            loading: () => const SizedBox(
+              height: 40,
+              child: Center(
+                child: SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.textTertiary,
+                  ),
+                ),
+              ),
+            ),
+            error: (_, _) => const Text(
+              'Failed to load accounts',
+              style: TextStyle(fontSize: 12, color: AppColors.textTertiary),
+            ),
+          ),
+
+          const SizedBox(height: AppSpacing.xxl),
+
+          // ── Date ───────────────────────────────────────────────────────
+          const _SectionLabel('Date'),
+          const SizedBox(height: AppSpacing.md),
+          GestureDetector(
+            onTap: onDateTap,
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.lg,
+                vertical: AppSpacing.lg,
+              ),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(AppRadius.lg),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.calendar_today_rounded,
+                    size: 16,
+                    color: AppColors.textSecondary,
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  Text(
+                    formattedDate,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const Spacer(),
+                  const Icon(
+                    Icons.chevron_right_rounded,
+                    size: 18,
+                    color: AppColors.textTertiary,
+                  ),
+                ],
+              ),
+            ),
+          ),
 
           const SizedBox(height: AppSpacing.xxl),
         ],

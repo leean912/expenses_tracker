@@ -1,7 +1,10 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/routes/routes.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -219,6 +222,73 @@ class MoreScreen extends ConsumerWidget {
               onTap: () {
                 context.push(exportPdfRoute);
               },
+            ),
+            const Divider(height: 1, color: AppColors.border),
+            const SizedBox(height: AppSpacing.xl),
+            const _SectionHeader('Support'),
+            if (Platform.isAndroid)
+              ListTile(
+                leading: const Icon(
+                  Icons.star_rounded,
+                  color: AppColors.textSecondary,
+                ),
+                title: const Text(
+                  'Rate Us',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                subtitle: const Text(
+                  'Enjoying JomSpendz? Leave us a review!',
+                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                ),
+                trailing: const Icon(
+                  Icons.chevron_right_rounded,
+                  color: AppColors.textTertiary,
+                ),
+                onTap: () async {
+                  final uri = Uri.parse(
+                    'market://details?id=com.spendz.app',
+                  );
+                  final fallback = Uri.parse(
+                    'https://play.google.com/store/apps/details?id=com.spendz.app',
+                  );
+                  if (await canLaunchUrl(uri)) {
+                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  } else if (await canLaunchUrl(fallback)) {
+                    await launchUrl(
+                      fallback,
+                      mode: LaunchMode.externalApplication,
+                    );
+                  }
+                },
+              ),
+            if (Platform.isAndroid)
+              const Divider(height: 1, indent: 56, color: AppColors.border),
+            ListTile(
+              leading: const Icon(
+                Icons.feedback_outlined,
+                color: AppColors.textSecondary,
+              ),
+              title: const Text(
+                'Send Feedback',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              subtitle: const Text(
+                'Report a bug or suggest a feature',
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              ),
+              trailing: const Icon(
+                Icons.chevron_right_rounded,
+                color: AppColors.textTertiary,
+              ),
+              onTap: () => context.push(feedbackRoute),
             ),
             const Divider(height: 1, color: AppColors.border),
             const SizedBox(height: AppSpacing.xl),

@@ -441,47 +441,6 @@ class _RecurringSplitBillFormScreenState
 
               const SizedBox(height: AppSpacing.xxl),
 
-              // ── Category ──────────────────────────────────────────────────
-              const FormLabel('Category (Optional)'),
-              const SizedBox(height: AppSpacing.md),
-              categoriesAsync.when(
-                data: (cats) => _ChipPicker<CategoryModel>(
-                  items: cats,
-                  selectedId: _categoryId,
-                  idOf: (c) => c.id,
-                  colorOf: (c) => hexToColor(c.color),
-                  iconOf: (c) => iconForName(c.icon),
-                  labelOf: (c) => c.name,
-                  onSelect: (id) => setState(() => _categoryId = id),
-                  onAddTap: () => context.push(settingsCategoriesRoute),
-                ),
-                loading: () => const _PickerLoading(),
-                error: (_, _) =>
-                    const _PickerError('Failed to load categories'),
-              ),
-
-              const SizedBox(height: AppSpacing.xxl),
-
-              // ── Account ───────────────────────────────────────────────────
-              const FormLabel('Account (Optional)'),
-              const SizedBox(height: AppSpacing.md),
-              accountsAsync.when(
-                data: (accs) => _ChipPicker<AccountModel>(
-                  items: accs,
-                  selectedId: _accountId,
-                  idOf: (a) => a.id,
-                  colorOf: (a) => hexToColor(a.color),
-                  iconOf: (a) => iconForName(a.icon),
-                  labelOf: (a) => a.name,
-                  onSelect: (id) => setState(() => _accountId = id),
-                  onAddTap: () => context.push(settingsAccountsRoute),
-                ),
-                loading: () => const _PickerLoading(),
-                error: (_, _) => const _PickerError('Failed to load accounts'),
-              ),
-
-              const SizedBox(height: AppSpacing.xxl),
-
               // ── Split with ─────────────────────────────────────────────────
               Row(
                 children: [
@@ -657,7 +616,7 @@ class _RecurringSplitBillFormScreenState
 
               const SizedBox(height: AppSpacing.xxl),
 
-              const FormLabel('Note (Optional)'),
+              const FormLabel('Description (Optional)'),
               const SizedBox(height: AppSpacing.md),
               TextField(
                 controller: _noteController,
@@ -665,7 +624,48 @@ class _RecurringSplitBillFormScreenState
                   fontSize: 14,
                   color: AppColors.textPrimary,
                 ),
-                decoration: formInputDecoration(hint: 'Add a note'),
+                decoration: formInputDecoration(hint: 'Add a description'),
+              ),
+
+              const SizedBox(height: AppSpacing.xxl),
+
+              // ── Category ──────────────────────────────────────────────────
+              const FormLabel('Category (Optional)'),
+              const SizedBox(height: AppSpacing.md),
+              categoriesAsync.when(
+                data: (cats) => _ChipPicker<CategoryModel>(
+                  items: cats,
+                  selectedId: _categoryId,
+                  idOf: (c) => c.id,
+                  colorOf: (c) => hexToColor(c.color),
+                  iconOf: (c) => iconForName(c.icon),
+                  labelOf: (c) => c.name,
+                  onSelect: (id) => setState(() => _categoryId = id),
+                  onAddTap: () => context.push(settingsCategoriesRoute),
+                ),
+                loading: () => const _PickerLoading(),
+                error: (_, _) =>
+                    const _PickerError('Failed to load categories'),
+              ),
+
+              const SizedBox(height: AppSpacing.xxl),
+
+              // ── Account ───────────────────────────────────────────────────
+              const FormLabel('Account (Optional)'),
+              const SizedBox(height: AppSpacing.md),
+              accountsAsync.when(
+                data: (accs) => _ChipPicker<AccountModel>(
+                  items: accs,
+                  selectedId: _accountId,
+                  idOf: (a) => a.id,
+                  colorOf: (a) => hexToColor(a.color),
+                  iconOf: (a) => iconForName(a.icon),
+                  labelOf: (a) => a.name,
+                  onSelect: (id) => setState(() => _accountId = id),
+                  onAddTap: () => context.push(settingsAccountsRoute),
+                ),
+                loading: () => const _PickerLoading(),
+                error: (_, _) => const _PickerError('Failed to load accounts'),
               ),
 
               const SizedBox(height: AppSpacing.xxl),

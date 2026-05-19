@@ -18,7 +18,8 @@ import '../../../expenses/providers/accounts_provider.dart';
 import '../../../expenses/providers/categories_provider.dart';
 import '../../../expenses/utils/expense_ui_helpers.dart';
 import '../../../home/providers/home/home_provider.dart';
-import '../../../split_bills/providers/split_bills_provider.dart' show myBillsProvider;
+import '../../../split_bills/providers/split_bills_provider.dart'
+    show myBillsProvider;
 import '../../../subscription/providers/subscription_provider.dart';
 import '../../data/models/collab_model.dart';
 import '../../providers/collab_expenses_provider.dart';
@@ -326,7 +327,8 @@ class _CollabExpenseSheetState extends ConsumerState<CollabExpenseSheet>
       if (_accountId != null) payload['account_id'] = _accountId;
       final note = _noteController.text.trim();
       if (note.isNotEmpty) payload['note'] = note;
-      if (_expenseReceiptUrl != null) payload['receipt_url'] = _expenseReceiptUrl;
+      if (_expenseReceiptUrl != null)
+        payload['receipt_url'] = _expenseReceiptUrl;
 
       await supabase.from('expenses').insert(payload);
 
@@ -438,7 +440,7 @@ class _CollabExpenseSheetState extends ConsumerState<CollabExpenseSheet>
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
       child: Container(
-        height: MediaQuery.sizeOf(context).height * .8,
+        height: MediaQuery.sizeOf(context).height * .9,
         decoration: const BoxDecoration(
           color: AppColors.background,
           borderRadius: BorderRadius.vertical(
@@ -825,6 +827,47 @@ class _ExpenseForm extends StatelessWidget {
 
           const SizedBox(height: AppSpacing.xxl),
 
+          // Note
+          const _SectionLabel('Description (optional)'),
+          const SizedBox(height: AppSpacing.md),
+          TextField(
+            controller: noteController,
+            maxLines: 2,
+            minLines: 1,
+            textCapitalization: TextCapitalization.sentences,
+            style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
+            decoration: InputDecoration(
+              hintText: "What's this for?",
+              hintStyle: const TextStyle(
+                color: AppColors.textTertiary,
+                fontSize: 14,
+              ),
+              filled: true,
+              fillColor: AppColors.surface,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadius.lg),
+                borderSide: const BorderSide(color: AppColors.border),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadius.lg),
+                borderSide: const BorderSide(color: AppColors.border),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadius.lg),
+                borderSide: const BorderSide(
+                  color: AppColors.accent,
+                  width: 1.5,
+                ),
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.lg,
+                vertical: AppSpacing.lg,
+              ),
+            ),
+          ),
+
+          const SizedBox(height: AppSpacing.xxl),
+
           // Category
           const _SectionLabel('Category'),
           const SizedBox(height: AppSpacing.md),
@@ -901,47 +944,6 @@ class _ExpenseForm extends StatelessWidget {
                     color: AppColors.textTertiary,
                   ),
                 ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: AppSpacing.xxl),
-
-          // Note
-          const _SectionLabel('Note (optional)'),
-          const SizedBox(height: AppSpacing.md),
-          TextField(
-            controller: noteController,
-            maxLines: 2,
-            minLines: 1,
-            textCapitalization: TextCapitalization.sentences,
-            style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
-            decoration: InputDecoration(
-              hintText: "What's this for?",
-              hintStyle: const TextStyle(
-                color: AppColors.textTertiary,
-                fontSize: 14,
-              ),
-              filled: true,
-              fillColor: AppColors.surface,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppRadius.lg),
-                borderSide: const BorderSide(color: AppColors.border),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppRadius.lg),
-                borderSide: const BorderSide(color: AppColors.border),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppRadius.lg),
-                borderSide: const BorderSide(
-                  color: AppColors.accent,
-                  width: 1.5,
-                ),
-              ),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.lg,
-                vertical: AppSpacing.lg,
               ),
             ),
           ),
@@ -1126,12 +1128,129 @@ class _SplitBillForm extends StatelessWidget {
 
           const SizedBox(height: AppSpacing.xxl),
 
+          // Split with
+          Row(
+            children: [
+              const _SectionLabel('Split with'),
+              const Spacer(),
+              const Text(
+                'Equal split',
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Switch(
+                value: equalSplit,
+                onChanged: onEqualSplitToggle,
+                activeThumbColor: AppColors.accentText,
+                activeTrackColor: AppColors.accent,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+
+          // Participants
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(AppRadius.xl),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Column(
+              children: [
+                for (int i = 0; i < participants.length; i++) ...[
+                  if (i > 0)
+                    const Divider(
+                      height: 1,
+                      thickness: 1,
+                      color: AppColors.border,
+                    ),
+                  _ParticipantRow(
+                    participant: participants[i],
+                    currency: collab.currency,
+                    readOnly: equalSplit,
+                    onRemove: participants[i].isMe
+                        ? null
+                        : () => onRemoveParticipant(i),
+                  ),
+                ],
+              ],
+            ),
+          ),
+
+          if (!equalSplit && remainingCents != 0) ...[
+            const SizedBox(height: AppSpacing.md),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                const Text(
+                  'Remaining: ',
+                  style: TextStyle(fontSize: 12, color: AppColors.textTertiary),
+                ),
+                Text(
+                  remainingCents < 0
+                      ? '${collab.currency} ${(remainingCents.abs() / 100).toStringAsFixed(2)} over'
+                      : '${collab.currency} ${(remainingCents / 100).toStringAsFixed(2)}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: remainingCents < 0
+                        ? const Color(0xFFE24B4A)
+                        : AppColors.budgetOverallBar,
+                  ),
+                ),
+              ],
+            ),
+          ],
+
+          const SizedBox(height: AppSpacing.xxl),
+
           // Receipt
           _ReceiptRow(
             receiptUrl: receiptUrl,
             isUploading: receiptUploading,
             onAdd: onAddReceipt,
             onDelete: onDeleteReceipt,
+          ),
+          const SizedBox(height: AppSpacing.xxl),
+
+          // Note
+          const _SectionLabel('Description (optional)'),
+          const SizedBox(height: AppSpacing.md),
+          TextField(
+            controller: noteController,
+            maxLines: 2,
+            minLines: 1,
+            textCapitalization: TextCapitalization.sentences,
+            style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
+            decoration: InputDecoration(
+              hintText: "What's this for?",
+              hintStyle: const TextStyle(
+                color: AppColors.textTertiary,
+                fontSize: 14,
+              ),
+              filled: true,
+              fillColor: AppColors.surface,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadius.lg),
+                borderSide: const BorderSide(color: AppColors.border),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadius.lg),
+                borderSide: const BorderSide(color: AppColors.border),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadius.lg),
+                borderSide: const BorderSide(
+                  color: AppColors.accent,
+                  width: 1.5,
+                ),
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.lg,
+                vertical: AppSpacing.lg,
+              ),
+            ),
           ),
 
           const SizedBox(height: AppSpacing.xxl),
@@ -1217,124 +1336,6 @@ class _SplitBillForm extends StatelessWidget {
           ),
 
           const SizedBox(height: AppSpacing.xxl),
-
-          // Note
-          const _SectionLabel('Description'),
-          const SizedBox(height: AppSpacing.md),
-          TextField(
-            controller: noteController,
-            maxLines: 2,
-            minLines: 1,
-            textCapitalization: TextCapitalization.sentences,
-            style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
-            decoration: InputDecoration(
-              hintText: "What's this for?",
-              hintStyle: const TextStyle(
-                color: AppColors.textTertiary,
-                fontSize: 14,
-              ),
-              filled: true,
-              fillColor: AppColors.surface,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppRadius.lg),
-                borderSide: const BorderSide(color: AppColors.border),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppRadius.lg),
-                borderSide: const BorderSide(color: AppColors.border),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppRadius.lg),
-                borderSide: const BorderSide(
-                  color: AppColors.accent,
-                  width: 1.5,
-                ),
-              ),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.lg,
-                vertical: AppSpacing.lg,
-              ),
-            ),
-          ),
-
-          const SizedBox(height: AppSpacing.xxl),
-
-          // Split with
-          Row(
-            children: [
-              const _SectionLabel('Split with'),
-              const Spacer(),
-              const Text(
-                'Equal split',
-                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Switch(
-                value: equalSplit,
-                onChanged: onEqualSplitToggle,
-                activeThumbColor: AppColors.accentText,
-                activeTrackColor: AppColors.accent,
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.md),
-
-          // Participants
-          Container(
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(AppRadius.xl),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: Column(
-              children: [
-                for (int i = 0; i < participants.length; i++) ...[
-                  if (i > 0)
-                    const Divider(
-                      height: 1,
-                      thickness: 1,
-                      color: AppColors.border,
-                    ),
-                  _ParticipantRow(
-                    participant: participants[i],
-                    currency: collab.currency,
-                    readOnly: equalSplit,
-                    onRemove: participants[i].isMe
-                        ? null
-                        : () => onRemoveParticipant(i),
-                  ),
-                ],
-              ],
-            ),
-          ),
-
-          if (!equalSplit && remainingCents != 0) ...[
-            const SizedBox(height: AppSpacing.md),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                const Text(
-                  'Remaining: ',
-                  style: TextStyle(fontSize: 12, color: AppColors.textTertiary),
-                ),
-                Text(
-                  remainingCents < 0
-                      ? '${collab.currency} ${(remainingCents.abs() / 100).toStringAsFixed(2)} over'
-                      : '${collab.currency} ${(remainingCents / 100).toStringAsFixed(2)}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: remainingCents < 0
-                        ? const Color(0xFFE24B4A)
-                        : AppColors.budgetOverallBar,
-                  ),
-                ),
-              ],
-            ),
-          ],
-
-          const SizedBox(height: AppSpacing.xxl),
         ],
       ),
     );
@@ -1361,7 +1362,7 @@ class _ReceiptRow extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const _SectionLabel('Receipt'),
+        const _SectionLabel('Receipt (optional)'),
         const SizedBox(height: AppSpacing.md),
         if (isUploading)
           Container(
