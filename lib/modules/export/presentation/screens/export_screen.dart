@@ -12,6 +12,8 @@ import '../../../expenses/providers/categories_provider.dart';
 import '../../../expenses/utils/expense_ui_helpers.dart';
 import '../../../subscription/providers/subscription_provider.dart';
 import '../../providers/export_provider.dart';
+import '../../../tags/data/models/tag_model.dart';
+import '../../../tags/providers/tags_provider.dart';
 
 class ExportScreen extends ConsumerStatefulWidget {
   const ExportScreen({super.key});
@@ -46,6 +48,7 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
     final filter = ref.watch(exportPdfProvider);
     final categoriesAsync = ref.watch(categoriesProvider);
     final accountsAsync = ref.watch(accountsProvider);
+    final tagsAsync = ref.watch(tagsProvider);
     final isPremium = ref.watch(isPremiumProvider);
 
     final isPdf = filter.exportFormat == ExportFormat.pdf;
@@ -228,6 +231,29 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
                 onSelectAll: () =>
                     ref.read(exportPdfProvider.notifier).selectAllAccounts(),
               ),
+            ),
+            const SizedBox(height: AppSpacing.xxl),
+
+            // ── Tags ─────────────────────────────────────────────────────────
+            _SectionLabel('Tags'),
+            const SizedBox(height: AppSpacing.md),
+            tagsAsync.when(
+              loading: () => const _LoadingChips(),
+              error: (_, _) => const _ErrorChips('tags'),
+              data: (tags) => tags.isEmpty
+                  ? const Text(
+                      'No tags yet. Create tags in Settings.',
+                      style: TextStyle(
+                          fontSize: 13, color: AppColors.textTertiary),
+                    )
+                  : _TagPicker(
+                      tags: tags,
+                      selectedIds: filter.selectedTagIds,
+                      onToggle: (id) =>
+                          ref.read(exportPdfProvider.notifier).toggleTag(id),
+                      onSelectAll: () =>
+                          ref.read(exportPdfProvider.notifier).selectAllTags(),
+                    ),
             ),
             const SizedBox(height: AppSpacing.xxl),
 
@@ -726,6 +752,44 @@ class _AccountPicker extends StatelessWidget {
             selected: isSelected,
             color: isSelected ? color : null,
             onTap: () => onToggle(acc.id),
+          );
+        }),
+      ],
+    );
+  }
+}
+
+// ── Tag picker ────────────────────────────────────────────────────────────────
+
+class _TagPicker extends StatelessWidget {
+  const _TagPicker({
+    required this.tags,
+    required this.selectedIds,
+    required this.onToggle,
+    required this.onSelectAll,
+  });
+
+  final List<TagModel> tags;
+  final Set<String>? selectedIds;
+  final void Function(String) onToggle;
+  final VoidCallback onSelectAll;
+
+  @override
+  Widget build(BuildContext context) {
+    final isAll = selectedIds == null;
+    return Wrap(
+      spacing: AppSpacing.md,
+      runSpacing: AppSpacing.md,
+      children: [
+        _Chip(label: 'All', selected: isAll, onTap: onSelectAll),
+        ...tags.map((tag) {
+          final isSelected = !isAll && selectedIds!.contains(tag.id);
+          final color = hexToColor(tag.color);
+          return _Chip(
+            label: tag.name,
+            selected: isSelected,
+            color: isSelected ? color : null,
+            onTap: () => onToggle(tag.id),
           );
         }),
       ],

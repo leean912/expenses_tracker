@@ -288,6 +288,24 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                   child: CategoryPieChart(categories: data.accountBreakdown),
                 ),
 
+                if (data.tagBreakdown.isNotEmpty)
+                  _ChartSection(
+                    title: 'Spending by Tag',
+                    description: const TextSpan(
+                      children: [
+                        TextSpan(
+                          text:
+                              'Which tags your spending falls under — tap a slice to see amount and share. ',
+                        ),
+                        TextSpan(
+                          text: 'Settlements and untagged expenses shown separately.',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
+                    child: CategoryPieChart(categories: data.tagBreakdown),
+                  ),
+
                 if (_selectedPeriod != AnalysisPeriod.day)
                   _ChartSection(
                     title: switch (_selectedPeriod) {

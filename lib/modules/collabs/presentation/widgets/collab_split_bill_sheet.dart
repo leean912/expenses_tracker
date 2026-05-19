@@ -24,6 +24,7 @@ import '../../../subscription/providers/subscription_provider.dart';
 import '../../data/models/collab_model.dart';
 import '../../providers/collab_expenses_provider.dart';
 import '../../providers/collab_summary_provider.dart';
+import '../../../tags/presentation/widgets/tag_picker_row.dart';
 
 class CollabExpenseSheet extends ConsumerStatefulWidget {
   const CollabExpenseSheet({
@@ -49,6 +50,7 @@ class _CollabExpenseSheetState extends ConsumerState<CollabExpenseSheet>
   final _rateController = TextEditingController();
   String? _categoryId;
   String? _accountId;
+  String? _tagId;
   DateTime _date = DateTime.now();
   bool _expenseLoading = false;
   String? _expenseError;
@@ -65,6 +67,7 @@ class _CollabExpenseSheetState extends ConsumerState<CollabExpenseSheet>
   final _splitRateController = TextEditingController();
   String? _splitCategoryId;
   String? _splitAccountId;
+  String? _splitTagId;
   DateTime _splitDate = DateTime.now();
   final List<_Participant> _participants = [];
   bool _equalSplit = true;
@@ -325,6 +328,7 @@ class _CollabExpenseSheetState extends ConsumerState<CollabExpenseSheet>
       }
       if (_categoryId != null) payload['category_id'] = _categoryId;
       if (_accountId != null) payload['account_id'] = _accountId;
+      if (_tagId != null) payload['tag_id'] = _tagId;
       final note = _noteController.text.trim();
       if (note.isNotEmpty) payload['note'] = note;
       if (_expenseReceiptUrl != null)
@@ -400,7 +404,7 @@ class _CollabExpenseSheetState extends ConsumerState<CollabExpenseSheet>
           'p_home_amount_cents': homeAmountCents,
           'p_home_currency': collab.homeCurrency,
           'p_conversion_rate': rate,
-          'p_account_id': _splitAccountId,
+          'p_tag_id': _splitTagId,
         },
       );
 
@@ -552,6 +556,7 @@ class _CollabExpenseSheetState extends ConsumerState<CollabExpenseSheet>
                       rateController: _rateController,
                       categoryId: _categoryId,
                       accountId: _accountId,
+                      tagId: _tagId,
                       date: _date,
                       error: _expenseError,
                       categoriesAsync: categoriesAsync,
@@ -561,6 +566,7 @@ class _CollabExpenseSheetState extends ConsumerState<CollabExpenseSheet>
                       onCategorySelect: (id) =>
                           setState(() => _categoryId = id),
                       onAccountSelect: (id) => setState(() => _accountId = id),
+                      onTagSelect: (id) => setState(() => _tagId = id),
                       onDateTap: () => _pickDate(isSplit: false),
                       onAddReceipt: _pickExpenseReceipt,
                       onDeleteReceipt: _deleteExpenseReceipt,
@@ -572,6 +578,7 @@ class _CollabExpenseSheetState extends ConsumerState<CollabExpenseSheet>
                       rateController: _splitRateController,
                       categoryId: _splitCategoryId,
                       accountId: _splitAccountId,
+                      tagId: _splitTagId,
                       date: _splitDate,
                       participants: _participants,
                       equalSplit: _equalSplit,
@@ -584,6 +591,8 @@ class _CollabExpenseSheetState extends ConsumerState<CollabExpenseSheet>
                           setState(() => _splitCategoryId = id),
                       onAccountSelect: (id) =>
                           setState(() => _splitAccountId = id),
+                      onTagSelect: (id) =>
+                          setState(() => _splitTagId = id),
                       onDateTap: () => _pickDate(isSplit: true),
                       onEqualSplitToggle: (v) {
                         setState(() => _equalSplit = v);
@@ -683,12 +692,14 @@ class _ExpenseForm extends StatelessWidget {
     required this.rateController,
     required this.categoryId,
     required this.accountId,
+    required this.tagId,
     required this.date,
     required this.error,
     required this.categoriesAsync,
     required this.accountsAsync,
     required this.onCategorySelect,
     required this.onAccountSelect,
+    required this.onTagSelect,
     required this.onDateTap,
     required this.onAddReceipt,
     required this.onDeleteReceipt,
@@ -702,6 +713,7 @@ class _ExpenseForm extends StatelessWidget {
   final TextEditingController rateController;
   final String? categoryId;
   final String? accountId;
+  final String? tagId;
   final DateTime date;
   final String? error;
   final AsyncValue<List<CategoryModel>> categoriesAsync;
@@ -710,6 +722,7 @@ class _ExpenseForm extends StatelessWidget {
   final bool receiptUploading;
   final ValueChanged<String?> onCategorySelect;
   final ValueChanged<String?> onAccountSelect;
+  final ValueChanged<String?> onTagSelect;
   final VoidCallback onDateTap;
   final VoidCallback onAddReceipt;
   final VoidCallback onDeleteReceipt;
@@ -906,6 +919,16 @@ class _ExpenseForm extends StatelessWidget {
 
           const SizedBox(height: AppSpacing.xxl),
 
+          // Tag
+          const _SectionLabel('Tag'),
+          const SizedBox(height: AppSpacing.md),
+          TagPickerRow(
+            selectedTagId: tagId,
+            onChanged: onTagSelect,
+          ),
+
+          const SizedBox(height: AppSpacing.xxl),
+
           // Date
           const _SectionLabel('Date'),
           const SizedBox(height: AppSpacing.md),
@@ -965,6 +988,7 @@ class _SplitBillForm extends StatelessWidget {
     required this.rateController,
     required this.categoryId,
     required this.accountId,
+    required this.tagId,
     required this.date,
     required this.participants,
     required this.equalSplit,
@@ -975,6 +999,7 @@ class _SplitBillForm extends StatelessWidget {
     required this.accountsAsync,
     required this.onCategorySelect,
     required this.onAccountSelect,
+    required this.onTagSelect,
     required this.onDateTap,
     required this.onEqualSplitToggle,
     required this.onRemoveParticipant,
@@ -990,6 +1015,7 @@ class _SplitBillForm extends StatelessWidget {
   final TextEditingController rateController;
   final String? categoryId;
   final String? accountId;
+  final String? tagId;
   final DateTime date;
   final List<_Participant> participants;
   final bool equalSplit;
@@ -1002,6 +1028,7 @@ class _SplitBillForm extends StatelessWidget {
   final bool receiptUploading;
   final ValueChanged<String?> onCategorySelect;
   final ValueChanged<String?> onAccountSelect;
+  final ValueChanged<String?> onTagSelect;
   final VoidCallback onDateTap;
   final ValueChanged<bool> onEqualSplitToggle;
   final ValueChanged<int> onRemoveParticipant;
@@ -1289,6 +1316,16 @@ class _SplitBillForm extends StatelessWidget {
               'Failed to load accounts',
               style: TextStyle(fontSize: 12, color: AppColors.textTertiary),
             ),
+          ),
+
+          const SizedBox(height: AppSpacing.xxl),
+
+          // Tag
+          const _SectionLabel('Tag'),
+          const SizedBox(height: AppSpacing.md),
+          TagPickerRow(
+            selectedTagId: tagId,
+            onChanged: onTagSelect,
           ),
 
           const SizedBox(height: AppSpacing.xxl),

@@ -15,7 +15,7 @@
 2. Paste the entire contents of `expense_tracker_schema.sql`
 3. Click Run
 4. Verify "Success. No rows returned" message
-5. Inspect the Table Editor — should see 14 tables
+5. Inspect the Table Editor — should see 15 tables
 
 ### Step 3: Configure Auth providers
 
@@ -36,6 +36,7 @@
    - `profiles` row exists for the new user (with username = NULL)
    - `categories` has 11 rows (defaults)
    - `accounts` has 2 rows (Cash + Bank)
+   - `tags` has 1 row (Income Tax, #4A90D9)
 
 5. Verify the collab trigger: create a test collab and check that a `collab_members` row is auto-created for the owner.
 
@@ -54,7 +55,7 @@ In SQL Editor as anonymous (logged out):
 select * from profiles;        -- should return 0 rows
 ```
 
-## RPC Catalog (28 functions)
+## RPC Catalog (29 functions)
 
 All RPCs are `security definer`. They internally validate `auth.uid()` and reject if null. RPCs are called from Flutter via `supabase.rpc('function_name', params: {...})`.
 
@@ -62,12 +63,12 @@ All RPCs are `security definer`. They internally validate `auth.uid()` and rejec
 
 These RPCs exist to bypass the PostgREST 1000-row response limit. Because they return a single JSON object (computed entirely inside PostgreSQL), they are immune to the limit regardless of how many underlying expense rows exist. Both home and actual amounts are always returned so Flutter can toggle between display modes without re-fetching.
 
-SQL source: `docs/plans/HOME_RPC.sql` and `docs/plans/COLLAB_RPC.sql`.
+SQL source: `expense_tracker_schema.sql` (sections 14s–14v).
 
 | RPC | Params | Purpose |
 |---|---|---|
 | `home_analytics(p_start, p_end)` | `date, date` | Home screen: period totals, avg/day, this/last month change, per-category spend. Returns one JSON. |
-| `analysis_summary(p_start, p_end, p_include_collab)` | `date, date, boolean` | Analysis screen: by-category, by-account, daily buckets, daily-per-category buckets. Returns one JSON with pre-aggregated daily rows (max 365/year); Dart does week/month bucketing. |
+| `analysis_summary(p_start, p_end, p_include_collab)` | `date, date, boolean` | Analysis screen: by-category, by-account, by-tag, daily buckets, daily-per-category buckets. Returns one JSON with pre-aggregated daily rows (max 365/year); Dart does week/month bucketing. Untagged expenses appear as `tag_name = 'Untagged'` in `by_tag`. |
 | `collab_summary(p_collab_id)` | `uuid` | Collab detail header + members screen: all-time net spend totals + per-member net spend map. No date filter. |
 | `collab_analytics(p_collab_id, p_start, p_end)` | `uuid, date, date` | Collab analysis screen: self-only category/account breakdowns + daily buckets per member. Returns one JSON. |
 
@@ -87,6 +88,12 @@ SQL source: `docs/plans/HOME_RPC.sql` and `docs/plans/COLLAB_RPC.sql`.
 |---|---|
 | `set_username(p_username)` | Set the user's unique handle (immutable in MVP, format-validated) |
 | `check_username_available(p_username)` | Live check during signup form — returns boolean |
+
+### Tags
+
+| RPC | Purpose |
+|---|---|
+| `create_tag(p_name, p_color)` | Create a new tag. Restores soft-deleted tag with same name. Enforces 5-custom limit for free tier (raises `hint = 'upgrade_required'`). Default tags do not count toward the limit. |
 
 ### Categories
 
@@ -114,15 +121,18 @@ SQL source: `docs/plans/HOME_RPC.sql` and `docs/plans/COLLAB_RPC.sql`.
 
 | RPC | Purpose |
 |---|---|
-| `add_contact(p_identifier, p_nickname)` | Add by username or email. Auto-creates bidirectional rows |
+| `add_contact(p_identifier, p_nickname)` | Add by username or email. Auto-creates bidirectional rows (MVP). V2: returns `{ result: 'pending' \| 'accepted' }` when friend request system is deployed |
+| `accept_contact_request(p_from_user_id)` | **V2** — Accept an incoming pending request; inserts reverse `accepted` row |
+| `decline_contact_request(p_from_user_id)` | **V2** — Hard-delete the pending row sent by `p_from_user_id` |
+| `remove_contact(p_friend_id)` | **V2** — Mutual unfriend: hard-deletes both directions atomically. See `docs/tables/contacts.md` for full edge case matrix |
 
 ### Split Bills
 
 | RPC | Purpose |
 |---|---|
 | `create_split_bill(...)` | Create bill + shares + payer's auto-expense. Validates onboarded participants are contacts. Email participants (V2) go to `pending_split_shares` |
-| `settle_split_share(p_share_id, p_category_id, p_account_id)` | Mark share settled, create both expense rows, copy bill's conversion |
-| `creator_mark_share_paid(p_share_id)` | Bill creator marks a participant's share as paid on their behalf. Creates settlement + income row for creator + expense row for participant (category/account null — cross-user categories invalid). See `docs/patches/creator_mark_share_paid.sql` |
+| `settle_split_share(p_share_id, p_category_id, p_account_id, p_tag_id)` | Mark share settled, create both expense rows, copy bill's conversion. `p_tag_id` applied to settler's expense row only (not payer's income row). |
+| `creator_mark_share_paid(p_share_id)` | Bill creator marks a participant's share as paid on their behalf. Creates settlement + income row for creator + expense row for participant (category/account null — cross-user categories invalid). |
 | `unsettle_split_share(p_share_id)` | Soft-undo a settlement |
 | `dispute_split_share(p_share_id, p_reason)` | Mark share disputed with reason |
 
@@ -134,6 +144,22 @@ SQL source: `docs/plans/HOME_RPC.sql` and `docs/plans/COLLAB_RPC.sql`.
 | `leave_collab(p_collab_id)` | Member self-removes (owner can't — must delete collab instead) |
 | `close_collab(p_collab_id)` | Mark collab closed/read-only (warns about unsettled splits but doesn't block) |
 
+### Recurring
+
+| RPC | Purpose |
+|---|---|
+| `create_recurring_expense(p_title, p_amount_cents, p_frequency, p_first_run_at, ...)` | Create a recurring expense template. Fires immediately if `first_run_at <= today`. 3 active limit for free tier. |
+| `create_recurring_split_bill(p_title, p_amount_cents, p_frequency, p_first_run_at, p_split_method, p_shares, ...)` | Create a recurring split bill template. Fires immediately if `first_run_at <= today`. 1 active limit for free tier. |
+| `update_recurring_split_bill(p_id, ...)` | Update a recurring split bill template metadata and/or shares |
+
+### Referrals
+
+| RPC | Purpose |
+|---|---|
+| `apply_referral_code(p_code)` | Apply a referral code during onboarding. Every 5th referral awards the referrer 7 premium days. Returns `{ referrer_id, bonus_days, new_count }`. |
+| `get_referral_stats()` | Returns `{ referral_code, total_referrals, bonus_expires_at, referrals_until_next }` for the current user |
+| `process_subscription_expirations()` | Called by pg_cron at 16:00 UTC daily. Downgrades expired premium users, preserving referral premium if still active. Pauses premium recurring items for free users. |
+
 ### Helpers
 
 | RPC | Purpose |
@@ -144,9 +170,95 @@ SQL source: `docs/plans/HOME_RPC.sql` and `docs/plans/COLLAB_RPC.sql`.
 
 | Function | Purpose |
 |---|---|
-| `handle_new_user()` | Auto-fires on auth.users insert; creates profile + seeds categories + seeds accounts + claims any pending_split_shares (V2) |
+| `handle_new_user()` | Auto-fires on auth.users insert; creates profile + seeds categories + seeds accounts + seeds default tag (Income Tax) + claims any pending_split_shares (V2) |
 | `handle_new_collab()` | Auto-fires on collabs insert; creates collab_members row for owner |
 | `set_updated_at()` | Generic trigger function for `updated_at` columns |
+| `generate_referral_code()` | Generates unique 8-char code. Used as `DEFAULT` on `profiles.referral_code`. |
+
+### Storage Buckets V2 — Not yet deployed
+
+Receipt image upload is a V2 Premium feature. No DB migration needed — `receipt_url text` columns already exist on `expenses` and `split_bills`, and `create_split_bill` already accepts `p_receipt_url`.
+
+**Bucket**: `receipts`  
+**Visibility**: Public-readable, write-restricted to owner's own folder  
+**Path format**: `<user_id>/<uuid>.jpg`  
+**URL stored in DB**: Permanent Supabase public URL (no expiry)
+
+**Why public-readable (not private)**: Split bill participants need to view the receipt. If the bucket is private, only the uploader can generate signed URLs — Bob can't view Alice's receipt. Public URL + write restriction is the correct trade-off.
+
+**Freemium gate — CRITICAL**: The gate is **client-side only**. Storage policies allow any authenticated user to upload to their own folder; they do NOT enforce premium tier. Free users who bypass the client check can upload. This is acceptable — receipt upload is a convenience feature, not a data-integrity gate.
+
+```dart
+// In receipt icon tap handler (all 3 form files)
+if (profile.subscriptionTier == 'free') {
+  showUpgradeSheet(context); // 'Attach receipt photos — Premium feature.'
+  return;
+}
+```
+
+#### Storage Policies (run once in Supabase Dashboard → SQL Editor)
+
+```sql
+-- Anyone authenticated can view any receipt (split bill participants need access)
+create policy "public read receipts"
+  on storage.objects for select
+  using (bucket_id = 'receipts');
+
+-- Users can only upload to their own folder
+create policy "users upload own receipts"
+  on storage.objects for insert
+  with check (bucket_id = 'receipts'
+    and (storage.foldername(name))[1] = auth.uid()::text);
+
+-- Users can only delete their own receipts
+create policy "users delete own receipts"
+  on storage.objects for delete
+  using (bucket_id = 'receipts'
+    and (storage.foldername(name))[1] = auth.uid()::text);
+```
+
+#### Upload Flow
+
+```
+image_picker (camera or gallery)
+  → flutter_image_compress: JPEG quality 85% → 70% → 50% until <1MB
+  → supabase.storage.from('receipts').uploadBinary('<user_id>/<uuid>.jpg', bytes)
+  → getPublicUrl(path) → store URL in form state → pass to DB on submit
+```
+
+New packages: `fvm flutter pub add image_picker flutter_image_compress`  
+New service: `lib/core/services/receipt_upload_service.dart` (pick → compress → upload → return URL)
+
+iOS — add to `ios/Runner/Info.plist`:
+```xml
+<key>NSCameraUsageDescription</key>
+<string>To attach a receipt photo to your expense</string>
+<key>NSPhotoLibraryUsageDescription</key>
+<string>To choose a receipt photo from your gallery</string>
+```
+
+#### Delete Flow
+
+Each record supports one receipt. To replace: delete first, then upload.
+
+```dart
+// Reconstruct storage path from the public URL for deletion:
+// URL format: https://<project>.supabase.co/storage/v1/object/public/receipts/<user_id>/<file>.jpg
+final storagePath = publicUrl.split('/object/public/receipts/').last;
+await supabase.storage.from('receipts').remove([storagePath]);
+// then UPDATE receipt_url = null on the DB row
+```
+
+#### Flutter Files to Change (when implementing)
+
+| File | Change |
+|---|---|
+| `lib/core/services/receipt_upload_service.dart` | **New** — pick, compress, upload logic |
+| `add_expense_sheet.dart` | Receipt picker for personal expense + split tabs |
+| `collab_split_bill_sheet.dart` | Receipt picker, pass URL to RPC |
+| `group_split_bill_sheet.dart` | Receipt picker, pass URL to RPC |
+| Expense detail screen | Thumbnail if `receipt_url != null`, tap to full-screen |
+| Split bill detail screen | Thumbnail if `receipt_url != null`, tap to full-screen |
 
 ### Split V2 — Not yet deployed
 

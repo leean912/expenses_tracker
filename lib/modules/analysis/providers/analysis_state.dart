@@ -167,14 +167,16 @@ class AnalysisData {
   const AnalysisData({
     required this.categoryBreakdown,
     required this.accountBreakdown,
+    required this.tagBreakdown,
     required this.periodBreakdown,
     required this.budgetProgress,
-      required this.totalSpentCents,
+    required this.totalSpentCents,
     required this.totalIncomeCents,
   });
 
   final List<CategorySpend> categoryBreakdown;
   final List<CategorySpend> accountBreakdown;
+  final List<CategorySpend> tagBreakdown;
   final List<PeriodBucket> periodBreakdown;
   final List<BudgetProgress> budgetProgress;
   final int totalSpentCents;

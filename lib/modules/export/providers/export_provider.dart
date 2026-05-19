@@ -28,6 +28,7 @@ class ExportPdfFilter {
     this.transactionType = ExportTransactionType.all,
     this.selectedCategoryIds,
     this.selectedAccountIds,
+    this.selectedTagIds,
     this.includeSplitBill = true,
     this.includeRecurring = true,
     this.sortOrder = ExportSortOrder.dateDesc,
@@ -41,6 +42,7 @@ class ExportPdfFilter {
   final ExportTransactionType transactionType;
   final Set<String>? selectedCategoryIds;
   final Set<String>? selectedAccountIds;
+  final Set<String>? selectedTagIds;
   final bool includeSplitBill;
   final bool includeRecurring;
   final ExportSortOrder sortOrder;
@@ -56,6 +58,8 @@ class ExportPdfFilter {
     bool clearCategories = false,
     Set<String>? selectedAccountIds,
     bool clearAccounts = false,
+    Set<String>? selectedTagIds,
+    bool clearTags = false,
     bool? includeSplitBill,
     bool? includeRecurring,
     ExportSortOrder? sortOrder,
@@ -73,6 +77,9 @@ class ExportPdfFilter {
       selectedAccountIds: clearAccounts
           ? null
           : (selectedAccountIds ?? this.selectedAccountIds),
+      selectedTagIds: clearTags
+          ? null
+          : (selectedTagIds ?? this.selectedTagIds),
       includeSplitBill: includeSplitBill ?? this.includeSplitBill,
       includeRecurring: includeRecurring ?? this.includeRecurring,
       sortOrder: sortOrder ?? this.sortOrder,
@@ -128,6 +135,18 @@ class ExportPdfNotifier extends Notifier<ExportPdfFilter> {
 
   void selectAllAccounts() => state = state.copyWith(clearAccounts: true);
 
+  void toggleTag(String id) {
+    final current = Set<String>.from(state.selectedTagIds ?? {});
+    if (current.contains(id)) {
+      current.remove(id);
+    } else {
+      current.add(id);
+    }
+    state = state.copyWith(selectedTagIds: current);
+  }
+
+  void selectAllTags() => state = state.copyWith(clearTags: true);
+
   void setIncludeSplitBill(bool v) =>
       state = state.copyWith(includeSplitBill: v);
 
@@ -157,7 +176,7 @@ class ExportPdfNotifier extends Notifier<ExportPdfFilter> {
           .from('expenses')
           .select(
             'id, type, amount_cents, currency, home_amount_cents, home_currency, '
-            'expense_date, note, category_id, account_id, source, receipt_url',
+            'expense_date, note, category_id, account_id, tag_id, source, receipt_url',
           )
           .isFilter('deleted_at', null)
           .isFilter('archived_at', null)
@@ -226,13 +245,17 @@ class ExportPdfNotifier extends Notifier<ExportPdfFilter> {
     final filtered = rows.where((row) {
       final catId = row['category_id'] as String?;
       final accId = row['account_id'] as String?;
+      final tagId = row['tag_id'] as String?;
       final catOk =
           filter.selectedCategoryIds == null ||
           (catId != null && filter.selectedCategoryIds!.contains(catId));
       final accOk =
           filter.selectedAccountIds == null ||
           (accId != null && filter.selectedAccountIds!.contains(accId));
-      return catOk && accOk;
+      final tagOk =
+          filter.selectedTagIds == null ||
+          (tagId != null && filter.selectedTagIds!.contains(tagId));
+      return catOk && accOk && tagOk;
     }).toList();
 
     if (filter.exportFormat == ExportFormat.excel) {

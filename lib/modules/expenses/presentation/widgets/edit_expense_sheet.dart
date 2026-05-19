@@ -18,6 +18,7 @@ import '../../data/models/category_model.dart';
 import '../../providers/accounts_provider.dart';
 import '../../providers/categories_provider.dart';
 import '../../utils/expense_ui_helpers.dart';
+import '../../../tags/presentation/widgets/tag_picker_row.dart';
 
 class EditExpenseSheet extends ConsumerStatefulWidget {
   const EditExpenseSheet({
@@ -44,6 +45,7 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
 
   String? _selectedCategoryId;
   String? _selectedAccountId;
+  String? _selectedTagId;
   DateTime _selectedDate = DateTime.now();
 
   bool _loading = true;
@@ -125,7 +127,7 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
           .from('expenses')
           .select(
             'id, note, amount_cents, home_amount_cents, actual_amount_cents, currency, home_currency, '
-            'conversion_rate, expense_date, category_id, account_id, '
+            'conversion_rate, expense_date, category_id, account_id, tag_id, '
             'source_split_bill_id, source_recurring_expense_id, '
             'source_recurring_split_bill_id, collab_id, receipt_url',
           )
@@ -156,6 +158,7 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
         _isCollab = _collabId != null;
         _selectedCategoryId = row['category_id'] as String?;
         _selectedAccountId = row['account_id'] as String?;
+        _selectedTagId = row['tag_id'] as String?;
         _selectedDate = DateTime.parse(expenseDate);
         _noteController.text = row['note'] as String? ?? '';
         _amountController.text = (amountCents / 100).toStringAsFixed(2);
@@ -264,6 +267,7 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
             : _noteController.text.trim(),
         'category_id': _selectedCategoryId,
         'account_id': _selectedAccountId,
+        'tag_id': _selectedTagId,
         'amount_cents': amountCents,
         'expense_date': DateFormat('yyyy-MM-dd').format(_selectedDate),
         'receipt_url': _receiptUrl,
@@ -286,7 +290,7 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
           final actualText = _actualAmountController.text.trim();
           final actualAmount = double.tryParse(actualText);
           payload['actual_amount_cents'] =
-              (actualAmount != null && actualAmount > 0)
+              (actualAmount != null && actualAmount >= 0)
               ? (actualAmount * 100).round()
               : homeAmountCents;
         } else {
@@ -298,7 +302,7 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
           final actualText = _actualAmountController.text.trim();
           final actualAmount = double.tryParse(actualText);
           payload['actual_amount_cents'] =
-              (actualAmount != null && actualAmount > 0)
+              (actualAmount != null && actualAmount >= 0)
               ? (actualAmount * 100).round()
               : amountCents;
         } else {
@@ -964,6 +968,17 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
                                 ),
                               );
                             },
+                          ),
+
+                          const SizedBox(height: AppSpacing.xxl),
+
+                          // ── Tag ─────────────────────────────────────────
+                          const _SectionLabel('Tag'),
+                          const SizedBox(height: AppSpacing.md),
+                          TagPickerRow(
+                            selectedTagId: _selectedTagId,
+                            onChanged: (id) =>
+                                setState(() => _selectedTagId = id),
                           ),
 
                           const SizedBox(height: AppSpacing.xxl),

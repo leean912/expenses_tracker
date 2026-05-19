@@ -5,10 +5,10 @@ The complete database schema is in `expense_tracker_schema.sql` (in the project 
 ## File Stats
 
 ```
-13 tables
-22 RPCs
-36 RLS policies
-35 indexes
+19 tables
+37 RPCs
+38 RLS policies
+43 indexes
 12 triggers
 ```
 
@@ -20,7 +20,7 @@ The complete database schema is in `expense_tracker_schema.sql` (in the project 
 2. Open the SQL Editor
 3. Paste the entire contents of `expense_tracker_schema.sql`
 4. Click Run
-5. Verify "Success. No rows returned" — should see 14 tables in Table Editor
+5. Verify "Success. No rows returned" — should see 15 tables in Table Editor
 
 For a complete deployment guide including auth provider setup, see [SUPABASE.md](./SUPABASE.md).
 
@@ -43,7 +43,13 @@ The SQL file is organized into numbered sections:
 2.  CONTACTS           — friend lists
 3.  CATEGORIES         — spending categories (per user)
 4.  ACCOUNTS           — payment method tags (per user)
+4b. TAGS               — purpose/context labels (per user, freemium-gated)
 5.  GROUPS             — personal shortcut lists
+...
+12b. RECURRING_EXPENSES      — scheduled personal expense templates
+12c. RECURRING_SPLIT_BILLS   — scheduled split bill templates
+12c. RECURRING_SPLIT_BILL_SHARES — participant shares per template
+12d. REFERRALS               — referral tracking and milestone rewards
 5b. GROUP_MEMBERS      — who's in each group
 6.  COLLABS            — collaborative shared expense workspace
 6b. COLLAB_MEMBERS     — collab participants
@@ -70,6 +76,7 @@ For details on each table, see the corresponding doc in `docs/tables/`:
 - [contacts](./tables/contacts.md)
 - [categories](./tables/categories.md)
 - [accounts](./tables/accounts.md)
+- [tags](./tables/tags.md)
 - [groups](./tables/groups.md)
 - [group_members](./tables/group_members.md)
 - [collabs](./tables/collabs.md)

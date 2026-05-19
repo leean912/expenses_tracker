@@ -46,6 +46,8 @@ final analysisDataProvider =
       .cast<Map<String, dynamic>>();
   final byAccountRows = (rpc['by_account'] as List<dynamic>? ?? [])
       .cast<Map<String, dynamic>>();
+  final byTagRows = (rpc['by_tag'] as List<dynamic>? ?? [])
+      .cast<Map<String, dynamic>>();
   final dailyBuckets = (rpc['daily_buckets'] as List<dynamic>? ?? [])
       .cast<Map<String, dynamic>>();
   final dailyCatBuckets = (rpc['daily_category_buckets'] as List<dynamic>? ?? [])
@@ -94,6 +96,29 @@ final analysisDataProvider =
       percentage: accTotal <= 0 ? 0 : cents / accTotal * 100,
     );
   }).where((a) => a.totalCents > 0).toList();
+
+  // ── Tag breakdown ─────────────────────────────────────────────────────────
+
+  final tagTotal = byTagRows.fold<int>(0, (s, r) {
+    return s +
+        (filter.useActualAmount ? asInt(r['actual_cents']) : asInt(r['total_cents']));
+  });
+
+  final tagBreakdown = byTagRows.map((r) {
+    final cents = filter.useActualAmount
+        ? asInt(r['actual_cents'])
+        : asInt(r['total_cents']);
+    final color =
+        _hexToColor(r['tag_color'] as String?) ?? const Color(0xFF888780);
+    return CategorySpend(
+      categoryId: r['tag_id'] as String? ?? '',
+      categoryName: r['tag_name'] as String? ?? 'Untagged',
+      color: color,
+      totalCents: cents,
+      percentage: tagTotal <= 0 ? 0 : cents / tagTotal * 100,
+    );
+  }).where((t) => t.totalCents > 0).toList()
+    ..sort((a, b) => b.totalCents.compareTo(a.totalCents));
 
   // ── Period breakdown (bar chart) ──────────────────────────────────────────
 
@@ -206,6 +231,7 @@ final analysisDataProvider =
   return AnalysisData(
     categoryBreakdown: categoryBreakdown,
     accountBreakdown: accountBreakdown,
+    tagBreakdown: tagBreakdown,
     periodBreakdown: periodBreakdown,
     budgetProgress: budgetProgress,
     totalSpentCents: displayedSpent,

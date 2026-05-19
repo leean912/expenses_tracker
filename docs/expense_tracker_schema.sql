@@ -30,6 +30,9 @@ create table profiles (
   subscription_tier text not null default 'free'
     check (subscription_tier in ('free', 'premium', 'lifetime')),
   subscription_expires_at timestamptz,
+  referral_code text unique
+    check (referral_code ~ '^[A-Z0-9]{8}$'),
+  referral_premium_expires_at timestamptz,  -- stacks independently from paid subscription
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -108,6 +111,34 @@ create index idx_accounts_user_all on accounts(user_id, sort_order)
   where deleted_at is null;
 
 create unique index idx_accounts_user_name_unique on accounts(user_id, lower(name)) where deleted_at is null;
+
+
+-- ═══════════════════════════════════════════════════════════════════
+-- 4b. TAGS — user-defined labels orthogonal to categories and accounts
+-- Purpose/context labels: "Income Tax", "Business", "Medical".
+-- One default tag seeded on signup (Income Tax). Default tags cannot be deleted.
+-- Free tier: 5 custom (non-default) active tags. Premium: unlimited.
+-- ═══════════════════════════════════════════════════════════════════
+create table tags (
+  id         uuid        primary key default gen_random_uuid(),
+  user_id    uuid        not null references profiles(id) on delete cascade,
+  name       text        not null,
+  color      text        not null default '#888780',
+  is_default boolean     not null default false,
+  sort_order integer     not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  deleted_at timestamptz
+);
+
+alter table tags enable row level security;
+
+create policy "users manage own tags"
+  on tags for all
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid());
+
+create index idx_tags_user_id on tags(user_id) where deleted_at is null;
 
 
 -- ═══════════════════════════════════════════════════════════════════
@@ -215,13 +246,16 @@ create table expenses (
   -- Classification
   type text not null default 'expense' check (type in ('expense', 'income')),
   source text not null default 'manual'
-    check (source in ('manual', 'settlement', 'split_payer')),
-  source_split_bill_id uuid,       -- FK added after split_bills table exists
-  source_settlement_id uuid,       -- FK added after settlements table exists
+    check (source in ('manual', 'settlement', 'split_payer', 'recurring')),
+  source_split_bill_id uuid,              -- FK added after split_bills table exists
+  source_settlement_id uuid,              -- FK added after settlements table exists
+  source_recurring_expense_id uuid,       -- FK added after recurring_expenses table exists
+  source_recurring_split_bill_id uuid,    -- FK added after recurring_split_bills table exists
 
   category_id uuid references categories(id) on delete set null,
   collab_id uuid references collabs(id) on delete set null,   -- null = personal expense
   account_id uuid references accounts(id) on delete set null,
+  tag_id uuid references tags(id) on delete set null,
 
   -- Amount — always positive; type column determines +/- in UI
   amount_cents bigint not null check (amount_cents > 0),
@@ -231,6 +265,8 @@ create table expenses (
   home_amount_cents bigint,
   home_currency text,
   conversion_rate numeric(20, 10),  -- 1 home_currency = X this.currency (snapshot at entry)
+  -- For split_payer source: payer's own share (not the full bill total). For manual: same as home_amount_cents.
+  actual_amount_cents bigint,
 
   note text,
   expense_date date not null default current_date,
@@ -253,6 +289,9 @@ create table expenses (
 create index idx_expenses_user_date on expenses(user_id, expense_date desc)
   where deleted_at is null and archived_at is null;
 
+create index idx_expenses_user_expense_date on expenses(user_id, expense_date desc)
+  where deleted_at is null and archived_at is null and type = 'expense';
+
 create index idx_expenses_user_created on expenses(user_id, created_at desc)
   where deleted_at is null and archived_at is null;
 
@@ -270,6 +309,8 @@ create index idx_expenses_source_split on expenses(source_split_bill_id)
 
 create index idx_expenses_account on expenses(account_id, expense_date desc)
   where account_id is not null and deleted_at is null and archived_at is null;
+
+create index idx_expenses_tag_id on expenses(tag_id) where deleted_at is null;
 
 
 -- ═══════════════════════════════════════════════════════════════════
@@ -313,6 +354,7 @@ create table split_bills (
   category_id uuid references categories(id) on delete set null,
   collab_id uuid references collabs(id) on delete set null,   -- optional: tag bill to a collab
   group_id uuid references groups(id) on delete set null,
+  tag_id uuid references tags(id) on delete set null,
 
   google_place_id text,
   place_name text,
@@ -378,6 +420,9 @@ create index idx_shares_user_status on split_bill_shares(user_id, status)
 create index idx_shares_bill on split_bill_shares(split_bill_id)
   where archived_at is null;
 
+create index idx_shares_status_active on split_bill_shares(split_bill_id, status)
+  where archived_at is null;
+
 
 -- ═══════════════════════════════════════════════════════════════════
 -- 12. SETTLEMENTS — immutable payback history
@@ -420,6 +465,108 @@ alter table split_bill_shares
 alter table expenses
   add constraint fk_expenses_source_settlement
   foreign key (source_settlement_id) references settlements(id) on delete set null;
+
+
+-- ═══════════════════════════════════════════════════════════════════
+-- 12b. RECURRING_EXPENSES — auto-fire personal expenses on a schedule
+-- Cron job fires daily; if next_run_at <= today, creates an expense row.
+-- Free tier: 3 active; Premium: unlimited.
+-- ═══════════════════════════════════════════════════════════════════
+create table recurring_expenses (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references profiles(id) on delete cascade,
+  title text not null,
+  amount_cents bigint not null check (amount_cents > 0),
+  type text not null default 'expense' check (type in ('expense', 'income')),
+  category_id uuid references categories(id) on delete set null,
+  account_id uuid references accounts(id) on delete set null,
+  note text,
+  frequency text not null check (frequency in ('daily', 'monthly', 'yearly')),
+  next_run_at date not null,
+  is_active boolean not null default true,
+  requires_premium boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  deleted_at timestamptz
+);
+
+create index idx_recurring_expenses_user on recurring_expenses(user_id)
+  where deleted_at is null and is_active = true;
+
+create index idx_recurring_expenses_next_run on recurring_expenses(next_run_at)
+  where deleted_at is null and is_active = true;
+
+
+-- ═══════════════════════════════════════════════════════════════════
+-- 12c. RECURRING_SPLIT_BILLS — auto-fire split bills on a schedule
+-- Free tier: 1 active; Premium: unlimited.
+-- ═══════════════════════════════════════════════════════════════════
+create table recurring_split_bills (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references profiles(id) on delete cascade,
+  title text not null,
+  amount_cents bigint not null check (amount_cents > 0),
+  split_method text not null check (split_method in ('equal', 'custom')),
+  category_id uuid references categories(id) on delete set null,
+  account_id uuid references accounts(id) on delete set null,
+  note text,
+  frequency text not null check (frequency in ('daily', 'monthly', 'yearly')),
+  next_run_at date not null,
+  is_active boolean not null default true,
+  requires_premium boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  deleted_at timestamptz
+);
+
+create table recurring_split_bill_shares (
+  id uuid primary key default gen_random_uuid(),
+  recurring_split_bill_id uuid not null references recurring_split_bills(id) on delete cascade,
+  user_id uuid not null references profiles(id) on delete cascade,
+  share_cents bigint,  -- null for 'equal' split method; set for 'custom'
+  created_at timestamptz not null default now(),
+  unique (recurring_split_bill_id, user_id)
+);
+
+create index idx_recurring_split_bills_user on recurring_split_bills(user_id)
+  where deleted_at is null and is_active = true;
+
+create index idx_recurring_split_bills_next_run on recurring_split_bills(next_run_at)
+  where deleted_at is null and is_active = true;
+
+create index idx_recurring_split_bill_shares on recurring_split_bill_shares(recurring_split_bill_id);
+
+
+-- Deferred FKs from expenses → recurring tables
+alter table expenses
+  add constraint fk_expenses_source_recurring_expense
+  foreign key (source_recurring_expense_id) references recurring_expenses(id) on delete set null;
+
+alter table expenses
+  add constraint fk_expenses_source_recurring_split_bill
+  foreign key (source_recurring_split_bill_id) references recurring_split_bills(id) on delete set null;
+
+
+-- ═══════════════════════════════════════════════════════════════════
+-- 12d. REFERRALS — referral tracking and milestone premium rewards
+-- Each user can only be referred once (unique referee_id).
+-- Every 5th referral awards the referrer 7 premium days.
+-- ═══════════════════════════════════════════════════════════════════
+create table referrals (
+  id          uuid        primary key default gen_random_uuid(),
+  referrer_id uuid        not null references profiles(id) on delete cascade,
+  referee_id  uuid        not null references profiles(id) on delete cascade,
+  bonus_days  int         not null default 0,  -- 0 for non-milestone; 7 on every 5th referral
+  granted_at  timestamptz not null default now(),
+  unique(referee_id)
+);
+
+create index idx_referrals_referrer on referrals(referrer_id);
+
+alter table referrals enable row level security;
+
+create policy "referrals_select_own" on referrals for select
+  using (referrer_id = auth.uid() or referee_id = auth.uid());
 
 
 -- ═══════════════════════════════════════════════════════════════════
@@ -561,6 +708,10 @@ begin
       i
     );
   end loop;
+
+  -- Seed default tag (Income Tax — common Malaysian tax relief label)
+  insert into tags (user_id, name, color, is_default, sort_order)
+  values (new_profile_id, 'Income Tax', '#4A90D9', true, 0);
 
   return new;
 end;
@@ -733,13 +884,16 @@ create or replace function create_split_bill(
   p_conversion_rate numeric default null
 ) returns jsonb
 language plpgsql
-security definer
+security definer set search_path = public
 as $$
 declare
-  v_user_id uuid := auth.uid();
-  v_bill_id uuid;
-  v_expense_id uuid;
-  v_share record;
+  v_user_id                uuid := auth.uid();
+  v_bill_id                uuid;
+  v_expense_id             uuid;
+  v_share                  record;
+  v_non_contact_count      integer;
+  v_payer_share_cents      bigint;
+  v_payer_share_home_cents bigint;
 begin
   if v_user_id is null then
     raise exception 'Not authenticated';
@@ -787,6 +941,20 @@ begin
     end if;
   end if;
 
+  -- Batch-validate all non-self participants are in creator's contacts (one query, not N)
+  select count(*) into v_non_contact_count
+  from jsonb_to_recordset(p_shares) as x(user_id uuid, share_cents bigint)
+  where x.user_id <> v_user_id
+    and not exists (
+      select 1 from contacts
+      where owner_id  = v_user_id
+        and friend_id = x.user_id
+    );
+
+  if v_non_contact_count > 0 then
+    raise exception 'One or more participants are not in your contacts';
+  end if;
+
   -- Create the split bill (with conversion snapshot from creator's perspective)
   insert into split_bills (
     created_by, paid_by, total_amount_cents, currency,
@@ -800,22 +968,9 @@ begin
     p_google_place_id, p_place_name, p_latitude, p_longitude, p_receipt_url
   ) returning id into v_bill_id;
 
-  -- Insert shares, validating each participant is in the creator's contacts
   for v_share in select * from jsonb_to_recordset(p_shares)
     as x(user_id uuid, share_cents bigint)
   loop
-    -- Validate: participant is either the creator themselves or an active contact
-    if v_share.user_id <> v_user_id then
-      if not exists (
-        select 1 from contacts
-        where owner_id = v_user_id
-          and friend_id = v_share.user_id
-          and deleted_at is null
-      ) then
-        raise exception 'Participant is not in your contacts: %', v_share.user_id;
-      end if;
-    end if;
-
     insert into split_bill_shares (split_bill_id, user_id, share_cents, status)
     values (
       v_bill_id,
@@ -825,11 +980,24 @@ begin
     );
   end loop;
 
-  -- Auto-create the payer's expense (full amount) with home conversion snapshot
+  -- Compute payer's actual out-of-pocket (their own share, not the full bill total)
+  select x.share_cents into v_payer_share_cents
+  from jsonb_to_recordset(p_shares) as x(user_id uuid, share_cents bigint)
+  where x.user_id = p_paid_by
+  limit 1;
+
+  if p_home_amount_cents is not null and p_total_amount_cents > 0 and v_payer_share_cents is not null then
+    v_payer_share_home_cents := round(
+      p_home_amount_cents::numeric * v_payer_share_cents / p_total_amount_cents
+    );
+  end if;
+
+  -- Auto-create the payer's expense (full bill amount, actual = payer's own share only)
   insert into expenses (
     user_id, type, source, source_split_bill_id,
     amount_cents, currency,
     home_amount_cents, home_currency, conversion_rate,
+    actual_amount_cents,
     category_id, collab_id,
     note, expense_date,
     google_place_id, place_name, latitude, longitude, receipt_url
@@ -837,6 +1005,7 @@ begin
     p_paid_by, 'expense', 'split_payer', v_bill_id,
     p_total_amount_cents, p_currency,
     p_home_amount_cents, p_home_currency, p_conversion_rate,
+    coalesce(v_payer_share_home_cents, v_payer_share_cents),
     p_category_id, p_collab_id,
     coalesce(p_note, 'Split bill'), p_expense_date,
     p_google_place_id, p_place_name, p_latitude, p_longitude, p_receipt_url
@@ -857,7 +1026,8 @@ $$;
 create or replace function settle_split_share(
   p_share_id uuid,
   p_category_id uuid default null,  -- settler's own category for their expense
-  p_account_id uuid default null    -- settler's own account (which one they paid from)
+  p_account_id uuid default null,   -- settler's own account (which one they paid from)
+  p_tag_id uuid default null        -- optional tag for settler's expense row only
 )
 returns jsonb
 language plpgsql
@@ -871,6 +1041,8 @@ declare
   v_payer_expense_id uuid;
   v_settler_expense_id uuid;
   v_share_home_cents bigint;
+  v_payer_name text;
+  v_settler_name text;
 begin
   if v_user_id is null then
     raise exception 'Not authenticated';
@@ -915,6 +1087,12 @@ begin
 
   select * into v_bill from split_bills where id = v_share.split_bill_id;
 
+  select coalesce(display_name, username, 'Someone') into v_payer_name
+    from profiles where id = v_bill.paid_by;
+
+  select coalesce(display_name, username, 'Someone') into v_settler_name
+    from profiles where id = v_user_id;
+
   -- Compute this share's portion of the home amount (preserve bill's snapshot rate)
   -- Cross-currency: derive from conversion_rate. Same currency: home = local.
   if v_bill.conversion_rate is not null then
@@ -944,15 +1122,15 @@ begin
     user_id, type, source, source_split_bill_id, source_settlement_id,
     amount_cents, currency,
     home_amount_cents, home_currency, conversion_rate,
-    category_id, account_id, collab_id,
+    category_id, account_id, collab_id, tag_id,
     note, expense_date,
     google_place_id, place_name, latitude, longitude
   ) values (
     v_user_id, 'expense', 'settlement', v_bill.id, v_settlement_id,
     v_share.share_cents, v_bill.currency,
     v_share_home_cents, v_bill.home_currency, v_bill.conversion_rate,
-    p_category_id, p_account_id, v_bill.collab_id,
-    coalesce('Paid for: ' || v_bill.note, 'Split settlement'), current_date,
+    p_category_id, p_account_id, v_bill.collab_id, p_tag_id,
+    coalesce('Paid to ' || v_payer_name || ': ' || v_bill.note, 'Paid to ' || v_payer_name), current_date,
     v_bill.google_place_id, v_bill.place_name, v_bill.latitude, v_bill.longitude
   ) returning id into v_settler_expense_id;
 
@@ -963,14 +1141,14 @@ begin
     user_id, type, source, source_split_bill_id, source_settlement_id,
     amount_cents, currency,
     home_amount_cents, home_currency, conversion_rate,
-    category_id,
+    category_id, collab_id,
     note, expense_date
   ) values (
     v_bill.paid_by, 'income', 'settlement', v_bill.id, v_settlement_id,
     v_share.share_cents, v_bill.currency,
     v_share_home_cents, v_bill.home_currency, v_bill.conversion_rate,
-    v_bill.category_id,
-    coalesce('Received for: ' || v_bill.note, 'Split settlement'), current_date
+    v_bill.category_id, v_bill.collab_id,
+    coalesce('Received from ' || v_settler_name || ': ' || v_bill.note, 'Received from ' || v_settler_name), current_date
   ) returning id into v_payer_expense_id;
 
   -- Update the share status
@@ -1919,6 +2097,1007 @@ begin
   ) a;
 
   return v_result;
+end;
+$$;
+
+
+-- 14r. Create a tag — enforces 5-custom limit for free tier; restores soft-deleted tags by name
+-- NOTE: contacts has NO deleted_at — hard-deleted only (do not add deleted_at to contacts queries)
+create or replace function create_tag(
+  p_name  text,
+  p_color text
+)
+returns uuid
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_user_id uuid := auth.uid();
+  v_tag_id  uuid;
+  v_tier    text;
+  v_count   int;
+begin
+  if v_user_id is null then
+    raise exception 'Not authenticated';
+  end if;
+
+  -- Restore soft-deleted tag with same name (case-insensitive) — always allowed, no limit check
+  update tags
+  set deleted_at = null,
+      color      = p_color,
+      updated_at = now()
+  where user_id        = v_user_id
+    and lower(name)    = lower(p_name)
+    and deleted_at is not null
+  returning id into v_tag_id;
+
+  if v_tag_id is not null then
+    return v_tag_id;
+  end if;
+
+  -- Freemium check for net-new tags (default tags do not count toward limit)
+  select subscription_tier into v_tier
+  from profiles where id = v_user_id;
+
+  if v_tier = 'free' then
+    select count(*) into v_count
+    from tags
+    where user_id    = v_user_id
+      and deleted_at is null
+      and is_default = false;
+
+    if v_count >= 5 then
+      raise exception 'tag limit reached'
+        using hint = 'upgrade_required';
+    end if;
+  end if;
+
+  -- Insert new tag
+  insert into tags (user_id, name, color)
+  values (v_user_id, p_name, p_color)
+  returning id into v_tag_id;
+
+  return v_tag_id;
+end;
+$$;
+
+
+-- 14s. Home screen analytics — period totals + category spend in one round-trip
+-- Returns both home_amount_cents and actual_amount_cents totals so Flutter can
+-- toggle Total/Actual without re-fetching.
+create or replace function home_analytics(p_start date, p_end date)
+returns json
+language sql
+security definer
+as $$
+  with
+  period_exp as (
+    select
+      e.home_amount_cents,
+      coalesce(e.actual_amount_cents, e.home_amount_cents) as actual_cents,
+      e.category_id,
+      c.name as category_name
+    from expenses e
+    left join categories c on c.id = e.category_id
+    where e.user_id     = auth.uid()
+      and e.expense_date between p_start and p_end
+      and e.deleted_at  is null
+      and e.archived_at is null
+      and e.type        = 'expense'
+  ),
+  this_month as (
+    select
+      coalesce(sum(home_amount_cents), 0)                                as total_cents,
+      coalesce(sum(coalesce(actual_amount_cents, home_amount_cents)), 0) as actual_cents
+    from expenses
+    where user_id     = auth.uid()
+      and expense_date between date_trunc('month', now())::date
+                           and (date_trunc('month', now() + interval '1 month') - interval '1 day')::date
+      and deleted_at  is null
+      and archived_at is null
+      and type        = 'expense'
+  ),
+  last_month as (
+    select
+      coalesce(sum(home_amount_cents), 0)                                as total_cents,
+      coalesce(sum(coalesce(actual_amount_cents, home_amount_cents)), 0) as actual_cents
+    from expenses
+    where user_id     = auth.uid()
+      and expense_date between date_trunc('month', now() - interval '1 month')::date
+                           and (date_trunc('month', now()) - interval '1 day')::date
+      and deleted_at  is null
+      and archived_at is null
+      and type        = 'expense'
+  ),
+  cat_spend as (
+    select
+      category_id,
+      category_name,
+      coalesce(sum(home_amount_cents), 0) as total_cents,
+      coalesce(sum(actual_cents), 0)      as actual_cents
+    from period_exp
+    group by category_id, category_name
+  ),
+  period_totals as (
+    select
+      coalesce(sum(home_amount_cents), 0) as total_cents,
+      coalesce(sum(actual_cents), 0)      as actual_cents
+    from period_exp
+  )
+  select json_build_object(
+    'period_total_cents',       (select total_cents  from period_totals),
+    'period_actual_cents',      (select actual_cents from period_totals),
+    'avg_per_day_cents',
+        (select total_cents from period_totals) / greatest(p_end - p_start + 1, 1),
+    'actual_avg_per_day_cents',
+        (select actual_cents from period_totals) / greatest(p_end - p_start + 1, 1),
+    'top_category',
+        coalesce((select category_name from cat_spend order by actual_cents desc limit 1), '—'),
+    'this_month_total_cents',   (select total_cents  from this_month),
+    'this_month_actual_cents',  (select actual_cents from this_month),
+    'last_month_total_cents',   (select total_cents  from last_month),
+    'last_month_actual_cents',  (select actual_cents from last_month),
+    'category_spend',
+        coalesce((select json_agg(row_to_json(cat_spend)) from cat_spend), '[]'::json)
+  );
+$$;
+
+
+-- 14t. Analysis screen analytics — by-category, by-account, by-tag, daily buckets
+-- Daily granularity is returned; Dart does week/month bucketing on the client.
+-- Returns both total and actual cents so the Total/Actual toggle works without re-fetch.
+create or replace function analysis_summary(
+  p_start          date,
+  p_end            date,
+  p_include_collab boolean default true
+)
+returns json
+language sql
+security definer
+as $$
+  with
+  base as (
+    select
+      e.home_amount_cents,
+      coalesce(e.actual_amount_cents, e.home_amount_cents) as actual_cents,
+      e.type,
+      e.expense_date,
+      e.category_id,
+      e.account_id,
+      e.tag_id,
+      c.name  as category_name,
+      c.color as category_color,
+      a.name  as account_name,
+      t.name  as tag_name,
+      t.color as tag_color
+    from expenses e
+    left join categories c on c.id = e.category_id
+    left join accounts  a on a.id = e.account_id
+    left join tags      t on t.id = e.tag_id
+    where e.user_id     = auth.uid()
+      and e.expense_date between p_start and p_end
+      and e.deleted_at  is null
+      and e.archived_at is null
+      and (p_include_collab or e.collab_id is null)
+  ),
+  by_category as (
+    select
+      category_id,
+      category_name,
+      category_color,
+      coalesce(sum(home_amount_cents), 0) as total_cents,
+      coalesce(sum(actual_cents), 0)      as actual_cents
+    from base
+    where type = 'expense'
+    group by category_id, category_name, category_color
+  ),
+  by_account as (
+    select
+      account_id,
+      account_name,
+      coalesce(sum(home_amount_cents), 0) as total_cents,
+      coalesce(sum(actual_cents), 0)      as actual_cents
+    from base
+    where type = 'expense'
+    group by account_id, account_name
+  ),
+  by_tag as (
+    select
+      tag_id,
+      coalesce(tag_name, 'Untagged')      as tag_name,
+      coalesce(tag_color, '#888780')      as tag_color,
+      coalesce(sum(home_amount_cents), 0) as total_cents,
+      coalesce(sum(actual_cents), 0)      as actual_cents
+    from base
+    where type = 'expense'
+    group by tag_id, tag_name, tag_color
+  ),
+  daily_buckets as (
+    select
+      expense_date                                                              as bucket_date,
+      coalesce(sum(home_amount_cents) filter (where type = 'expense'), 0)      as spend_cents,
+      coalesce(sum(actual_cents)      filter (where type = 'expense'), 0)      as actual_cents,
+      coalesce(sum(home_amount_cents) filter (where type = 'income'),  0)      as income_cents
+    from base
+    group by expense_date
+    order by expense_date
+  ),
+  daily_cat as (
+    select
+      expense_date                                as bucket_date,
+      category_id,
+      coalesce(sum(home_amount_cents), 0)         as spend_cents,
+      coalesce(sum(actual_cents), 0)              as actual_cents
+    from base
+    where type = 'expense'
+    group by expense_date, category_id
+    order by expense_date
+  ),
+  totals as (
+    select
+      coalesce(sum(home_amount_cents) filter (where type = 'expense'), 0) as total_spent_cents,
+      coalesce(sum(actual_cents)      filter (where type = 'expense'), 0) as total_actual_cents,
+      coalesce(sum(home_amount_cents) filter (where type = 'income'),  0) as total_income_cents
+    from base
+  )
+  select json_build_object(
+    'total_spent_cents',      (select total_spent_cents  from totals),
+    'total_actual_cents',     (select total_actual_cents from totals),
+    'total_income_cents',     (select total_income_cents from totals),
+    'by_category',            coalesce((select json_agg(row_to_json(by_category))  from by_category),  '[]'::json),
+    'by_account',             coalesce((select json_agg(row_to_json(by_account))   from by_account),   '[]'::json),
+    'by_tag',                 coalesce((select json_agg(row_to_json(by_tag))       from by_tag),       '[]'::json),
+    'daily_buckets',          coalesce((select json_agg(row_to_json(daily_buckets)) from daily_buckets),'[]'::json),
+    'daily_category_buckets', coalesce((select json_agg(row_to_json(daily_cat))    from daily_cat),    '[]'::json)
+  );
+$$;
+
+
+-- 14u. Collab summary — all-time totals + per-member net spend (no date filter)
+-- Used by: collab detail header, members screen.
+create or replace function collab_summary(p_collab_id uuid)
+returns json
+language sql
+security definer
+as $$
+  with
+  base as (
+    select
+      e.user_id,
+      e.home_amount_cents,
+      e.type,
+      p.display_name
+    from expenses e
+    left join profiles p on p.id = e.user_id
+    where e.collab_id   = p_collab_id
+      and e.deleted_at  is null
+      and e.archived_at is null
+  ),
+  totals as (
+    select
+      coalesce(sum(home_amount_cents) filter (where type = 'expense'), 0) as total_spent_cents,
+      coalesce(sum(home_amount_cents) filter (where type = 'income'),  0) as total_income_cents
+    from base
+  ),
+  member_totals as (
+    select
+      user_id,
+      display_name,
+      coalesce(sum(home_amount_cents) filter (where type = 'expense'), 0) -
+      coalesce(sum(home_amount_cents) filter (where type = 'income'),  0) as spent_cents
+    from base
+    group by user_id, display_name
+  )
+  select json_build_object(
+    'total_spent_cents',  (select total_spent_cents  - total_income_cents from totals),
+    'total_income_cents', (select total_income_cents from totals),
+    'member_totals',
+        coalesce((select json_agg(row_to_json(member_totals)) from member_totals), '[]'::json)
+  );
+$$;
+
+
+-- 14v. Collab analytics — date-filtered breakdowns + daily buckets per member
+-- Returns self-only category/account breakdowns; Dart does week/month bucketing.
+-- Used by: collab analysis screen.
+create or replace function collab_analytics(
+  p_collab_id uuid,
+  p_start      date,
+  p_end        date
+)
+returns json
+language sql
+security definer
+as $$
+  with
+  base as (
+    select
+      e.user_id,
+      e.home_amount_cents,
+      e.type,
+      e.expense_date,
+      e.category_id,
+      e.account_id,
+      c.name  as category_name,
+      c.color as category_color,
+      a.name  as account_name,
+      p.display_name
+    from expenses e
+    left join categories c on c.id = e.category_id
+    left join accounts  a on a.id = e.account_id
+    left join profiles  p on p.id = e.user_id
+    where e.collab_id    = p_collab_id
+      and e.expense_date between p_start and p_end
+      and e.deleted_at   is null
+      and e.archived_at  is null
+  ),
+  totals as (
+    select
+      coalesce(sum(home_amount_cents) filter (where type = 'expense'), 0) as total_spent_cents,
+      coalesce(sum(home_amount_cents) filter (where type = 'income'),  0) as total_income_cents
+    from base
+  ),
+  self_cat as (
+    select
+      category_id,
+      category_name,
+      category_color,
+      coalesce(sum(home_amount_cents), 0) as total_cents
+    from base
+    where type    = 'expense'
+      and user_id = auth.uid()
+    group by category_id, category_name, category_color
+  ),
+  self_account as (
+    select
+      account_id,
+      account_name,
+      coalesce(sum(home_amount_cents), 0) as total_cents
+    from base
+    where type    = 'expense'
+      and user_id = auth.uid()
+    group by account_id, account_name
+  ),
+  daily_buckets as (
+    select
+      expense_date                                                              as bucket_date,
+      coalesce(sum(home_amount_cents) filter (where type = 'expense'), 0)      as spend_cents,
+      coalesce(sum(home_amount_cents) filter (where type = 'income'),  0)      as income_cents
+    from base
+    group by expense_date
+    order by expense_date
+  ),
+  daily_member as (
+    select
+      expense_date                                                              as bucket_date,
+      user_id,
+      display_name,
+      coalesce(sum(home_amount_cents) filter (where type = 'expense'), 0)      as spend_cents,
+      coalesce(sum(home_amount_cents) filter (where type = 'income'),  0)      as income_cents
+    from base
+    group by expense_date, user_id, display_name
+    order by expense_date
+  )
+  select json_build_object(
+    'total_spent_cents',    (select total_spent_cents  from totals),
+    'total_income_cents',   (select total_income_cents from totals),
+    'self_category',
+        coalesce((select json_agg(row_to_json(self_cat))      from self_cat),      '[]'::json),
+    'self_account',
+        coalesce((select json_agg(row_to_json(self_account))  from self_account),  '[]'::json),
+    'daily_buckets',
+        coalesce((select json_agg(row_to_json(daily_buckets)) from daily_buckets), '[]'::json),
+    'daily_member_buckets',
+        coalesce((select json_agg(row_to_json(daily_member))  from daily_member),  '[]'::json)
+  );
+$$;
+
+
+-- 14w. Creator marks a participant's share as paid on their behalf
+-- Use case: participant paid cash and the creator records it.
+-- Creates: settlement + income row for creator + expense row for participant.
+-- category/account on participant's expense are null (cross-user refs are invalid).
+create or replace function creator_mark_share_paid(p_share_id uuid)
+returns jsonb
+language plpgsql
+security definer
+as $$
+declare
+  v_user_id                uuid := auth.uid();
+  v_share                  record;
+  v_bill                   record;
+  v_settlement_id          uuid;
+  v_income_id              uuid;
+  v_participant_expense_id uuid;
+  v_share_home_cents       bigint;
+  v_participant_name       text;
+  v_creator_name           text;
+begin
+  if v_user_id is null then raise exception 'Not authenticated'; end if;
+
+  select * into v_share from split_bill_shares where id = p_share_id;
+  if not found then raise exception 'Share not found'; end if;
+
+  select * into v_bill from split_bills where id = v_share.split_bill_id;
+  if not found then raise exception 'Bill not found'; end if;
+
+  if v_bill.created_by <> v_user_id then
+    raise exception 'Only the bill creator can call creator_mark_share_paid';
+  end if;
+
+  if v_share.user_id = v_user_id then
+    raise exception 'Cannot mark your own share via this function';
+  end if;
+
+  if v_share.status <> 'pending' then
+    raise exception 'Share is not pending (status: %)', v_share.status;
+  end if;
+
+  select coalesce(display_name, username, 'Someone') into v_participant_name
+    from profiles where id = v_share.user_id;
+
+  select coalesce(display_name, username, 'Someone') into v_creator_name
+    from profiles where id = v_user_id;
+
+  if v_bill.conversion_rate is not null then
+    v_share_home_cents := round(v_share.share_cents::numeric / v_bill.conversion_rate)::bigint;
+  elsif v_bill.home_currency is not null then
+    v_share_home_cents := v_share.share_cents;
+  else
+    v_share_home_cents := null;
+  end if;
+
+  insert into settlements (
+    split_bill_id, split_bill_share_id,
+    from_user_id, to_user_id,
+    amount_cents, currency, note, settled_on
+  ) values (
+    v_bill.id, v_share.id,
+    v_share.user_id, v_user_id,
+    v_share.share_cents, v_bill.currency,
+    coalesce('Received from ' || v_participant_name || ': ' || v_bill.note,
+             'Received from ' || v_participant_name),
+    current_date
+  ) returning id into v_settlement_id;
+
+  -- Income row for the creator
+  insert into expenses (
+    user_id, type, source, source_split_bill_id, source_settlement_id,
+    amount_cents, currency,
+    home_amount_cents, home_currency, conversion_rate,
+    category_id, collab_id,
+    note, expense_date
+  ) values (
+    v_user_id, 'income', 'settlement', v_bill.id, v_settlement_id,
+    v_share.share_cents, v_bill.currency,
+    v_share_home_cents, v_bill.home_currency, v_bill.conversion_rate,
+    v_bill.category_id, v_bill.collab_id,
+    coalesce('Received from ' || v_participant_name || ': ' || v_bill.note,
+             'Received from ' || v_participant_name),
+    current_date
+  ) returning id into v_income_id;
+
+  -- Expense row for the participant (category/account null — cross-user categories invalid)
+  insert into expenses (
+    user_id, type, source, source_split_bill_id, source_settlement_id,
+    amount_cents, currency,
+    home_amount_cents, home_currency, conversion_rate,
+    category_id, account_id, collab_id,
+    note, expense_date
+  ) values (
+    v_share.user_id, 'expense', 'settlement', v_bill.id, v_settlement_id,
+    v_share.share_cents, v_bill.currency,
+    v_share_home_cents, v_bill.home_currency, v_bill.conversion_rate,
+    null, null, v_bill.collab_id,
+    coalesce('Paid to ' || v_creator_name || ': ' || v_bill.note,
+             'Paid to ' || v_creator_name),
+    current_date
+  ) returning id into v_participant_expense_id;
+
+  update split_bill_shares
+  set status        = 'settled',
+      settled_at    = now(),
+      settlement_id = v_settlement_id,
+      updated_at    = now()
+  where id = p_share_id;
+
+  return jsonb_build_object(
+    'settlement_id',          v_settlement_id,
+    'income_expense_id',      v_income_id,
+    'participant_expense_id', v_participant_expense_id
+  );
+end;
+$$;
+
+
+-- 14x. Create a recurring expense — fires immediately if first_run_at is today or past
+-- next_run_at is advanced to the next occurrence so the cron won't double-fire.
+-- Free tier: 3 active recurring expenses; Premium: unlimited.
+create or replace function create_recurring_expense(
+  p_title        text,
+  p_amount_cents bigint,
+  p_frequency    text,
+  p_first_run_at date,
+  p_type         text  default 'expense',
+  p_category_id  uuid  default null,
+  p_account_id   uuid  default null,
+  p_note         text  default null
+) returns jsonb language plpgsql security definer as $$
+declare
+  v_user_id          uuid := auth.uid();
+  v_tier             text;
+  v_count            integer;
+  v_requires_premium boolean;
+  v_new_id           uuid;
+  v_expense_id       uuid := null;
+begin
+  if v_user_id is null then raise exception 'Not authenticated'; end if;
+
+  select subscription_tier into v_tier from profiles where id = v_user_id;
+
+  select count(*) into v_count from recurring_expenses
+  where user_id = v_user_id and deleted_at is null;
+
+  if v_tier = 'free' and v_count >= 3 then
+    raise exception 'Free tier limit reached (3 recurring expenses). Upgrade to Premium for unlimited.'
+      using errcode = 'P0001', hint = 'upgrade_required';
+  end if;
+
+  v_requires_premium := (v_tier <> 'free') and (v_count >= 3);
+
+  if p_category_id is not null and not exists (
+    select 1 from categories where id = p_category_id and user_id = v_user_id and deleted_at is null
+  ) then raise exception 'Category does not belong to you'; end if;
+
+  if p_account_id is not null and not exists (
+    select 1 from accounts where id = p_account_id and user_id = v_user_id and deleted_at is null
+  ) then raise exception 'Account does not belong to you'; end if;
+
+  insert into recurring_expenses (
+    user_id, title, amount_cents, type, category_id, account_id, note, frequency, next_run_at, requires_premium
+  ) values (
+    v_user_id, trim(p_title), p_amount_cents, p_type, p_category_id, p_account_id, p_note, p_frequency,
+    case when p_first_run_at <= current_date then
+      case p_frequency
+        when 'daily'   then p_first_run_at + interval '1 day'
+        when 'monthly' then p_first_run_at + interval '1 month'
+        when 'yearly'  then p_first_run_at + interval '1 year'
+      end
+    else p_first_run_at end,
+    v_requires_premium
+  ) returning id into v_new_id;
+
+  -- Fire immediately if first_run_at is today or in the past
+  if p_first_run_at <= current_date then
+    insert into expenses (
+      user_id, type, source, source_recurring_expense_id,
+      amount_cents, currency,
+      home_amount_cents, home_currency, conversion_rate,
+      category_id, account_id, note, expense_date
+    ) values (
+      v_user_id, p_type, 'recurring', v_new_id,
+      p_amount_cents, 'MYR',
+      p_amount_cents, 'MYR', 1,
+      p_category_id, p_account_id, coalesce(p_note, trim(p_title)), current_date
+    ) returning id into v_expense_id;
+  end if;
+
+  return jsonb_build_object(
+    'recurring_expense_id', v_new_id,
+    'requires_premium',     v_requires_premium,
+    'expense_id',           v_expense_id
+  );
+end; $$;
+
+
+-- 14y. Create a recurring split bill — fires immediately if first_run_at is today or past
+-- Handles equal and custom split methods.
+-- Free tier: 1 active recurring split bill; Premium: unlimited.
+-- NOTE: contacts has NO deleted_at column — hard-deleted only.
+create or replace function create_recurring_split_bill(
+  p_title        text,
+  p_amount_cents bigint,
+  p_frequency    text,
+  p_first_run_at date,
+  p_split_method text,
+  p_shares       jsonb,
+  p_category_id  uuid  default null,
+  p_account_id   uuid  default null,
+  p_note         text  default null
+) returns jsonb language plpgsql security definer as $$
+declare
+  v_user_id          uuid := auth.uid();
+  v_tier             text;
+  v_count            integer;
+  v_requires_premium boolean;
+  v_new_id           uuid;
+  v_share            record;
+  v_total_custom     bigint := 0;
+  v_bill_id          uuid   := null;
+  v_participant_cnt  integer;
+  v_equal_cents      bigint;
+  v_remainder        bigint;
+  v_share_idx        integer;
+begin
+  if v_user_id is null then raise exception 'Not authenticated'; end if;
+
+  select subscription_tier into v_tier from profiles where id = v_user_id;
+
+  select count(*) into v_count from recurring_split_bills
+  where user_id = v_user_id and deleted_at is null;
+
+  if v_tier = 'free' and v_count >= 1 then
+    raise exception 'Free tier limit reached (1 recurring split bill). Upgrade to Premium for unlimited.'
+      using errcode = 'P0001', hint = 'upgrade_required';
+  end if;
+
+  v_requires_premium := (v_tier <> 'free') and (v_count >= 1);
+
+  if p_category_id is not null and not exists (
+    select 1 from categories where id = p_category_id and user_id = v_user_id and deleted_at is null
+  ) then raise exception 'Category does not belong to you'; end if;
+
+  if p_account_id is not null and not exists (
+    select 1 from accounts where id = p_account_id and user_id = v_user_id and deleted_at is null
+  ) then raise exception 'Account does not belong to you'; end if;
+
+  if not exists (
+    select 1 from jsonb_array_elements(p_shares) s where (s->>'user_id')::uuid = v_user_id
+  ) then raise exception 'Creator must be included as a participant'; end if;
+
+  if p_split_method = 'custom' then
+    select sum((s->>'share_cents')::bigint) into v_total_custom from jsonb_array_elements(p_shares) s;
+    if v_total_custom <> p_amount_cents then
+      raise exception 'Custom shares must sum to total amount.'
+        using errcode = 'P0001', hint = 'invalid_shares';
+    end if;
+  end if;
+
+  insert into recurring_split_bills (
+    user_id, title, amount_cents, split_method, category_id, account_id, note, frequency, next_run_at, requires_premium
+  ) values (
+    v_user_id, trim(p_title), p_amount_cents, p_split_method, p_category_id, p_account_id, p_note, p_frequency,
+    case when p_first_run_at <= current_date then
+      case p_frequency
+        when 'daily'   then p_first_run_at + interval '1 day'
+        when 'monthly' then p_first_run_at + interval '1 month'
+        when 'yearly'  then p_first_run_at + interval '1 year'
+      end
+    else p_first_run_at end,
+    v_requires_premium
+  ) returning id into v_new_id;
+
+  for v_share in
+    select (s->>'user_id')::uuid as user_id, (s->>'share_cents')::bigint as share_cents
+    from jsonb_array_elements(p_shares) s
+  loop
+    -- NOTE: contacts has NO deleted_at column
+    if v_share.user_id <> v_user_id and not exists (
+      select 1 from contacts where owner_id = v_user_id and friend_id = v_share.user_id
+    ) then raise exception 'Participant is not in your contacts: %', v_share.user_id; end if;
+
+    insert into recurring_split_bill_shares (recurring_split_bill_id, user_id, share_cents)
+    values (v_new_id, v_share.user_id,
+      case when p_split_method = 'custom' then v_share.share_cents else null end);
+  end loop;
+
+  -- Fire immediately if first_run_at is today or in the past
+  if p_first_run_at <= current_date then
+    select count(*) into v_participant_cnt
+    from recurring_split_bill_shares where recurring_split_bill_id = v_new_id;
+
+    insert into split_bills (
+      created_by, paid_by,
+      total_amount_cents, currency,
+      home_amount_cents, home_currency, conversion_rate,
+      note, expense_date, category_id
+    ) values (
+      v_user_id, v_user_id,
+      p_amount_cents, 'MYR',
+      p_amount_cents, 'MYR', 1,
+      coalesce(p_note, trim(p_title)), current_date, p_category_id
+    ) returning id into v_bill_id;
+
+    if p_split_method = 'equal' then
+      v_equal_cents := p_amount_cents / v_participant_cnt;
+      v_remainder   := p_amount_cents - (v_equal_cents * v_participant_cnt);
+      v_share_idx   := 0;
+
+      for v_share in
+        select * from recurring_split_bill_shares
+        where recurring_split_bill_id = v_new_id
+        order by created_at
+      loop
+        v_share_idx := v_share_idx + 1;
+        insert into split_bill_shares (split_bill_id, user_id, share_cents, split_method, status)
+        values (
+          v_bill_id, v_share.user_id,
+          v_equal_cents + case when v_share_idx <= v_remainder then 1 else 0 end,
+          'equal',
+          case when v_share.user_id = v_user_id then 'settled' else 'pending' end
+        );
+      end loop;
+
+    else
+      for v_share in
+        select * from recurring_split_bill_shares where recurring_split_bill_id = v_new_id
+      loop
+        insert into split_bill_shares (split_bill_id, user_id, share_cents, split_method, status)
+        values (
+          v_bill_id, v_share.user_id,
+          v_share.share_cents,
+          'custom',
+          case when v_share.user_id = v_user_id then 'settled' else 'pending' end
+        );
+      end loop;
+    end if;
+
+    insert into expenses (
+      user_id, type, source, source_split_bill_id, source_recurring_split_bill_id,
+      amount_cents, currency,
+      home_amount_cents, home_currency, conversion_rate,
+      category_id, account_id, note, expense_date
+    ) values (
+      v_user_id, 'expense', 'recurring', v_bill_id, v_new_id,
+      p_amount_cents, 'MYR',
+      p_amount_cents, 'MYR', 1,
+      p_category_id, p_account_id, coalesce(p_note, trim(p_title)), current_date
+    );
+  end if;
+
+  return jsonb_build_object(
+    'recurring_split_bill_id', v_new_id,
+    'requires_premium',        v_requires_premium,
+    'split_bill_id',           v_bill_id
+  );
+end; $$;
+
+
+-- 14z. Update a recurring split bill template (metadata + shares)
+create or replace function update_recurring_split_bill(
+  p_id           uuid,
+  p_title        text    default null,
+  p_amount_cents bigint  default null,
+  p_frequency    text    default null,
+  p_next_run_at  date    default null,
+  p_split_method text    default null,
+  p_category_id  uuid    default null,
+  p_account_id   uuid    default null,
+  p_note         text    default null,
+  p_shares       jsonb   default null
+) returns void language plpgsql security definer as $$
+declare
+  v_user_id   uuid := auth.uid();
+  v_template  record;
+  v_share     record;
+  v_method    text;
+  v_amount    bigint;
+  v_total     bigint := 0;
+begin
+  if v_user_id is null then raise exception 'Not authenticated'; end if;
+
+  select * into v_template from recurring_split_bills
+  where id = p_id and user_id = v_user_id and deleted_at is null;
+  if not found then raise exception 'Recurring split bill not found'; end if;
+
+  v_method := coalesce(p_split_method, v_template.split_method);
+  v_amount := coalesce(p_amount_cents, v_template.amount_cents);
+
+  if p_shares is not null and v_method = 'custom' then
+    select sum((s->>'share_cents')::bigint) into v_total from jsonb_array_elements(p_shares) s;
+    if v_total <> v_amount then
+      raise exception 'Custom shares must sum to total amount.'
+        using errcode = 'P0001', hint = 'invalid_shares';
+    end if;
+  end if;
+
+  update recurring_split_bills set
+    title        = coalesce(p_title,        title),
+    amount_cents = v_amount,
+    split_method = v_method,
+    frequency    = coalesce(p_frequency,    frequency),
+    next_run_at  = coalesce(p_next_run_at,  next_run_at),
+    category_id  = p_category_id,
+    account_id   = p_account_id,
+    note         = p_note
+  where id = p_id;
+
+  if p_shares is not null then
+    delete from recurring_split_bill_shares where recurring_split_bill_id = p_id;
+
+    for v_share in
+      select (s->>'user_id')::uuid as user_id, (s->>'share_cents')::bigint as share_cents
+      from jsonb_array_elements(p_shares) s
+    loop
+      -- NOTE: contacts has NO deleted_at column
+      if v_share.user_id <> v_user_id and not exists (
+        select 1 from contacts where owner_id = v_user_id and friend_id = v_share.user_id
+      ) then raise exception 'Participant is not in your contacts: %', v_share.user_id; end if;
+
+      insert into recurring_split_bill_shares (recurring_split_bill_id, user_id, share_cents)
+      values (p_id, v_share.user_id,
+        case when v_method = 'custom' then v_share.share_cents else null end);
+    end loop;
+  end if;
+end; $$;
+
+
+-- ── Referral System ──────────────────────────────────────────────────────────
+
+-- 14aa. Generate unique 8-char referral code (used as DEFAULT on profiles.referral_code)
+create or replace function generate_referral_code()
+returns text language plpgsql as $$
+declare
+  v_chars text := 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  v_code  text;
+begin
+  loop
+    v_code := '';
+    for i in 1..8 loop
+      v_code := v_code || substr(v_chars, (floor(random() * 36) + 1)::int, 1);
+    end loop;
+    exit when not exists (select 1 from profiles where referral_code = v_code);
+  end loop;
+  return v_code;
+end;
+$$;
+
+-- Set referral_code default now that the function exists
+alter table profiles
+  alter column referral_code set default generate_referral_code();
+
+
+-- 14ab. Apply a referral code (called once during onboarding by the new user)
+-- Milestone model: every 5th referral awards the referrer 7 premium days.
+-- Non-milestone referrals are recorded but grant no days.
+create or replace function apply_referral_code(p_code text)
+returns jsonb language plpgsql security definer as $$
+declare
+  v_referee_id   uuid := auth.uid();
+  v_referrer_id  uuid;
+  v_clean_code   text := upper(trim(p_code));
+  v_new_count    int;
+  v_bonus_days   int := 0;
+  v_new_expiry   timestamptz;
+begin
+  if v_referee_id is null then raise exception 'Not authenticated'; end if;
+
+  if v_clean_code !~ '^[A-Z0-9]{8}$' then
+    raise exception 'Invalid referral code format' using errcode = 'P0001', hint = 'invalid_code';
+  end if;
+
+  select id into v_referrer_id from profiles where referral_code = v_clean_code;
+
+  if v_referrer_id is null then
+    raise exception 'Referral code not found' using errcode = 'P0001', hint = 'invalid_code';
+  end if;
+
+  if v_referrer_id = v_referee_id then
+    raise exception 'Cannot use your own referral code' using errcode = 'P0001', hint = 'own_code';
+  end if;
+
+  if exists (select 1 from referrals where referee_id = v_referee_id) then
+    raise exception 'You have already used a referral code' using errcode = 'P0001', hint = 'already_used';
+  end if;
+
+  select count(*) + 1 into v_new_count from referrals where referrer_id = v_referrer_id;
+
+  if v_new_count % 5 = 0 then v_bonus_days := 7; end if;
+
+  insert into referrals (referrer_id, referee_id, bonus_days)
+  values (v_referrer_id, v_referee_id, v_bonus_days);
+
+  if v_bonus_days > 0 then
+    select greatest(
+      coalesce(subscription_expires_at, now()),
+      coalesce(referral_premium_expires_at, now())
+    ) + interval '7 days'
+    into v_new_expiry
+    from profiles where id = v_referrer_id;
+
+    update profiles
+    set referral_premium_expires_at = v_new_expiry
+    where id = v_referrer_id;
+
+    -- For free referrers: activate premium immediately
+    update profiles
+    set subscription_tier       = 'premium',
+        subscription_expires_at = v_new_expiry
+    where id = v_referrer_id
+      and subscription_tier = 'free';
+  end if;
+
+  return jsonb_build_object('referrer_id', v_referrer_id, 'bonus_days', v_bonus_days, 'new_count', v_new_count);
+end;
+$$;
+
+
+-- 14ac. Get referral stats for the current user
+create or replace function get_referral_stats()
+returns jsonb language plpgsql security definer as $$
+declare
+  v_user_id    uuid := auth.uid();
+  v_code       text;
+  v_expires_at timestamptz;
+  v_count      int;
+begin
+  if v_user_id is null then raise exception 'Not authenticated'; end if;
+
+  select referral_code, referral_premium_expires_at
+  into   v_code, v_expires_at
+  from profiles where id = v_user_id;
+
+  select count(*) into v_count from referrals where referrer_id = v_user_id;
+
+  return jsonb_build_object(
+    'referral_code',        v_code,
+    'total_referrals',      v_count,
+    'bonus_expires_at',     v_expires_at,
+    'referrals_until_next', 5 - (v_count % 5)
+  );
+end;
+$$;
+
+
+-- 14ad. Process subscription expirations (called by pg_cron at 16:00 UTC daily)
+-- Preserves referral premium when paid sub expires: if referral_premium_expires_at
+-- is still in the future, keep premium (at referral expiry) instead of downgrading.
+-- Also pauses premium recurring items for users who downgraded to free.
+create or replace function process_subscription_expirations()
+returns jsonb language plpgsql security definer as $$
+declare
+  v_user            record;
+  v_downgraded      integer := 0;
+  v_referral_kept   integer := 0;
+  v_deactivated_re  integer := 0;
+  v_deactivated_rsb integer := 0;
+  v_rows            integer;
+begin
+  for v_user in
+    select id, referral_premium_expires_at
+    from profiles
+    where subscription_tier = 'premium'
+      and subscription_expires_at is not null
+      and subscription_expires_at < now()
+  loop
+    if v_user.referral_premium_expires_at is not null
+       and v_user.referral_premium_expires_at > now() then
+      update profiles
+      set subscription_expires_at = v_user.referral_premium_expires_at
+      where id = v_user.id;
+      v_referral_kept := v_referral_kept + 1;
+    else
+      update profiles
+      set subscription_tier = 'free',
+          subscription_expires_at = null
+      where id = v_user.id;
+      v_downgraded := v_downgraded + 1;
+    end if;
+  end loop;
+
+  update recurring_expenses
+  set is_active = false
+  where deleted_at is null and is_active = true and requires_premium = true
+    and user_id in (select id from profiles where subscription_tier = 'free');
+
+  get diagnostics v_rows = row_count;
+  v_deactivated_re := v_rows;
+
+  update recurring_split_bills
+  set is_active = false
+  where deleted_at is null and is_active = true and requires_premium = true
+    and user_id in (select id from profiles where subscription_tier = 'free');
+
+  get diagnostics v_rows = row_count;
+  v_deactivated_rsb := v_rows;
+
+  return jsonb_build_object(
+    'ran_at',                    now(),
+    'users_downgraded',          v_downgraded,
+    'referral_premium_kept',     v_referral_kept,
+    'recurring_expenses_paused', v_deactivated_re,
+    'recurring_splits_paused',   v_deactivated_rsb
+  );
 end;
 $$;
 

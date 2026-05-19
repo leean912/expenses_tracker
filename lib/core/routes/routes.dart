@@ -30,3 +30,4 @@ const String collabAnalyticsRoute = '/collab-analytics';
 const String categoryExpensesRoute = '/category-expenses';
 const String settingsExpenseTypeRoute = '/settings/expense-type';
 const String feedbackRoute = '/feedback';
+const String settingsTagsRoute = '/settings/tags';

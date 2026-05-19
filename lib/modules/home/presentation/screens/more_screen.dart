@@ -160,6 +160,26 @@ class MoreScreen extends ConsumerWidget {
             const Divider(height: 1, indent: 56, color: AppColors.border),
             ListTile(
               leading: const Icon(
+                Icons.label_outline_rounded,
+                color: AppColors.textSecondary,
+              ),
+              title: const Text(
+                'Tags',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              trailing: const Icon(
+                Icons.chevron_right_rounded,
+                color: AppColors.textTertiary,
+              ),
+              onTap: () => context.push(settingsTagsRoute),
+            ),
+            const Divider(height: 1, indent: 56, color: AppColors.border),
+            ListTile(
+              leading: const Icon(
                 Icons.savings_outlined,
                 color: AppColors.textSecondary,
               ),

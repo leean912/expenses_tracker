@@ -32,6 +32,7 @@ import '../../modules/settings/accounts/presentation/screens/accounts_screen.dar
 import '../../modules/settings/budget/presentation/screens/budget_list_screen.dart';
 import '../../modules/settings/categories/presentation/screens/categories_screen.dart';
 import '../../modules/settings/expense_type/presentation/screens/expense_type_screen.dart';
+import '../../modules/tags/presentation/screens/tags_screen.dart';
 import '../../modules/split_bills/presentation/screens/friend_split_detail_screen.dart';
 import '../../modules/split_bills/presentation/screens/split_bill_detail_screen.dart';
 import '../../modules/split_bills/presentation/screens/split_bills_screen.dart';
@@ -93,6 +94,10 @@ final router = GoRouter(
     GoRoute(
       path: settingsExpenseTypeRoute,
       builder: (context, state) => const ExpenseTypeScreen(),
+    ),
+    GoRoute(
+      path: settingsTagsRoute,
+      builder: (context, state) => const TagsScreen(),
     ),
     GoRoute(
       path: budgetsRoute,

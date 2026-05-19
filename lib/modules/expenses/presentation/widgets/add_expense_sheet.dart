@@ -27,6 +27,7 @@ import '../../providers/accounts_provider.dart';
 import '../../providers/categories_provider.dart';
 import '../../providers/create_expense_provider.dart';
 import '../../utils/expense_ui_helpers.dart';
+import '../../../tags/presentation/widgets/tag_picker_row.dart';
 
 class AddExpenseSheet extends ConsumerStatefulWidget {
   const AddExpenseSheet({super.key});
@@ -43,6 +44,7 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet>
   final _amountController = TextEditingController();
   String? _selectedCategoryId;
   String? _selectedAccountId;
+  String? _selectedTagId;
   DateTime _selectedDate = DateTime.now();
   final _noteController = TextEditingController();
 
@@ -57,6 +59,7 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet>
   final _splitNoteController = TextEditingController();
   String? _splitCategoryId;
   String? _splitAccountId;
+  String? _splitTagId;
   DateTime _splitDate = DateTime.now();
   final List<_SplitParticipant> _splitParticipants = [];
   bool _equalSplit = false;
@@ -362,6 +365,7 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet>
           date: _selectedDate,
           categoryId: _selectedCategoryId,
           accountId: _selectedAccountId,
+          tagId: _selectedTagId,
           note: _noteController.text.trim(),
           receiptUrl: _expenseReceiptUrl,
         );
@@ -420,7 +424,7 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet>
           'p_home_amount_cents': _splitTotalCents,
           'p_home_currency': currency,
           'p_conversion_rate': null,
-          'p_account_id': _splitAccountId,
+          'p_tag_id': _splitTagId,
         },
       );
 
@@ -547,6 +551,7 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet>
                       amountController: _amountController,
                       selectedCategoryId: _selectedCategoryId,
                       selectedAccountId: _selectedAccountId,
+                      selectedTagId: _selectedTagId,
                       selectedDate: _selectedDate,
                       formattedDate: _formattedDate,
                       noteController: _noteController,
@@ -557,6 +562,8 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet>
                           setState(() => _selectedCategoryId = id),
                       onAccountSelect: (id) =>
                           setState(() => _selectedAccountId = id),
+                      onTagSelect: (id) =>
+                          setState(() => _selectedTagId = id),
                       onDateTap: _pickDate,
                       onAddCategory: () {
                         context.push(settingsCategoriesRoute);
@@ -572,6 +579,7 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet>
                       noteController: _splitNoteController,
                       selectedCategoryId: _splitCategoryId,
                       selectedAccountId: _splitAccountId,
+                      selectedTagId: _splitTagId,
                       formattedDate: _splitFormattedDate,
                       participants: _splitParticipants,
                       equalSplit: _equalSplit,
@@ -583,6 +591,8 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet>
                           setState(() => _splitCategoryId = id),
                       onAccountSelect: (id) =>
                           setState(() => _splitAccountId = id),
+                      onTagSelect: (id) =>
+                          setState(() => _splitTagId = id),
                       onDateTap: _pickSplitDate,
                       onEqualSplitToggle: (value) => setState(() {
                         _equalSplit = value;
@@ -694,11 +704,13 @@ class _ExpenseForm extends ConsumerWidget {
     required this.amountController,
     required this.selectedCategoryId,
     required this.selectedAccountId,
+    required this.selectedTagId,
     required this.selectedDate,
     required this.formattedDate,
     required this.noteController,
     required this.onCategorySelect,
     required this.onAccountSelect,
+    required this.onTagSelect,
     required this.onDateTap,
     required this.onAddCategory,
     required this.onAddAccount,
@@ -712,11 +724,13 @@ class _ExpenseForm extends ConsumerWidget {
   final TextEditingController amountController;
   final String? selectedCategoryId;
   final String? selectedAccountId;
+  final String? selectedTagId;
   final DateTime selectedDate;
   final String formattedDate;
   final TextEditingController noteController;
   final ValueChanged<String?> onCategorySelect;
   final ValueChanged<String?> onAccountSelect;
+  final ValueChanged<String?> onTagSelect;
   final VoidCallback onDateTap;
   final VoidCallback onAddCategory;
   final VoidCallback onAddAccount;
@@ -916,6 +930,16 @@ class _ExpenseForm extends ConsumerWidget {
 
           const SizedBox(height: AppSpacing.xxl),
 
+          // ── Tag ─────────────────────────────────────────────────────────
+          const _SectionLabel('Tag'),
+          const SizedBox(height: AppSpacing.md),
+          TagPickerRow(
+            selectedTagId: selectedTagId,
+            onChanged: onTagSelect,
+          ),
+
+          const SizedBox(height: AppSpacing.xxl),
+
           // ── Date ───────────────────────────────────────────────────────
           const _SectionLabel('Date'),
           const SizedBox(height: AppSpacing.md),
@@ -973,12 +997,14 @@ class _SplitBillForm extends ConsumerWidget {
     required this.noteController,
     required this.selectedCategoryId,
     required this.selectedAccountId,
+    required this.selectedTagId,
     required this.formattedDate,
     required this.participants,
     required this.equalSplit,
     required this.remainingCents,
     required this.onCategorySelect,
     required this.onAccountSelect,
+    required this.onTagSelect,
     required this.onDateTap,
     required this.onEqualSplitToggle,
     required this.onAddParticipant,
@@ -997,6 +1023,7 @@ class _SplitBillForm extends ConsumerWidget {
   final TextEditingController noteController;
   final String? selectedCategoryId;
   final String? selectedAccountId;
+  final String? selectedTagId;
   final String formattedDate;
   final List<_SplitParticipant> participants;
   final bool equalSplit;
@@ -1006,6 +1033,7 @@ class _SplitBillForm extends ConsumerWidget {
   final bool receiptUploading;
   final ValueChanged<String?> onCategorySelect;
   final ValueChanged<String?> onAccountSelect;
+  final ValueChanged<String?> onTagSelect;
   final VoidCallback onDateTap;
   final ValueChanged<bool> onEqualSplitToggle;
   final VoidCallback onAddParticipant;
@@ -1358,6 +1386,16 @@ class _SplitBillForm extends ConsumerWidget {
               'Failed to load accounts',
               style: TextStyle(fontSize: 12, color: AppColors.textTertiary),
             ),
+          ),
+
+          const SizedBox(height: AppSpacing.xxl),
+
+          // ── Tag ─────────────────────────────────────────────────────────
+          const _SectionLabel('Tag'),
+          const SizedBox(height: AppSpacing.md),
+          TagPickerRow(
+            selectedTagId: selectedTagId,
+            onChanged: onTagSelect,
           ),
 
           const SizedBox(height: AppSpacing.xxl),

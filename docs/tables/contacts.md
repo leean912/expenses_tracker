@@ -125,3 +125,93 @@ final filtered = await supabase.from('contacts')
 **Adding a non-app user**: Returns error with `hint = 'user_not_found'`. Flutter should offer an "Invite" share sheet at this point.
 
 **Adding yourself**: Blocked by RPC ("Cannot add yourself as a contact").
+
+---
+
+## V2: Friend Request System (not yet deployed)
+
+Replace auto-bidirectional with an explicit approve/decline flow. Only one row is created initially (A→B as `pending`). B must accept for the bidirectional relationship to form.
+
+### Schema migration
+
+```sql
+-- Add status column (default 'accepted' so existing rows are unaffected)
+ALTER TABLE contacts
+  ADD COLUMN status text NOT NULL DEFAULT 'accepted'
+  CHECK (status IN ('pending', 'accepted'));
+
+-- Index for fast inbox queries (B looking up requests sent to them)
+CREATE INDEX contacts_pending_idx ON contacts(friend_id) WHERE status = 'pending';
+```
+
+### RLS policy update
+
+```sql
+DROP POLICY IF EXISTS contacts_select ON contacts;
+
+-- Owner sees their own rows; recipient sees pending rows sent to them
+CREATE POLICY contacts_select ON contacts FOR SELECT
+  USING (
+    owner_id = auth.uid()
+    OR (friend_id = auth.uid() AND status = 'pending')
+  );
+```
+
+### Edge case matrix
+
+| Scenario | Result |
+|----------|--------|
+| A adds B (no rows exist) | A→B inserted as `pending`; B sees request in inbox |
+| B accepts A's request | A→B updated to `accepted`; B→A inserted as `accepted` |
+| B declines A's request | A→B hard-deleted |
+| B adds A while A→B is `pending` | Auto-accept both; both become `accepted` |
+| A deletes B (both `accepted`) | Both A→B and B→A hard-deleted |
+| A adds B after mutual delete | A→B inserted as `pending` (clean state) |
+| A adds B when A→B already `pending` | Error: "request already sent" |
+| A adds B when A→B already `accepted` | Error: "already friends" |
+
+### New / modified RPCs
+
+**Modified `add_contact`** — returns `{ result: 'pending' | 'accepted' }`:
+1. Resolve identifier → `target_user_id`
+2. Error if target = self
+3. If A→B exists as `accepted` → error "already friends"
+4. If A→B exists as `pending` → error "request already sent"
+5. If B→A exists as `pending` → auto-accept both (mutual add) → return `{ result: 'accepted' }`
+6. Default: INSERT A→B as `pending` → return `{ result: 'pending' }`
+
+**New `accept_contact_request(p_from_user_id uuid)`**:
+```sql
+UPDATE contacts SET status = 'accepted'
+  WHERE owner_id = p_from_user_id AND friend_id = auth.uid() AND status = 'pending';
+INSERT INTO contacts (owner_id, friend_id, status)
+  VALUES (auth.uid(), p_from_user_id, 'accepted')
+  ON CONFLICT (owner_id, friend_id) DO UPDATE SET status = 'accepted';
+```
+
+**New `decline_contact_request(p_from_user_id uuid)`**:
+```sql
+DELETE FROM contacts
+  WHERE owner_id = p_from_user_id AND friend_id = auth.uid() AND status = 'pending';
+```
+
+**New `remove_contact(p_friend_id uuid)`** — mutual unfriend:
+```sql
+DELETE FROM contacts
+  WHERE (owner_id = auth.uid() AND friend_id = p_friend_id)
+     OR (owner_id = p_friend_id AND friend_id = auth.uid());
+```
+Replaces Flutter-side direct `.delete().eq('id', contactId)`.
+
+### Flutter changes
+
+- `ContactModel` must expose `status` field (pending badge on outgoing requests)
+- New `contactRequestsProvider` — fetches incoming `pending` rows with `from:profiles!owner_id` join
+- New `acceptedContactsProvider` — fetches only `accepted` rows; used **exclusively by all pickers** (split bill, collab, groups, recurring split bill) so pending friends never appear in those flows
+- Contacts screen: AppBar Requests button with red dot badge; `_RequestsSheet` bottom sheet with Accept/Decline per row
+- 5 picker files swap `contactsProvider` → `acceptedContactsProvider`
+
+### Out of scope (future)
+
+- Push notifications when A sends B a request
+- RPC-level enforcement in `create_split_bill`, `create_group`, `add_collab_member` (currently frontend-only via `acceptedContactsProvider`)

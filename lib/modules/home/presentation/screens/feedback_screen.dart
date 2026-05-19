@@ -55,9 +55,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
     } else {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No email app found on this device.'),
-          ),
+          const SnackBar(content: Text('No email app found on this device.')),
         );
       }
     }
@@ -121,12 +119,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                 color: AppColors.textPrimary,
               ),
               items: _FeedbackType.values
-                  .map(
-                    (t) => DropdownMenuItem(
-                      value: t,
-                      child: Text(t.label),
-                    ),
-                  )
+                  .map((t) => DropdownMenuItem(value: t, child: Text(t.label)))
                   .toList(),
               onChanged: (v) {
                 if (v != null) setState(() => _selectedType = v);
@@ -185,7 +178,9 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                 style: FilledButton.styleFrom(
                   backgroundColor: AppColors.accent,
                   foregroundColor: AppColors.accentText,
-                  disabledBackgroundColor: AppColors.accent.withValues(alpha: 0.5),
+                  disabledBackgroundColor: AppColors.accent.withValues(
+                    alpha: 0.5,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
                   ),
@@ -217,10 +212,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
   InputDecoration _inputDecoration({String? hint}) {
     return InputDecoration(
       hintText: hint,
-      hintStyle: const TextStyle(
-        fontSize: 14,
-        color: AppColors.textTertiary,
-      ),
+      hintStyle: const TextStyle(fontSize: 14, color: AppColors.textTertiary),
       filled: true,
       fillColor: AppColors.surface,
       contentPadding: const EdgeInsets.symmetric(

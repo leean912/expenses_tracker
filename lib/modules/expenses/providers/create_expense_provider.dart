@@ -19,6 +19,7 @@ class CreateExpenseNotifier extends AutoDisposeNotifier<CreateExpenseState> {
     required DateTime date,
     String? categoryId,
     String? accountId,
+    String? tagId,
     String? note,
     String? receiptUrl,
   }) async {
@@ -41,6 +42,7 @@ class CreateExpenseNotifier extends AutoDisposeNotifier<CreateExpenseState> {
       };
       if (categoryId != null) payload['category_id'] = categoryId;
       if (accountId != null) payload['account_id'] = accountId;
+      if (tagId != null) payload['tag_id'] = tagId;
       if (note != null && note.isNotEmpty) payload['note'] = note;
       if (receiptUrl != null) payload['receipt_url'] = receiptUrl;
 
