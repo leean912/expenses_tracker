@@ -67,10 +67,12 @@ class ExportPdfFilter {
       endDate: endDate ?? this.endDate,
       fileName: fileName ?? this.fileName,
       transactionType: transactionType ?? this.transactionType,
-      selectedCategoryIds:
-          clearCategories ? null : (selectedCategoryIds ?? this.selectedCategoryIds),
-      selectedAccountIds:
-          clearAccounts ? null : (selectedAccountIds ?? this.selectedAccountIds),
+      selectedCategoryIds: clearCategories
+          ? null
+          : (selectedCategoryIds ?? this.selectedCategoryIds),
+      selectedAccountIds: clearAccounts
+          ? null
+          : (selectedAccountIds ?? this.selectedAccountIds),
       includeSplitBill: includeSplitBill ?? this.includeSplitBill,
       includeRecurring: includeRecurring ?? this.includeRecurring,
       sortOrder: sortOrder ?? this.sortOrder,
@@ -85,7 +87,8 @@ class ExportPdfNotifier extends Notifier<ExportPdfFilter> {
   ExportPdfFilter build() {
     final now = DateTime.now();
     final monthStart = DateTime(now.year, now.month, 1);
-    final defaultName = 'jomspendz_${DateFormat('yyyyMMdd_HHmmss').format(now)}';
+    final defaultName =
+        'jomspendz_${DateFormat('yyyyMMdd_HHmmss').format(now)}';
     return ExportPdfFilter(
       startDate: monthStart,
       endDate: now,
@@ -125,13 +128,17 @@ class ExportPdfNotifier extends Notifier<ExportPdfFilter> {
 
   void selectAllAccounts() => state = state.copyWith(clearAccounts: true);
 
-  void setIncludeSplitBill(bool v) => state = state.copyWith(includeSplitBill: v);
+  void setIncludeSplitBill(bool v) =>
+      state = state.copyWith(includeSplitBill: v);
 
-  void setIncludeRecurring(bool v) => state = state.copyWith(includeRecurring: v);
+  void setIncludeRecurring(bool v) =>
+      state = state.copyWith(includeRecurring: v);
 
-  void setSortOrder(ExportSortOrder order) => state = state.copyWith(sortOrder: order);
+  void setSortOrder(ExportSortOrder order) =>
+      state = state.copyWith(sortOrder: order);
 
-  void setExportFormat(ExportFormat format) => state = state.copyWith(exportFormat: format);
+  void setExportFormat(ExportFormat format) =>
+      state = state.copyWith(exportFormat: format);
 
   void setIncludeReceipts(bool v) => state = state.copyWith(includeReceipts: v);
 
@@ -194,14 +201,23 @@ class ExportPdfNotifier extends Notifier<ExportPdfFilter> {
 
     switch (filter.sortOrder) {
       case ExportSortOrder.dateDesc:
-        rows.sort((a, b) =>
-            (b['expense_date'] as String).compareTo(a['expense_date'] as String));
+        rows.sort(
+          (a, b) => (b['expense_date'] as String).compareTo(
+            a['expense_date'] as String,
+          ),
+        );
       case ExportSortOrder.dateAsc:
-        rows.sort((a, b) =>
-            (a['expense_date'] as String).compareTo(b['expense_date'] as String));
+        rows.sort(
+          (a, b) => (a['expense_date'] as String).compareTo(
+            b['expense_date'] as String,
+          ),
+        );
       case ExportSortOrder.amountDesc:
-        rows.sort((a, b) => (b['home_amount_cents'] as num)
-            .compareTo(a['home_amount_cents'] as num));
+        rows.sort(
+          (a, b) => (b['home_amount_cents'] as num).compareTo(
+            a['home_amount_cents'] as num,
+          ),
+        );
     }
 
     final catMap = {for (final c in allCategories) c.id: c};
@@ -210,9 +226,11 @@ class ExportPdfNotifier extends Notifier<ExportPdfFilter> {
     final filtered = rows.where((row) {
       final catId = row['category_id'] as String?;
       final accId = row['account_id'] as String?;
-      final catOk = filter.selectedCategoryIds == null ||
+      final catOk =
+          filter.selectedCategoryIds == null ||
           (catId != null && filter.selectedCategoryIds!.contains(catId));
-      final accOk = filter.selectedAccountIds == null ||
+      final accOk =
+          filter.selectedAccountIds == null ||
           (accId != null && filter.selectedAccountIds!.contains(accId));
       return catOk && accOk;
     }).toList();
@@ -246,7 +264,12 @@ class ExportPdfNotifier extends Notifier<ExportPdfFilter> {
       }
     }
 
-    final pdf = pw.Document();
+    final baseFont = await PdfGoogleFonts.notoSansRegular();
+    final boldFont = await PdfGoogleFonts.notoSansBold();
+
+    final pdf = pw.Document(
+      theme: pw.ThemeData.withFont(base: baseFont, bold: boldFont),
+    );
 
     pdf.addPage(
       pw.MultiPage(
@@ -256,12 +279,12 @@ class ExportPdfNotifier extends Notifier<ExportPdfFilter> {
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
             pw.Text(
-              'Spendz Export',
+              'JomSpendz Export',
               style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold),
             ),
             pw.SizedBox(height: 4),
             pw.Text(
-              '${dateFmt.format(filter.startDate)} – ${dateFmt.format(filter.endDate)}',
+              '${dateFmt.format(filter.startDate)} - ${dateFmt.format(filter.endDate)}',
               style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey600),
             ),
             pw.SizedBox(height: 12),
@@ -284,8 +307,9 @@ class ExportPdfNotifier extends Notifier<ExportPdfFilter> {
       ),
     );
 
-    final name =
-        filter.fileName.trim().isEmpty ? 'spendz_export' : filter.fileName.trim();
+    final name = filter.fileName.trim().isEmpty
+        ? 'jomspendz_export'
+        : filter.fileName.trim();
     await Printing.sharePdf(bytes: await pdf.save(), filename: '$name.pdf');
   }
 
@@ -300,23 +324,27 @@ class ExportPdfNotifier extends Notifier<ExportPdfFilter> {
   ) {
     const cellPad = pw.EdgeInsets.symmetric(horizontal: 6, vertical: 5);
 
-    pw.Widget headerCell(String text, {pw.Alignment align = pw.Alignment.centerLeft}) =>
-        pw.Container(
-          padding: cellPad,
-          decoration: const pw.BoxDecoration(color: PdfColors.grey200),
-          alignment: align,
-          child: pw.Text(
-            text,
-            style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
-          ),
-        );
+    pw.Widget headerCell(
+      String text, {
+      pw.Alignment align = pw.Alignment.centerLeft,
+    }) => pw.Container(
+      padding: cellPad,
+      decoration: const pw.BoxDecoration(color: PdfColors.grey200),
+      alignment: align,
+      child: pw.Text(
+        text,
+        style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
+      ),
+    );
 
-    pw.Widget dataCell(String text, {pw.Alignment align = pw.Alignment.centerLeft}) =>
-        pw.Container(
-          padding: cellPad,
-          alignment: align,
-          child: pw.Text(text, style: const pw.TextStyle(fontSize: 9)),
-        );
+    pw.Widget dataCell(
+      String text, {
+      pw.Alignment align = pw.Alignment.centerLeft,
+    }) => pw.Container(
+      padding: cellPad,
+      alignment: align,
+      child: pw.Text(text, style: const pw.TextStyle(fontSize: 9)),
+    );
 
     final columnWidths = includeReceipts
         ? <int, pw.TableColumnWidth>{
@@ -335,14 +363,16 @@ class ExportPdfNotifier extends Notifier<ExportPdfFilter> {
             4: const pw.FlexColumnWidth(1.6),
           };
 
-    final headerRow = pw.TableRow(children: [
-      headerCell('Date'),
-      headerCell('Category'),
-      headerCell('Account'),
-      headerCell('Note'),
-      headerCell('Amount', align: pw.Alignment.centerRight),
-      if (includeReceipts) headerCell('Receipt', align: pw.Alignment.center),
-    ]);
+    final headerRow = pw.TableRow(
+      children: [
+        headerCell('Date'),
+        headerCell('Category'),
+        headerCell('Account'),
+        headerCell('Note'),
+        headerCell('Amount', align: pw.Alignment.centerRight),
+        if (includeReceipts) headerCell('Receipt', align: pw.Alignment.center),
+      ],
+    );
 
     final dataRows = filtered.map((row) {
       final catId = row['category_id'] as String?;
@@ -352,28 +382,39 @@ class ExportPdfNotifier extends Notifier<ExportPdfFilter> {
       final isIncome = row['type'] == 'income';
       final cents = (row['home_amount_cents'] as num).toInt();
       final currency = row['home_currency'] as String? ?? 'MYR';
-      final amount = '${isIncome ? '+' : '-'}$currency ${amountFmt.format(cents / 100)}';
-      final date = dateFmt.format(DateTime.parse(row['expense_date'] as String));
+      final amount =
+          '${isIncome ? '+' : '-'}$currency ${amountFmt.format(cents / 100)}';
+      final date = dateFmt.format(
+        DateTime.parse(row['expense_date'] as String),
+      );
       final bytes = includeReceipts ? receiptImages[row['id'] as String] : null;
 
-      return pw.TableRow(children: [
-        dataCell(date),
-        dataCell(cat?.name ?? '—'),
-        dataCell(acc?.name ?? '—'),
-        dataCell(row['note'] as String? ?? ''),
-        dataCell(amount, align: pw.Alignment.centerRight),
-        if (includeReceipts)
-          pw.Container(
-            padding: cellPad,
-            alignment: pw.Alignment.center,
-            child: bytes != null
-                ? pw.ConstrainedBox(
-                    constraints: const pw.BoxConstraints(maxHeight: 72, maxWidth: 72),
-                    child: pw.Image(pw.MemoryImage(bytes), fit: pw.BoxFit.contain),
-                  )
-                : pw.SizedBox(),
-          ),
-      ]);
+      return pw.TableRow(
+        children: [
+          dataCell(date),
+          dataCell(_stripEmoji(cat?.name ?? '')),
+          dataCell(_stripEmoji(acc?.name ?? '')),
+          dataCell(_stripEmoji(row['note'] as String? ?? '')),
+          dataCell(amount, align: pw.Alignment.centerRight),
+          if (includeReceipts)
+            pw.Container(
+              padding: cellPad,
+              alignment: pw.Alignment.center,
+              child: bytes != null && _isSupportedImageFormat(bytes)
+                  ? pw.ConstrainedBox(
+                      constraints: const pw.BoxConstraints(
+                        maxHeight: 72,
+                        maxWidth: 72,
+                      ),
+                      child: pw.Image(
+                        pw.MemoryImage(bytes),
+                        fit: pw.BoxFit.contain,
+                      ),
+                    )
+                  : pw.Text(''),
+            ),
+        ],
+      );
     }).toList();
 
     return pw.Table(
@@ -425,17 +466,20 @@ class ExportPdfNotifier extends Notifier<ExportPdfFilter> {
       final cents = (row['home_amount_cents'] as num).toInt();
       final currency = row['home_currency'] as String? ?? 'MYR';
       final amount = (isIncome ? 1.0 : -1.0) * cents / 100;
-      final date = dateFmt.format(DateTime.parse(row['expense_date'] as String));
+      final date = dateFmt.format(
+        DateTime.parse(row['expense_date'] as String),
+      );
       final rowIndex = i + 2;
 
       sheet.getRangeByIndex(rowIndex, 1).setText(date);
-      sheet.getRangeByIndex(rowIndex, 2).setText(isIncome ? 'Income' : 'Expense');
+      sheet
+          .getRangeByIndex(rowIndex, 2)
+          .setText(isIncome ? 'Income' : 'Expense');
       sheet.getRangeByIndex(rowIndex, 3).setText(cat?.name ?? '');
       sheet.getRangeByIndex(rowIndex, 4).setText(acc?.name ?? '');
       sheet.getRangeByIndex(rowIndex, 5).setText(row['note'] as String? ?? '');
       sheet.getRangeByIndex(rowIndex, 6).setText(currency);
       sheet.getRangeByIndex(rowIndex, 7).setNumber(amount);
-
     }
 
     // Auto-fit columns
@@ -490,8 +534,9 @@ class ExportPdfNotifier extends Notifier<ExportPdfFilter> {
     final bytes = workbook.saveAsStream();
     workbook.dispose();
 
-    final name =
-        filter.fileName.trim().isEmpty ? 'spendz_export' : filter.fileName.trim();
+    final name = filter.fileName.trim().isEmpty
+        ? 'spendz_export'
+        : filter.fileName.trim();
     final dir = await getTemporaryDirectory();
     final file = File('${dir.path}/$name.xlsx');
     await file.writeAsBytes(bytes);
@@ -525,6 +570,48 @@ class ExportPdfNotifier extends Notifier<ExportPdfFilter> {
     }
   }
 
+  bool _isSupportedImageFormat(Uint8List bytes) {
+    if (bytes.length < 4) return false;
+    // JPEG: FF D8 FF
+    if (bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF) return true;
+    // PNG: 89 50 4E 47
+    if (bytes[0] == 0x89 &&
+        bytes[1] == 0x50 &&
+        bytes[2] == 0x4E &&
+        bytes[3] == 0x47) {
+      return true;
+    }
+    // GIF: 47 49 46
+    if (bytes[0] == 0x47 && bytes[1] == 0x49 && bytes[2] == 0x46) return true;
+    // WebP: 52 49 46 46 ... 57 45 42 50
+    if (bytes.length >= 12 &&
+        bytes[0] == 0x52 &&
+        bytes[1] == 0x49 &&
+        bytes[2] == 0x46 &&
+        bytes[3] == 0x46 &&
+        bytes[8] == 0x57 &&
+        bytes[9] == 0x45 &&
+        bytes[10] == 0x42 &&
+        bytes[11] == 0x50) {
+      return true;
+    }
+    return false;
+  }
+
+  String _stripEmoji(String text) => text
+      .replaceAll(
+        RegExp(
+          r'[\u{1F000}-\u{1FFFF}]'
+          r'|[\u{2600}-\u{27BF}]'
+          r'|[\u{1F300}-\u{1F9FF}]'
+          r'|[\u{FE00}-\u{FE0F}]'
+          r'|[\u{1F1E0}-\u{1F1FF}]',
+          unicode: true,
+        ),
+        '',
+      )
+      .trim();
+
   pw.Widget _buildSummary(List rows, NumberFormat fmt) {
     int totalExpense = 0;
     int totalIncome = 0;
@@ -536,8 +623,9 @@ class ExportPdfNotifier extends Notifier<ExportPdfFilter> {
         totalExpense += cents;
       }
     }
-    final currency =
-        rows.isNotEmpty ? (rows.first['home_currency'] as String? ?? 'MYR') : 'MYR';
+    final currency = rows.isNotEmpty
+        ? (rows.first['home_currency'] as String? ?? 'MYR')
+        : 'MYR';
 
     return pw.Container(
       padding: const pw.EdgeInsets.all(12),
@@ -582,5 +670,6 @@ class ExportPdfNotifier extends Notifier<ExportPdfFilter> {
   }
 }
 
-final exportPdfProvider =
-    NotifierProvider<ExportPdfNotifier, ExportPdfFilter>(ExportPdfNotifier.new);
+final exportPdfProvider = NotifierProvider<ExportPdfNotifier, ExportPdfFilter>(
+  ExportPdfNotifier.new,
+);

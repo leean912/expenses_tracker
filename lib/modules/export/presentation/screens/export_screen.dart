@@ -174,7 +174,7 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
             // ── Date range ──────────────────────────────────────────────────
             _SectionLabel('Date Range'),
             const SizedBox(height: AppSpacing.md),
-            _DateRangePicker(
+            _MonthRangePicker(
               start: filter.startDate,
               end: filter.endDate,
               onChanged: (s, e) =>
@@ -376,10 +376,10 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
 
 }
 
-// ── Date range picker ─────────────────────────────────────────────────────────
+// ── Month range picker ────────────────────────────────────────────────────────
 
-class _DateRangePicker extends StatelessWidget {
-  const _DateRangePicker({
+class _MonthRangePicker extends StatefulWidget {
+  const _MonthRangePicker({
     required this.start,
     required this.end,
     required this.onChanged,
@@ -390,101 +390,205 @@ class _DateRangePicker extends StatelessWidget {
   final void Function(DateTime, DateTime) onChanged;
 
   @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: _DateButton(
-            label: 'From',
-            date: start,
-            onTap: () async {
-              final picked = await showDatePicker(
-                context: context,
-                initialDate: start,
-                firstDate: DateTime(2020),
-                lastDate: end,
-              );
-              if (picked != null) onChanged(picked, end);
-            },
-          ),
-        ),
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
-          child: Icon(
-            Icons.arrow_forward_rounded,
-            size: 16,
-            color: AppColors.textTertiary,
-          ),
-        ),
-        Expanded(
-          child: _DateButton(
-            label: 'To',
-            date: end,
-            onTap: () async {
-              final picked = await showDatePicker(
-                context: context,
-                initialDate: end,
-                firstDate: start,
-                lastDate: DateTime.now(),
-              );
-              if (picked != null) onChanged(start, picked);
-            },
-          ),
-        ),
-      ],
-    );
-  }
+  State<_MonthRangePicker> createState() => _MonthRangePickerState();
 }
 
-class _DateButton extends StatelessWidget {
-  const _DateButton({
-    required this.label,
-    required this.date,
-    required this.onTap,
-  });
+class _MonthRangePickerState extends State<_MonthRangePicker> {
+  late int _year;
+  int? _anchorMonth;
 
-  final String label;
-  final DateTime date;
-  final VoidCallback onTap;
+  static const _months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _year = widget.start.year;
+  }
+
+  DateTime _lastDayOfMonth(int year, int month) {
+    final now = DateTime.now();
+    if (year == now.year && month == now.month) return now;
+    return DateTime(year, month + 1, 0);
+  }
+
+  void _changeYear(int delta) {
+    final now = DateTime.now();
+    final newYear = _year + delta;
+    if (newYear > now.year || newYear < 2020) return;
+    setState(() {
+      _year = newYear;
+      _anchorMonth = null;
+    });
+    final newStart = DateTime(newYear, 1, 1);
+    final newEnd = newYear == now.year ? now : DateTime(newYear, 12, 31);
+    widget.onChanged(newStart, newEnd);
+  }
+
+  void _onMonthTap(int month) {
+    final now = DateTime.now();
+    if (_year == now.year && month > now.month) return;
+
+    if (_anchorMonth == null) {
+      setState(() => _anchorMonth = month);
+      widget.onChanged(
+        DateTime(_year, month, 1),
+        _lastDayOfMonth(_year, month),
+      );
+    } else {
+      final anchor = _anchorMonth!;
+      setState(() => _anchorMonth = null);
+      if (month < anchor) {
+        widget.onChanged(
+          DateTime(_year, month, 1),
+          _lastDayOfMonth(_year, month),
+        );
+      } else {
+        widget.onChanged(
+          DateTime(_year, anchor, 1),
+          _lastDayOfMonth(_year, month),
+        );
+      }
+    }
+  }
+
+  bool _isFuture(int month) {
+    final now = DateTime.now();
+    return _year > now.year || (_year == now.year && month > now.month);
+  }
+
+  bool _isInRange(int month) {
+    if (widget.start.year != _year || widget.end.year != _year) return false;
+    return month >= widget.start.month && month <= widget.end.month;
+  }
+
+  bool _isEdge(int month) =>
+      (widget.start.year == _year && widget.start.month == month) ||
+      (widget.end.year == _year && widget.end.month == month);
 
   @override
   Widget build(BuildContext context) {
-    final fmt = DateFormat('d MMM yyyy');
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.lg,
-          vertical: AppSpacing.lg,
-        ),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(AppRadius.lg),
-          border: Border.all(color: AppColors.border),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    final now = DateTime.now();
+    final rangeLabel = () {
+      if (_anchorMonth != null) return 'Select end month…';
+      final s = widget.start;
+      final e = widget.end;
+      final months = (e.year - s.year) * 12 + (e.month - s.month) + 1;
+      final label = months == 1
+          ? DateFormat('MMM yyyy').format(s)
+          : '${DateFormat('MMM').format(s)} – ${DateFormat('MMM yyyy').format(e)}';
+      return months == 1 ? label : '$label  ($months months)';
+    }();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Year selector
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 11,
-                color: AppColors.textTertiary,
-                fontWeight: FontWeight.w500,
-              ),
+            IconButton(
+              icon: const Icon(Icons.chevron_left_rounded, size: 22),
+              color: _year > 2020
+                  ? AppColors.textPrimary
+                  : AppColors.textTertiary,
+              onPressed: _year > 2020 ? () => _changeYear(-1) : null,
             ),
-            const SizedBox(height: 2),
             Text(
-              fmt.format(date),
+              '$_year',
               style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
                 color: AppColors.textPrimary,
               ),
             ),
+            IconButton(
+              icon: const Icon(Icons.chevron_right_rounded, size: 22),
+              color: _year < now.year
+                  ? AppColors.textPrimary
+                  : AppColors.textTertiary,
+              onPressed: _year < now.year ? () => _changeYear(1) : null,
+            ),
           ],
         ),
-      ),
+        const SizedBox(height: AppSpacing.sm),
+        // Month grid
+        GridView.count(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisCount: 4,
+          childAspectRatio: 2.2,
+          mainAxisSpacing: AppSpacing.sm,
+          crossAxisSpacing: AppSpacing.sm,
+          children: List.generate(12, (i) {
+            final month = i + 1;
+            final future = _isFuture(month);
+            final edge = _isEdge(month);
+            final inRange = _isInRange(month);
+            final isAnchor = _anchorMonth == month;
+
+            final Color bg;
+            final Color fg;
+            if (future) {
+              bg = Colors.transparent;
+              fg = AppColors.textTertiary.withValues(alpha: 0.35);
+            } else if (edge || isAnchor) {
+              bg = AppColors.accent;
+              fg = AppColors.accentText;
+            } else if (inRange) {
+              bg = AppColors.accent.withValues(alpha: 0.12);
+              fg = AppColors.textPrimary;
+            } else {
+              bg = AppColors.surface;
+              fg = AppColors.textPrimary;
+            }
+
+            return GestureDetector(
+              onTap: future ? null : () => _onMonthTap(month),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 120),
+                decoration: BoxDecoration(
+                  color: bg,
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                  border: Border.all(
+                    color: (edge || isAnchor)
+                        ? AppColors.accent
+                        : AppColors.border,
+                  ),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  _months[i],
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: (edge || inRange || isAnchor)
+                        ? FontWeight.w600
+                        : FontWeight.w400,
+                    color: fg,
+                  ),
+                ),
+              ),
+            );
+          }),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        // Range label
+        Text(
+          rangeLabel,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 12,
+            color: _anchorMonth != null
+                ? AppColors.accent
+                : AppColors.textSecondary,
+            fontWeight: _anchorMonth != null
+                ? FontWeight.w600
+                : FontWeight.w400,
+          ),
+        ),
+      ],
     );
   }
 }
