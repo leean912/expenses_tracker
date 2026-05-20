@@ -7,7 +7,6 @@ import 'package:intl/intl.dart';
 import '../../../../core/routes/routes.dart';
 import '../../../../core/services/receipt_upload_service.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/utils/amount_input_formatter.dart';
 import '../../../../core/widgets/receipt_viewer.dart';
 import '../../../../core/widgets/upgrade_sheet.dart';
 import '../../../../service_locator.dart';
@@ -19,6 +18,7 @@ import '../../providers/accounts_provider.dart';
 import '../../providers/categories_provider.dart';
 import '../../utils/expense_ui_helpers.dart';
 import '../../../tags/presentation/widgets/tag_picker_row.dart';
+import '../../../../core/widgets/amount_keyboard.dart';
 
 class EditExpenseSheet extends ConsumerStatefulWidget {
   const EditExpenseSheet({
@@ -42,6 +42,11 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
   final _conversionRateController = TextEditingController();
   final _actualAmountController = TextEditingController();
   final _noteController = TextEditingController();
+
+  TextEditingController? _keyboardController;
+  final _amountFocus = FocusNode();
+  final _homeAmountFocus = FocusNode();
+  final _actualAmountFocus = FocusNode();
 
   String? _selectedCategoryId;
   String? _selectedAccountId;
@@ -76,6 +81,23 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
     _amountController.addListener(_onForeignAmountChanged);
     _homeAmountController.addListener(_onHomeAmountChanged);
     _conversionRateController.addListener(_onRateChanged);
+    _amountFocus.addListener(() {
+      if (_amountFocus.hasFocus) _activateKeyboard(_amountController);
+    });
+    _homeAmountFocus.addListener(() {
+      if (_homeAmountFocus.hasFocus) _activateKeyboard(_homeAmountController);
+    });
+    _actualAmountFocus.addListener(() {
+      if (_actualAmountFocus.hasFocus) _activateKeyboard(_actualAmountController);
+    });
+  }
+
+  void _activateKeyboard(TextEditingController c) {
+    if (_keyboardController != c) setState(() => _keyboardController = c);
+  }
+
+  void _deactivateKeyboard() {
+    if (_keyboardController != null) setState(() => _keyboardController = null);
   }
 
   @override
@@ -88,6 +110,9 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
     _conversionRateController.dispose();
     _actualAmountController.dispose();
     _noteController.dispose();
+    _amountFocus.dispose();
+    _homeAmountFocus.dispose();
+    _actualAmountFocus.dispose();
     super.dispose();
   }
 
@@ -381,11 +406,16 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final showKeyboard = _keyboardController != null;
+
     return GestureDetector(
-      onTap: () => FocusScope.of(context).unfocus(),
+      onTap: () {
+        FocusScope.of(context).unfocus();
+        _deactivateKeyboard();
+      },
       child: Container(
         padding: EdgeInsets.only(
-          bottom: MediaQuery.viewInsetsOf(context).bottom,
+          bottom: showKeyboard ? 0 : MediaQuery.viewInsetsOf(context).bottom,
         ),
         decoration: const BoxDecoration(
           color: AppColors.background,
@@ -545,11 +575,9 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
                                 Expanded(
                                   child: TextField(
                                     controller: _amountController,
-                                    keyboardType:
-                                        const TextInputType.numberWithOptions(
-                                          decimal: true,
-                                        ),
-                                    inputFormatters: [AmountInputFormatter()],
+                                    focusNode: _amountFocus,
+                                    readOnly: true,
+                                    showCursor: true,
                                     style: const TextStyle(
                                       fontSize: 32,
                                       fontWeight: FontWeight.w600,
@@ -618,11 +646,9 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
                                   Expanded(
                                     child: TextField(
                                       controller: _actualAmountController,
-                                      keyboardType:
-                                          const TextInputType.numberWithOptions(
-                                            decimal: true,
-                                          ),
-                                      inputFormatters: [AmountInputFormatter()],
+                                      focusNode: _actualAmountFocus,
+                                      readOnly: true,
+                                      showCursor: true,
                                       style: const TextStyle(
                                         fontSize: 24,
                                         fontWeight: FontWeight.w600,
@@ -677,11 +703,9 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
                                   Expanded(
                                     child: TextField(
                                       controller: _homeAmountController,
-                                      keyboardType:
-                                          const TextInputType.numberWithOptions(
-                                            decimal: true,
-                                          ),
-                                      inputFormatters: [AmountInputFormatter()],
+                                      focusNode: _homeAmountFocus,
+                                      readOnly: true,
+                                      showCursor: true,
                                       style: const TextStyle(
                                         fontSize: 24,
                                         fontWeight: FontWeight.w600,
@@ -789,13 +813,9 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
                                     Expanded(
                                       child: TextField(
                                         controller: _actualAmountController,
-                                        keyboardType:
-                                            const TextInputType.numberWithOptions(
-                                              decimal: true,
-                                            ),
-                                        inputFormatters: [
-                                          AmountInputFormatter(),
-                                        ],
+                                        focusNode: _actualAmountFocus,
+                                        readOnly: true,
+                                        showCursor: true,
                                         style: const TextStyle(
                                           fontSize: 24,
                                           fontWeight: FontWeight.w600,
@@ -837,6 +857,7 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
                           const SizedBox(height: AppSpacing.md),
                           TextField(
                             controller: _noteController,
+                            onTap: _deactivateKeyboard,
                             maxLines: 3,
                             minLines: 1,
                             textCapitalization: TextCapitalization.sentences,
@@ -1069,7 +1090,12 @@ class _EditExpenseSheetState extends ConsumerState<EditExpenseSheet> {
                     ),
             ),
 
-            SizedBox(height: MediaQuery.of(context).padding.bottom),
+            if (showKeyboard)
+              AmountKeyboard(controller: _keyboardController!),
+
+            SizedBox(
+              height: showKeyboard ? AppSpacing.sm : MediaQuery.of(context).padding.bottom,
+            ),
           ],
         ),
       ),

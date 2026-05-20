@@ -221,7 +221,7 @@ class _ContactsTabState extends ConsumerState<_ContactsTab> {
                         color: AppColors.textPrimary,
                       ),
                       decoration: const InputDecoration(
-                        hintText: 'Search contacts…',
+                        hintText: 'Search friends…',
                         hintStyle: TextStyle(
                           color: AppColors.textTertiary,
                           fontSize: 14,
@@ -691,10 +691,7 @@ class _ContactTile extends StatelessWidget {
                 ),
                 child: const Text(
                   'Pending',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: AppColors.textTertiary,
-                  ),
+                  style: TextStyle(fontSize: 11, color: AppColors.textTertiary),
                 ),
               ),
           ],
@@ -1407,7 +1404,9 @@ class _RequestsSheet extends ConsumerWidget {
     return Container(
       decoration: const BoxDecoration(
         color: AppColors.background,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xxl)),
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(AppRadius.xxl),
+        ),
       ),
       padding: EdgeInsets.only(
         bottom: MediaQuery.viewInsetsOf(context).bottom + AppSpacing.xxl,
@@ -1479,9 +1478,8 @@ class _RequestsSheet extends ConsumerWidget {
                 itemCount: requests.length,
                 separatorBuilder: (_, _) =>
                     const SizedBox(height: AppSpacing.sm),
-                itemBuilder: (context, index) => _RequestTile(
-                  request: requests[index],
-                ),
+                itemBuilder: (context, index) =>
+                    _RequestTile(request: requests[index]),
               );
             },
           ),

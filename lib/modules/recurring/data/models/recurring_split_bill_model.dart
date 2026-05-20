@@ -14,6 +14,7 @@ class RecurringSplitBillModel {
     this.categoryId,
     this.accountId,
     this.note,
+    this.tagId,
   });
 
   final String id;
@@ -28,6 +29,7 @@ class RecurringSplitBillModel {
   final String? categoryId;
   final String? accountId;
   final String? note;
+  final String? tagId;
 
   factory RecurringSplitBillModel.fromJson(Map<String, dynamic> json) {
     final sharesRaw = json['shares'] as List? ?? [];
@@ -48,6 +50,7 @@ class RecurringSplitBillModel {
       categoryId: json['category_id'] as String?,
       accountId: json['account_id'] as String?,
       note: json['note'] as String?,
+      tagId: json['tag_id'] as String?,
     );
   }
 
@@ -64,5 +67,6 @@ class RecurringSplitBillModel {
         categoryId: categoryId,
         accountId: accountId,
         note: note,
+        tagId: tagId,
       );
 }

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/widgets/upgrade_sheet.dart';
+import '../../../settings/expense_type/providers/expense_type_provider.dart';
 import '../../../subscription/providers/subscription_provider.dart';
 import '../../providers/analysis_provider.dart';
 import '../../providers/analysis_state.dart';
@@ -24,16 +26,16 @@ class BudgetAnalyticsScreen extends ConsumerStatefulWidget {
 
 class _BudgetAnalyticsScreenState extends ConsumerState<BudgetAnalyticsScreen> {
   AnalysisPeriod _selectedPeriod = AnalysisPeriod.month;
-  bool _useActualAmount = false;
+  bool? _useActualAmount;
 
-  AnalysisFilter get _filter => AnalysisFilter(
+  AnalysisFilter _buildFilter(bool useActualAmount) => AnalysisFilter(
     period: _selectedPeriod,
     includeCollabExpenses: true,
-    useActualAmount: _useActualAmount,
+    useActualAmount: useActualAmount,
   );
 
-  String get _dateRangeLabel {
-    final (start, end) = _filter.toDateRange();
+  String _dateRangeLabel(AnalysisFilter filter) {
+    final (start, end) = filter.toDateRange();
     final s = DateTime.parse(start);
     final e = DateTime.parse(end);
     String fmt(DateTime d) => '${d.day} ${_monthShort(d.month)} ${d.year}';
@@ -57,7 +59,12 @@ class _BudgetAnalyticsScreenState extends ConsumerState<BudgetAnalyticsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final analysisAsync = ref.watch(analysisDataProvider(_filter));
+    final expenseTypeAsync = ref.watch(expenseTypeProvider);
+    final effectiveUseActual =
+        _useActualAmount ?? (expenseTypeAsync.valueOrNull == ExpenseType.actual);
+    final filter = _buildFilter(effectiveUseActual);
+
+    final analysisAsync = ref.watch(analysisDataProvider(filter));
     final data = analysisAsync.valueOrNull;
     final isLoading = analysisAsync.isLoading;
     final hasError = analysisAsync.hasError && data == null;
@@ -69,7 +76,7 @@ class _BudgetAnalyticsScreenState extends ConsumerState<BudgetAnalyticsScreen> {
         bottom: false,
         child: RefreshIndicator(
           color: AppColors.accent,
-          onRefresh: () => ref.refresh(analysisDataProvider(_filter).future),
+          onRefresh: () => ref.refresh(analysisDataProvider(filter).future),
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
@@ -113,8 +120,18 @@ class _BudgetAnalyticsScreenState extends ConsumerState<BudgetAnalyticsScreen> {
                           _PeriodChip(
                             label: period.label,
                             isSelected: period == _selectedPeriod,
-                            onTap: () =>
-                                setState(() => _selectedPeriod = period),
+                            isLocked: period == AnalysisPeriod.year && !isPremium,
+                            onTap: () {
+                              if (period == AnalysisPeriod.year && !isPremium) {
+                                UpgradeSheet.show(
+                                  context,
+                                  title: 'Yearly budget analysis',
+                                  description: 'View your yearly budget pace with Premium.',
+                                );
+                                return;
+                              }
+                              setState(() => _selectedPeriod = period);
+                            },
                           ),
                           if (period != _budgetPeriods.last)
                             const SizedBox(width: AppSpacing.sm),
@@ -138,14 +155,14 @@ class _BudgetAnalyticsScreenState extends ConsumerState<BudgetAnalyticsScreen> {
                     spacing: 8,
                     children: [
                       Text(
-                        _dateRangeLabel,
+                        _dateRangeLabel(filter),
                         style: const TextStyle(
                           fontSize: 12,
                           color: AppColors.textTertiary,
                         ),
                       ),
                       _AmountToggle(
-                        useActualAmount: _useActualAmount,
+                        useActualAmount: effectiveUseActual,
                         onChanged: (v) => setState(() => _useActualAmount = v),
                       ),
                     ],
@@ -176,7 +193,7 @@ class _BudgetAnalyticsScreenState extends ConsumerState<BudgetAnalyticsScreen> {
                         const SizedBox(height: 12),
                         TextButton(
                           onPressed: () =>
-                              ref.invalidate(analysisDataProvider(_filter)),
+                              ref.invalidate(analysisDataProvider(filter)),
                           child: const Text('Retry'),
                         ),
                       ],
@@ -336,10 +353,12 @@ class _PeriodChip extends StatelessWidget {
     required this.label,
     required this.isSelected,
     required this.onTap,
+    this.isLocked = false,
   });
 
   final String label;
   final bool isSelected;
+  final bool isLocked;
   final VoidCallback onTap;
 
   @override
@@ -355,13 +374,26 @@ class _PeriodChip extends StatelessWidget {
               ? null
               : Border.all(color: AppColors.border, width: 0.5),
         ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: isSelected ? FontWeight.w500 : FontWeight.w400,
-            color: isSelected ? AppColors.accentText : AppColors.textSecondary,
-          ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.w500 : FontWeight.w400,
+                color: isLocked
+                    ? AppColors.textTertiary
+                    : isSelected
+                        ? AppColors.accentText
+                        : AppColors.textSecondary,
+              ),
+            ),
+            if (isLocked) ...[
+              const SizedBox(width: 4),
+              const Icon(Icons.lock_rounded, size: 10, color: AppColors.textTertiary),
+            ],
+          ],
         ),
       ),
     );

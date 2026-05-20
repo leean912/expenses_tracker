@@ -11,6 +11,7 @@ class RecurringExpenseModel {
     this.categoryId,
     this.accountId,
     this.note,
+    this.tagId,
   });
 
   final String id;
@@ -24,6 +25,7 @@ class RecurringExpenseModel {
   final String? categoryId;
   final String? accountId;
   final String? note;
+  final String? tagId;
 
   factory RecurringExpenseModel.fromJson(Map<String, dynamic> json) =>
       RecurringExpenseModel(
@@ -38,6 +40,7 @@ class RecurringExpenseModel {
         categoryId: json['category_id'] as String?,
         accountId: json['account_id'] as String?,
         note: json['note'] as String?,
+        tagId: json['tag_id'] as String?,
       );
 
   RecurringExpenseModel copyWith({
@@ -55,5 +58,6 @@ class RecurringExpenseModel {
         categoryId: categoryId,
         accountId: accountId,
         note: note,
+        tagId: tagId,
       );
 }

@@ -48,12 +48,12 @@ class TagsScreen extends ConsumerWidget {
           ),
         ),
         data: (tags) {
-          final customCount =
-              tags.where((t) => !t.isDefault).length;
+          final freeCustomCount =
+              tags.where((t) => !t.isDefault && !t.requiresPremium).length;
           return Column(
             children: [
               if (!isPremium) ...[
-                _UsageBanner(used: customCount, limit: 5),
+                _UsageBanner(used: freeCustomCount, limit: 5),
                 const SizedBox(height: AppSpacing.sm),
               ],
               Expanded(
@@ -64,9 +64,11 @@ class TagsScreen extends ConsumerWidget {
                       const Divider(height: 1, color: AppColors.border),
                   itemBuilder: (context, i) {
                     final tag = tags[i];
+                    final isGreyed = !isPremium && tag.requiresPremium;
                     return _TagTile(
                       tag: tag,
-                      onDelete: tag.isDefault
+                      isGreyed: isGreyed,
+                      onDelete: tag.isDefault || isGreyed
                           ? null
                           : () => _confirmDelete(context, ref, tag),
                     );
@@ -80,8 +82,9 @@ class TagsScreen extends ConsumerWidget {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
           final tags = ref.read(tagsProvider).valueOrNull ?? [];
-          final customCount = tags.where((t) => !t.isDefault).length;
-          if (!isPremium && customCount >= 5) {
+          final freeCustomCount =
+              tags.where((t) => !t.isDefault && !t.requiresPremium).length;
+          if (!isPremium && freeCustomCount >= 5) {
             UpgradeSheet.show(
               context,
               title: 'Tags is a Pro feature',
@@ -162,10 +165,11 @@ class _UsageBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final remaining = limit - used;
     return Container(
       margin: const EdgeInsets.fromLTRB(
         AppSpacing.xl,
-        AppSpacing.lg,
+        AppSpacing.md,
         AppSpacing.xl,
         0,
       ),
@@ -174,24 +178,33 @@ class _UsageBanner extends StatelessWidget {
         vertical: AppSpacing.md,
       ),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: AppColors.surfaceMuted,
         borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(color: AppColors.border),
       ),
       child: Row(
         children: [
-          const Icon(Icons.label_outline_rounded,
-              size: 16, color: AppColors.textSecondary),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: Text(
-              '$used / $limit custom tags used',
-              style: const TextStyle(
-                fontSize: 13,
-                color: AppColors.textSecondary,
-              ),
+          const Icon(Icons.info_outline_rounded,
+              size: 14, color: AppColors.textTertiary),
+          const SizedBox(width: AppSpacing.sm),
+          Text(
+            '$used / $limit custom tags',
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppColors.textSecondary,
             ),
           ),
+          const Spacer(),
+          if (remaining <= 1)
+            Text(
+              remaining == 0 ? 'Limit reached' : '1 slot left',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: remaining == 0
+                    ? const Color(0xFFE24B4A)
+                    : AppColors.budgetOverallBar,
+              ),
+            ),
         ],
       ),
     );
@@ -201,9 +214,10 @@ class _UsageBanner extends StatelessWidget {
 // ── Tag tile ──────────────────────────────────────────────────────────────────
 
 class _TagTile extends StatelessWidget {
-  const _TagTile({required this.tag, this.onDelete});
+  const _TagTile({required this.tag, this.isGreyed = false, this.onDelete});
 
   final TagModel tag;
+  final bool isGreyed;
   final VoidCallback? onDelete;
 
   Color? _hexToColor(String hex) {
@@ -215,37 +229,63 @@ class _TagTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = _hexToColor(tag.color) ?? AppColors.textSecondary;
-    return ListTile(
-      leading: Container(
-        width: 32,
-        height: 32,
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.15),
-          shape: BoxShape.circle,
+    final effectiveColor = isGreyed ? color.withValues(alpha: 0.35) : color;
+    return Opacity(
+      opacity: isGreyed ? 0.5 : 1.0,
+      child: ListTile(
+        leading: Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: effectiveColor.withValues(alpha: 0.15),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(Icons.label_rounded, size: 16, color: effectiveColor),
         ),
-        child: Icon(Icons.label_rounded, size: 16, color: color),
-      ),
-      title: Text(
-        tag.name,
-        style: const TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w500,
-          color: AppColors.textPrimary,
+        title: Text(
+          tag.name,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: AppColors.textPrimary,
+          ),
         ),
+        trailing: tag.isDefault
+            ? Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md,
+                  vertical: AppSpacing.xs,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceMuted,
+                  borderRadius: BorderRadius.circular(AppRadius.pill),
+                ),
+                child: const Text(
+                  'Default',
+                  style: TextStyle(fontSize: 11, color: AppColors.textTertiary),
+                ),
+              )
+            : isGreyed
+            ? Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md,
+                  vertical: AppSpacing.xs,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceMuted,
+                  borderRadius: BorderRadius.circular(AppRadius.pill),
+                ),
+                child: const Text(
+                  'Premium',
+                  style: TextStyle(fontSize: 11, color: AppColors.textTertiary),
+                ),
+              )
+            : IconButton(
+                icon: const Icon(Icons.delete_outline_rounded,
+                    size: 20, color: AppColors.textTertiary),
+                onPressed: onDelete,
+              ),
       ),
-      subtitle: tag.isDefault
-          ? const Text(
-              'Default',
-              style: TextStyle(fontSize: 12, color: AppColors.textTertiary),
-            )
-          : null,
-      trailing: onDelete != null
-          ? IconButton(
-              icon: const Icon(Icons.delete_outline_rounded,
-                  size: 20, color: AppColors.textTertiary),
-              onPressed: onDelete,
-            )
-          : null,
     );
   }
 }

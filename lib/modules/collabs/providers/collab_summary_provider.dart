@@ -5,21 +5,30 @@ import '../../../service_locator.dart';
 class CollabSummaryData {
   const CollabSummaryData({
     required this.totalSpentCents,
-    required this.totalIncomeCents,
+    required this.totalActualCents,
     required this.memberSpentCents,
+    required this.memberActualCents,
   });
 
-  /// Net total across all members (expenses − income) in home currency.
+  /// Sum of home_amount_cents for all non-settlement expense rows.
   final int totalSpentCents;
-  final int totalIncomeCents;
 
-  /// userId → net spent cents (expenses − income) for that member.
+  /// Sum of actual_amount_cents (falls back to home_amount_cents) for all
+  /// non-settlement expense rows.
+  final int totalActualCents;
+
+  /// userId → sum of home_amount_cents (total mode) for that member.
   final Map<String, int> memberSpentCents;
+
+  /// userId → sum of actual_amount_cents (actual mode) for that member.
+  final Map<String, int> memberActualCents;
 }
 
 /// Calls the [collab_summary] RPC — all-time totals for a collab, no date
-/// filter.  Immune to the 1000-row PostgREST limit because aggregation runs
-/// entirely inside PostgreSQL.
+/// filter.  Settlement rows are excluded so split bill settlements are not
+/// double-counted against the original payer expense.  Returns both total
+/// (home_amount_cents) and actual (actual_amount_cents) aggregates so the
+/// Flutter toggle works without a second RPC call.
 final collabSummaryProvider =
     FutureProvider.family<CollabSummaryData, String>((ref, collabId) async {
   final rpc = await supabase.rpc(
@@ -36,10 +45,15 @@ final collabSummaryProvider =
     for (final r in memberRows)
       (r['user_id'] as String): asInt(r['spent_cents']),
   };
+  final memberActualCents = <String, int>{
+    for (final r in memberRows)
+      (r['user_id'] as String): asInt(r['actual_cents']),
+  };
 
   return CollabSummaryData(
     totalSpentCents: asInt(rpc['total_spent_cents']),
-    totalIncomeCents: asInt(rpc['total_income_cents']),
+    totalActualCents: asInt(rpc['total_actual_cents']),
     memberSpentCents: memberSpentCents,
+    memberActualCents: memberActualCents,
   );
 });

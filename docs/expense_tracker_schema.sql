@@ -481,6 +481,7 @@ create table recurring_expenses (
   category_id uuid references categories(id) on delete set null,
   account_id uuid references accounts(id) on delete set null,
   note text,
+  tag_id uuid references tags(id) on delete set null,
   frequency text not null check (frequency in ('daily', 'monthly', 'yearly')),
   next_run_at date not null,
   is_active boolean not null default true,
@@ -510,6 +511,7 @@ create table recurring_split_bills (
   category_id uuid references categories(id) on delete set null,
   account_id uuid references accounts(id) on delete set null,
   note text,
+  tag_id uuid references tags(id) on delete set null,
   frequency text not null check (frequency in ('daily', 'monthly', 'yearly')),
   next_run_at date not null,
   is_active boolean not null default true,
@@ -2353,7 +2355,11 @@ as $$
 $$;
 
 
--- 14u. Collab summary — all-time totals + per-member net spend (no date filter)
+-- 14u. Collab summary — all-time totals + per-member spend (no date filter)
+-- Excludes settlement rows (source = 'settlement') so split bill settlements are
+-- not double-counted against the original split payer expense.
+-- Returns both home-amount (total) and actual-amount aggregates so Flutter can
+-- toggle between the two modes without a second RPC call.
 -- Used by: collab detail header, members screen.
 create or replace function collab_summary(p_collab_id uuid)
 returns json
@@ -2365,32 +2371,34 @@ as $$
     select
       e.user_id,
       e.home_amount_cents,
-      e.type,
+      coalesce(e.actual_amount_cents, e.home_amount_cents) as actual_cents,
       p.display_name
     from expenses e
     left join profiles p on p.id = e.user_id
     where e.collab_id   = p_collab_id
       and e.deleted_at  is null
       and e.archived_at is null
+      and e.type        = 'expense'     -- exclude income rows
+      and e.source      != 'settlement' -- exclude settlement rows (avoid double-count)
   ),
   totals as (
     select
-      coalesce(sum(home_amount_cents) filter (where type = 'expense'), 0) as total_spent_cents,
-      coalesce(sum(home_amount_cents) filter (where type = 'income'),  0) as total_income_cents
+      coalesce(sum(home_amount_cents), 0) as total_spent_cents,
+      coalesce(sum(actual_cents),      0) as total_actual_cents
     from base
   ),
   member_totals as (
     select
       user_id,
       display_name,
-      coalesce(sum(home_amount_cents) filter (where type = 'expense'), 0) -
-      coalesce(sum(home_amount_cents) filter (where type = 'income'),  0) as spent_cents
+      coalesce(sum(home_amount_cents), 0) as spent_cents,
+      coalesce(sum(actual_cents),      0) as actual_cents
     from base
     group by user_id, display_name
   )
   select json_build_object(
-    'total_spent_cents',  (select total_spent_cents  - total_income_cents from totals),
-    'total_income_cents', (select total_income_cents from totals),
+    'total_spent_cents',  (select total_spent_cents  from totals),
+    'total_actual_cents', (select total_actual_cents from totals),
     'member_totals',
         coalesce((select json_agg(row_to_json(member_totals)) from member_totals), '[]'::json)
   );
@@ -2621,7 +2629,8 @@ create or replace function create_recurring_expense(
   p_type         text  default 'expense',
   p_category_id  uuid  default null,
   p_account_id   uuid  default null,
-  p_note         text  default null
+  p_note         text  default null,
+  p_tag_id       uuid  default null
 ) returns jsonb language plpgsql security definer as $$
 declare
   v_user_id          uuid := auth.uid();
@@ -2654,9 +2663,9 @@ begin
   ) then raise exception 'Account does not belong to you'; end if;
 
   insert into recurring_expenses (
-    user_id, title, amount_cents, type, category_id, account_id, note, frequency, next_run_at, requires_premium
+    user_id, title, amount_cents, type, category_id, account_id, note, tag_id, frequency, next_run_at, requires_premium
   ) values (
-    v_user_id, trim(p_title), p_amount_cents, p_type, p_category_id, p_account_id, p_note, p_frequency,
+    v_user_id, trim(p_title), p_amount_cents, p_type, p_category_id, p_account_id, p_note, p_tag_id, p_frequency,
     case when p_first_run_at <= current_date then
       case p_frequency
         when 'daily'   then p_first_run_at + interval '1 day'
@@ -2673,12 +2682,14 @@ begin
       user_id, type, source, source_recurring_expense_id,
       amount_cents, currency,
       home_amount_cents, home_currency, conversion_rate,
-      category_id, account_id, note, expense_date
+      actual_amount_cents,
+      category_id, account_id, note, tag_id, expense_date
     ) values (
       v_user_id, p_type, 'recurring', v_new_id,
       p_amount_cents, 'MYR',
       p_amount_cents, 'MYR', 1,
-      p_category_id, p_account_id, coalesce(p_note, trim(p_title)), current_date
+      p_amount_cents,
+      p_category_id, p_account_id, coalesce(p_note, trim(p_title)), p_tag_id, current_date
     ) returning id into v_expense_id;
   end if;
 
@@ -2703,21 +2714,23 @@ create or replace function create_recurring_split_bill(
   p_shares       jsonb,
   p_category_id  uuid  default null,
   p_account_id   uuid  default null,
-  p_note         text  default null
+  p_note         text  default null,
+  p_tag_id       uuid  default null
 ) returns jsonb language plpgsql security definer as $$
 declare
-  v_user_id          uuid := auth.uid();
-  v_tier             text;
-  v_count            integer;
-  v_requires_premium boolean;
-  v_new_id           uuid;
-  v_share            record;
-  v_total_custom     bigint := 0;
-  v_bill_id          uuid   := null;
-  v_participant_cnt  integer;
-  v_equal_cents      bigint;
-  v_remainder        bigint;
-  v_share_idx        integer;
+  v_user_id           uuid := auth.uid();
+  v_tier              text;
+  v_count             integer;
+  v_requires_premium  boolean;
+  v_new_id            uuid;
+  v_share             record;
+  v_total_custom      bigint := 0;
+  v_bill_id           uuid   := null;
+  v_participant_cnt   integer;
+  v_equal_cents       bigint;
+  v_remainder         bigint;
+  v_share_idx         integer;
+  v_payer_share_cents bigint;
 begin
   if v_user_id is null then raise exception 'Not authenticated'; end if;
 
@@ -2754,9 +2767,9 @@ begin
   end if;
 
   insert into recurring_split_bills (
-    user_id, title, amount_cents, split_method, category_id, account_id, note, frequency, next_run_at, requires_premium
+    user_id, title, amount_cents, split_method, category_id, account_id, note, tag_id, frequency, next_run_at, requires_premium
   ) values (
-    v_user_id, trim(p_title), p_amount_cents, p_split_method, p_category_id, p_account_id, p_note, p_frequency,
+    v_user_id, trim(p_title), p_amount_cents, p_split_method, p_category_id, p_account_id, p_note, p_tag_id, p_frequency,
     case when p_first_run_at <= current_date then
       case p_frequency
         when 'daily'   then p_first_run_at + interval '1 day'
@@ -2816,6 +2829,9 @@ begin
           'equal',
           case when v_share.user_id = v_user_id then 'settled' else 'pending' end
         );
+        if v_share.user_id = v_user_id then
+          v_payer_share_cents := v_equal_cents + case when v_share_idx <= v_remainder then 1 else 0 end;
+        end if;
       end loop;
 
     else
@@ -2829,6 +2845,9 @@ begin
           'custom',
           case when v_share.user_id = v_user_id then 'settled' else 'pending' end
         );
+        if v_share.user_id = v_user_id then
+          v_payer_share_cents := v_share.share_cents;
+        end if;
       end loop;
     end if;
 
@@ -2836,12 +2855,14 @@ begin
       user_id, type, source, source_split_bill_id, source_recurring_split_bill_id,
       amount_cents, currency,
       home_amount_cents, home_currency, conversion_rate,
-      category_id, account_id, note, expense_date
+      actual_amount_cents,
+      category_id, account_id, note, tag_id, expense_date
     ) values (
       v_user_id, 'expense', 'recurring', v_bill_id, v_new_id,
       p_amount_cents, 'MYR',
       p_amount_cents, 'MYR', 1,
-      p_category_id, p_account_id, coalesce(p_note, trim(p_title)), current_date
+      coalesce(v_payer_share_cents, p_amount_cents),
+      p_category_id, p_account_id, coalesce(p_note, trim(p_title)), p_tag_id, current_date
     );
   end if;
 
@@ -2864,6 +2885,7 @@ create or replace function update_recurring_split_bill(
   p_category_id  uuid    default null,
   p_account_id   uuid    default null,
   p_note         text    default null,
+  p_tag_id       uuid    default null,
   p_shares       jsonb   default null
 ) returns void language plpgsql security definer as $$
 declare
@@ -2899,7 +2921,9 @@ begin
     next_run_at  = coalesce(p_next_run_at,  next_run_at),
     category_id  = p_category_id,
     account_id   = p_account_id,
-    note         = p_note
+    note         = p_note,
+    tag_id       = p_tag_id,
+    updated_at   = now()
   where id = p_id;
 
   if p_shares is not null then

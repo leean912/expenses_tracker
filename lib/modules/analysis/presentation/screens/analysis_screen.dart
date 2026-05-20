@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../settings/expense_type/providers/expense_type_provider.dart';
 import '../../../subscription/providers/subscription_provider.dart';
 import '../../providers/analysis_provider.dart';
 import '../../providers/analysis_state.dart';
@@ -21,10 +22,10 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
   AnalysisPeriod _selectedPeriod = AnalysisPeriod.month;
   DateTimeRange? _customRange;
   bool _includeCollabExpenses = true;
-  bool _useActualAmount = false;
+  bool? _useActualAmount;
 
-  String get _dateRangeLabel {
-    final (start, end) = _filter.toDateRange();
+  String _dateRangeLabel(AnalysisFilter filter) {
+    final (start, end) = filter.toDateRange();
     final s = DateTime.parse(start);
     final e = DateTime.parse(end);
     String fmt(DateTime d) => '${d.day} ${_monthShort(d.month)} ${d.year}';
@@ -46,12 +47,12 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
     'Dec',
   ][m - 1];
 
-  AnalysisFilter get _filter => AnalysisFilter(
+  AnalysisFilter _buildFilter(bool useActualAmount) => AnalysisFilter(
     period: _selectedPeriod,
     customStart: _customRange?.start,
     customEnd: _customRange?.end,
     includeCollabExpenses: _includeCollabExpenses,
-    useActualAmount: _useActualAmount,
+    useActualAmount: useActualAmount,
   );
 
   Future<void> _onPeriodSelected(AnalysisPeriod period) async {
@@ -102,7 +103,13 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final analysisAsync = ref.watch(analysisDataProvider(_filter));
+    final expenseTypeAsync = ref.watch(expenseTypeProvider);
+    final effectiveUseActual =
+        _useActualAmount ??
+        (expenseTypeAsync.valueOrNull == ExpenseType.actual);
+    final filter = _buildFilter(effectiveUseActual);
+
+    final analysisAsync = ref.watch(analysisDataProvider(filter));
     final data = analysisAsync.valueOrNull;
     final isLoading = analysisAsync.isLoading;
     final hasError = analysisAsync.hasError && data == null;
@@ -113,7 +120,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
       body: SafeArea(
         bottom: false,
         child: RefreshIndicator(
-          onRefresh: () => ref.refresh(analysisDataProvider(_filter).future),
+          onRefresh: () => ref.refresh(analysisDataProvider(filter).future),
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
@@ -123,7 +130,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                 scrolledUnderElevation: 0,
                 flexibleSpace: const FlexibleSpaceBar(
                   title: Text(
-                    'Analysis',
+                    'Analytics',
                     style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w600,
@@ -160,7 +167,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                         children: [
                           Expanded(
                             child: Text(
-                              _dateRangeLabel,
+                              _dateRangeLabel(filter),
                               style: const TextStyle(
                                 fontSize: 12,
                                 color: AppColors.textTertiary,
@@ -210,7 +217,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                         ],
                       ),
                       _AmountToggle(
-                        useActualAmount: _useActualAmount,
+                        useActualAmount: effectiveUseActual,
                         onChanged: (v) => setState(() => _useActualAmount = v),
                       ),
                     ],
@@ -241,7 +248,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                         const SizedBox(height: 12),
                         TextButton(
                           onPressed: () =>
-                              ref.invalidate(analysisDataProvider(_filter)),
+                              ref.invalidate(analysisDataProvider(filter)),
                           child: const Text('Retry'),
                         ),
                       ],
@@ -288,24 +295,24 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
                   child: CategoryPieChart(categories: data.accountBreakdown),
                 ),
 
-                if (data.tagBreakdown.isNotEmpty)
-                  _ChartSection(
-                    title: 'Spending by Tag',
-                    description: const TextSpan(
-                      children: [
-                        TextSpan(
-                          text:
-                              'Which tags your spending falls under — tap a slice to see amount and share. ',
-                        ),
-                        TextSpan(
-                          text: 'Settlements and untagged expenses shown separately.',
-                          style: TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                      ],
-                    ),
-                    child: CategoryPieChart(categories: data.tagBreakdown),
-                  ),
-
+                // if (data.tagBreakdown.isNotEmpty)
+                //   _ChartSection(
+                //     title: 'Spending by Tag',
+                //     description: const TextSpan(
+                //       children: [
+                //         TextSpan(
+                //           text:
+                //               'Which tags your spending falls under — tap a slice to see amount and share. ',
+                //         ),
+                //         TextSpan(
+                //           text:
+                //               'Settlements and untagged expenses shown separately.',
+                //           style: TextStyle(fontWeight: FontWeight.w600),
+                //         ),
+                //       ],
+                //     ),
+                //     child: CategoryPieChart(categories: data.tagBreakdown),
+                //   ),
                 if (_selectedPeriod != AnalysisPeriod.day)
                   _ChartSection(
                     title: switch (_selectedPeriod) {

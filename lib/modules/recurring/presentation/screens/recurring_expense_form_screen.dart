@@ -5,8 +5,9 @@ import 'package:intl/intl.dart';
 
 import '../../../../core/routes/routes.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/utils/amount_input_formatter.dart';
+import '../../../../core/widgets/amount_keyboard.dart';
 import '../../../expenses/data/models/account_model.dart';
+import '../../../tags/presentation/widgets/tag_picker_row.dart';
 import '../../../expenses/data/models/category_model.dart';
 import '../../../expenses/providers/accounts_provider.dart';
 import '../../../expenses/providers/categories_provider.dart';
@@ -31,20 +32,35 @@ class _RecurringExpenseFormScreenState
   final _titleController = TextEditingController();
   final _amountController = TextEditingController();
   final _noteController = TextEditingController();
+  final _amountFocus = FocusNode();
+  TextEditingController? _keyboardController;
 
   final String _type = 'expense';
   String _frequency = 'monthly';
   DateTime _runAt = DateTime.now();
   String? _categoryId;
   String? _accountId;
+  String? _tagId;
   bool _loading = false;
   String? _error;
 
   bool get _isEdit => widget.existing != null;
 
+  void _activateKeyboard(TextEditingController c) {
+    if (_keyboardController != c) setState(() => _keyboardController = c);
+  }
+
+  void _deactivateKeyboard() {
+    FocusScope.of(context).unfocus();
+    if (_keyboardController != null) setState(() => _keyboardController = null);
+  }
+
   @override
   void initState() {
     super.initState();
+    _amountFocus.addListener(() {
+      if (_amountFocus.hasFocus) _activateKeyboard(_amountController);
+    });
     final e = widget.existing;
     if (e != null) {
       _titleController.text = e.title;
@@ -53,6 +69,7 @@ class _RecurringExpenseFormScreenState
       _runAt = e.nextRunAt;
       _categoryId = e.categoryId;
       _accountId = e.accountId;
+      _tagId = e.tagId;
       _noteController.text = e.note ?? '';
     }
   }
@@ -62,6 +79,7 @@ class _RecurringExpenseFormScreenState
     _titleController.dispose();
     _amountController.dispose();
     _noteController.dispose();
+    _amountFocus.dispose();
     super.dispose();
   }
 
@@ -119,6 +137,7 @@ class _RecurringExpenseFormScreenState
         categoryId: _categoryId,
         accountId: _accountId,
         note: note,
+        tagId: _tagId,
       );
     } else {
       err = await notifier.create(
@@ -130,6 +149,7 @@ class _RecurringExpenseFormScreenState
         categoryId: _categoryId,
         accountId: _accountId,
         note: note,
+        tagId: _tagId,
       );
     }
 
@@ -152,8 +172,11 @@ class _RecurringExpenseFormScreenState
     final categoriesAsync = ref.watch(pickerCategoriesProvider);
     final accountsAsync = ref.watch(pickerAccountsProvider);
 
+    final showKeyboard = _keyboardController != null;
+    final padding = MediaQuery.of(context).padding;
+
     return GestureDetector(
-      onTap: () => FocusScope.of(context).unfocus(),
+      onTap: _deactivateKeyboard,
       child: Scaffold(
         backgroundColor: AppColors.background,
         appBar: AppBar(
@@ -177,7 +200,12 @@ class _RecurringExpenseFormScreenState
             ),
           ),
         ),
-        body: SingleChildScrollView(
+        body: MediaQuery(
+          data: MediaQuery.of(context).copyWith(viewInsets: EdgeInsets.zero),
+          child: Column(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(
             AppSpacing.xl,
             AppSpacing.lg,
@@ -191,6 +219,7 @@ class _RecurringExpenseFormScreenState
               const SizedBox(height: AppSpacing.md),
               TextField(
                 controller: _titleController,
+                onTap: _deactivateKeyboard,
                 style: const TextStyle(
                   fontSize: 14,
                   color: AppColors.textPrimary,
@@ -206,10 +235,9 @@ class _RecurringExpenseFormScreenState
               const SizedBox(height: AppSpacing.md),
               TextField(
                 controller: _amountController,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                inputFormatters: [AmountInputFormatter()],
+                focusNode: _amountFocus,
+                readOnly: true,
+                showCursor: true,
                 style: const TextStyle(
                   fontSize: 14,
                   color: AppColors.textPrimary,
@@ -275,6 +303,7 @@ class _RecurringExpenseFormScreenState
               const SizedBox(height: AppSpacing.md),
               TextField(
                 controller: _noteController,
+                onTap: _deactivateKeyboard,
                 style: const TextStyle(
                   fontSize: 14,
                   color: AppColors.textPrimary,
@@ -333,67 +362,58 @@ class _RecurringExpenseFormScreenState
 
               const SizedBox(height: AppSpacing.xxl),
 
-              // SizedBox(
-              //   width: double.infinity,
-              //   child: FilledButton(
-              //     onPressed: _loading ? null : _save,
-              //     style: FilledButton.styleFrom(
-              //       backgroundColor: AppColors.accent,
-              //       foregroundColor: AppColors.accentText,
-              //       padding: const EdgeInsets.symmetric(vertical: 16),
-              //       shape: RoundedRectangleBorder(
-              //           borderRadius: BorderRadius.circular(AppRadius.lg)),
-              //     ),
-              //     child: _loading
-              //         ? const SizedBox(
-              //             width: 20,
-              //             height: 20,
-              //             child: CircularProgressIndicator(
-              //                 strokeWidth: 2, color: AppColors.accentText),
-              //           )
-              //         : Text(
-              //             _isEdit ? 'Update' : 'Save',
-              //             style: const TextStyle(
-              //                 fontSize: 15, fontWeight: FontWeight.w600),
-              //           ),
-              //   ),
-              // ),
+              const FormLabel('Tag (Optional)'),
+              const SizedBox(height: AppSpacing.md),
+              TagPickerRow(
+                selectedTagId: _tagId,
+                onChanged: (id) => setState(() => _tagId = id),
+              ),
+
+              const SizedBox(height: AppSpacing.xxl),
             ],
           ),
         ),
-        bottomNavigationBar: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.xl),
-            child: SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: _loading ? null : _save,
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.accent,
-                  foregroundColor: AppColors.accentText,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppRadius.lg),
+              ),
+              if (showKeyboard) AmountKeyboard(controller: _keyboardController!),
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                  AppSpacing.xl,
+                  AppSpacing.md,
+                  AppSpacing.xl,
+                  showKeyboard ? AppSpacing.md : AppSpacing.xl + padding.bottom,
+                ),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: _loading ? null : _save,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.accent,
+                      foregroundColor: AppColors.accentText,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppRadius.lg),
+                      ),
+                    ),
+                    child: _loading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.accentText,
+                            ),
+                          )
+                        : Text(
+                            _isEdit ? 'Update' : 'Save',
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                   ),
                 ),
-                child: _loading
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: AppColors.accentText,
-                        ),
-                      )
-                    : Text(
-                        _isEdit ? 'Update' : 'Save',
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
               ),
-            ),
+            ],
           ),
         ),
       ),

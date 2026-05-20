@@ -7,7 +7,6 @@ import 'package:intl/intl.dart';
 import '../../../../core/routes/routes.dart';
 import '../../../../core/services/receipt_upload_service.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/utils/amount_input_formatter.dart';
 import '../../../../core/widgets/receipt_viewer.dart';
 import '../../../../core/widgets/upgrade_sheet.dart';
 import '../../../../service_locator.dart';
@@ -28,6 +27,7 @@ import '../../providers/categories_provider.dart';
 import '../../providers/create_expense_provider.dart';
 import '../../utils/expense_ui_helpers.dart';
 import '../../../tags/presentation/widgets/tag_picker_row.dart';
+import '../../../../core/widgets/amount_keyboard.dart';
 
 class AddExpenseSheet extends ConsumerStatefulWidget {
   const AddExpenseSheet({super.key});
@@ -40,8 +40,12 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController;
 
+  // ── Keyboard state ─────────────────────────────────────────────────────────
+  TextEditingController? _keyboardController;
+
   // ── Expense tab state ──────────────────────────────────────────────────────
   final _amountController = TextEditingController();
+  final _expenseAmountFocus = FocusNode();
   String? _selectedCategoryId;
   String? _selectedAccountId;
   String? _selectedTagId;
@@ -56,6 +60,7 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet>
 
   // ── Split bill tab state ───────────────────────────────────────────────────
   final _splitAmountController = TextEditingController();
+  final _splitAmountFocus = FocusNode();
   final _splitNoteController = TextEditingController();
   String? _splitCategoryId;
   String? _splitAccountId;
@@ -71,7 +76,13 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet>
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _tabController.addListener(() {
-      if (mounted) setState(() {});
+      if (mounted) setState(() => _keyboardController = null);
+    });
+    _expenseAmountFocus.addListener(() {
+      if (_expenseAmountFocus.hasFocus) _activateKeyboard(_amountController);
+    });
+    _splitAmountFocus.addListener(() {
+      if (_splitAmountFocus.hasFocus) _activateKeyboard(_splitAmountController);
     });
     final userId = supabase.auth.currentUser?.id ?? '';
     final you = _SplitParticipant(
@@ -80,7 +91,11 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet>
       isCurrentUser: true,
     );
     you.controller.addListener(_onParticipantChanged);
+    you.focusNode.addListener(() {
+      if (you.focusNode.hasFocus && !_equalSplit) _activateKeyboard(you.controller);
+    });
     _splitParticipants.add(you);
+    _amountController.addListener(() { if (mounted) setState(() {}); });
     _splitAmountController.addListener(_onSplitAmountChanged);
   }
 
@@ -88,13 +103,23 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet>
   void dispose() {
     _tabController.dispose();
     _amountController.dispose();
+    _expenseAmountFocus.dispose();
     _noteController.dispose();
     _splitAmountController.dispose();
+    _splitAmountFocus.dispose();
     _splitNoteController.dispose();
     for (final p in _splitParticipants) {
-      p.controller.dispose();
+      p.dispose();
     }
     super.dispose();
+  }
+
+  void _activateKeyboard(TextEditingController c) {
+    if (_keyboardController != c) setState(() => _keyboardController = c);
+  }
+
+  void _deactivateKeyboard() {
+    if (_keyboardController != null) setState(() => _keyboardController = null);
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────
@@ -152,11 +177,14 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet>
     return total - allocated;
   }
 
+  bool get _expenseCanSubmit {
+    final v = double.tryParse(_amountController.text.trim());
+    return v != null && v > 0;
+  }
+
   bool get _splitCanSubmit {
     if (_splitLoading) return false;
     if (_splitTotalCents <= 0) return false;
-    if (_splitCategoryId == null) return false;
-    if (_splitAccountId == null) return false;
     return _splitParticipants.any(
       (p) =>
           !p.isCurrentUser &&
@@ -283,6 +311,9 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet>
       isCurrentUser: false,
     );
     p.controller.addListener(_onParticipantChanged);
+    p.focusNode.addListener(() {
+      if (p.focusNode.hasFocus && !_equalSplit) _activateKeyboard(p.controller);
+    });
     setState(() {
       _splitParticipants.add(p);
       if (_equalSplit) _applyEqualSplit();
@@ -290,10 +321,11 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet>
   }
 
   void _removeSplitParticipant(int index) {
+    final p = _splitParticipants[index];
+    if (_keyboardController == p.controller) _keyboardController = null;
+    p.controller.removeListener(_onParticipantChanged);
     setState(() {
-      _splitParticipants[index].controller
-        ..removeListener(_onParticipantChanged)
-        ..dispose();
+      p.dispose();
       _splitParticipants.removeAt(index);
       if (_equalSplit) _applyEqualSplit();
     });
@@ -452,8 +484,13 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet>
     final isLoading = ref.watch(createExpenseProvider).isLoading;
     final errorMsg = ref.watch(createExpenseProvider).error;
 
+    final showKeyboard = _keyboardController != null;
+
     return GestureDetector(
-      onTap: () => FocusScope.of(context).unfocus(),
+      onTap: () {
+        FocusScope.of(context).unfocus();
+        _deactivateKeyboard();
+      },
       child: Container(
         height: MediaQuery.sizeOf(context).height * .9,
         decoration: const BoxDecoration(
@@ -464,7 +501,7 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet>
         ),
         child: Padding(
           padding: EdgeInsets.only(
-            bottom: MediaQuery.viewInsetsOf(context).bottom,
+            bottom: showKeyboard ? 0 : MediaQuery.viewInsetsOf(context).bottom,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -549,6 +586,7 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet>
                   children: [
                     _ExpenseForm(
                       amountController: _amountController,
+                      amountFocusNode: _expenseAmountFocus,
                       selectedCategoryId: _selectedCategoryId,
                       selectedAccountId: _selectedAccountId,
                       selectedTagId: _selectedTagId,
@@ -573,9 +611,11 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet>
                       },
                       onAddReceipt: _pickExpenseReceipt,
                       onDeleteReceipt: _deleteExpenseReceipt,
+                      onNonAmountFocus: _deactivateKeyboard,
                     ),
                     _SplitBillForm(
                       amountController: _splitAmountController,
+                      amountFocusNode: _splitAmountFocus,
                       noteController: _splitNoteController,
                       selectedCategoryId: _splitCategoryId,
                       selectedAccountId: _splitAccountId,
@@ -596,7 +636,14 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet>
                       onDateTap: _pickSplitDate,
                       onEqualSplitToggle: (value) => setState(() {
                         _equalSplit = value;
-                        if (value) _applyEqualSplit();
+                        if (value) {
+                          _applyEqualSplit();
+                          final pControllers =
+                              _splitParticipants.map((p) => p.controller).toSet();
+                          if (pControllers.contains(_keyboardController)) {
+                            _keyboardController = null;
+                          }
+                        }
                       }),
                       onAddParticipant: _showContactPicker,
                       onAddGroup: _showGroupPicker,
@@ -609,10 +656,15 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet>
                       },
                       onAddReceipt: _pickSplitReceipt,
                       onDeleteReceipt: _deleteSplitReceipt,
+                      onNonAmountFocus: _deactivateKeyboard,
                     ),
                   ],
                 ),
               ),
+
+              // ── Custom keyboard ─────────────────────────────────────────────
+              if (showKeyboard)
+                AmountKeyboard(controller: _keyboardController!),
 
               // ── Submit ─────────────────────────────────────────────────────
               if (_tabController.index == 0)
@@ -621,13 +673,17 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet>
                     AppSpacing.xl,
                     AppSpacing.md,
                     AppSpacing.xl,
-                    AppSpacing.xl + MediaQuery.of(context).padding.bottom,
+                    showKeyboard
+                        ? AppSpacing.md
+                        : AppSpacing.xl + MediaQuery.of(context).padding.bottom,
                   ),
                   child: FilledButton(
-                    onPressed: isLoading ? null : _submit,
+                    onPressed: (isLoading || !_expenseCanSubmit) ? null : _submit,
                     style: FilledButton.styleFrom(
                       backgroundColor: AppColors.accent,
                       foregroundColor: AppColors.accentText,
+                      disabledBackgroundColor: AppColors.surfaceMuted,
+                      disabledForegroundColor: AppColors.textTertiary,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(AppRadius.lg),
@@ -657,7 +713,9 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet>
                     AppSpacing.xl,
                     AppSpacing.md,
                     AppSpacing.xl,
-                    AppSpacing.xl + MediaQuery.of(context).padding.bottom,
+                    showKeyboard
+                        ? AppSpacing.md
+                        : AppSpacing.xl + MediaQuery.of(context).padding.bottom,
                   ),
                   child: FilledButton(
                     onPressed: _splitCanSubmit ? _submitSplitBill : null,
@@ -702,6 +760,7 @@ class _AddExpenseSheetState extends ConsumerState<AddExpenseSheet>
 class _ExpenseForm extends ConsumerWidget {
   const _ExpenseForm({
     required this.amountController,
+    required this.amountFocusNode,
     required this.selectedCategoryId,
     required this.selectedAccountId,
     required this.selectedTagId,
@@ -716,12 +775,14 @@ class _ExpenseForm extends ConsumerWidget {
     required this.onAddAccount,
     required this.onAddReceipt,
     required this.onDeleteReceipt,
+    required this.onNonAmountFocus,
     this.errorMsg,
     this.receiptUrl,
     this.receiptUploading = false,
   });
 
   final TextEditingController amountController;
+  final FocusNode amountFocusNode;
   final String? selectedCategoryId;
   final String? selectedAccountId;
   final String? selectedTagId;
@@ -736,6 +797,7 @@ class _ExpenseForm extends ConsumerWidget {
   final VoidCallback onAddAccount;
   final VoidCallback onAddReceipt;
   final VoidCallback onDeleteReceipt;
+  final VoidCallback onNonAmountFocus;
   final String? errorMsg;
   final String? receiptUrl;
   final bool receiptUploading;
@@ -779,10 +841,9 @@ class _ExpenseForm extends ConsumerWidget {
                 Expanded(
                   child: TextField(
                     controller: amountController,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    inputFormatters: [AmountInputFormatter()],
+                    focusNode: amountFocusNode,
+                    readOnly: true,
+                    showCursor: true,
                     style: const TextStyle(
                       fontSize: 32,
                       fontWeight: FontWeight.w600,
@@ -832,6 +893,7 @@ class _ExpenseForm extends ConsumerWidget {
           const SizedBox(height: AppSpacing.md),
           TextField(
             controller: noteController,
+            onTap: onNonAmountFocus,
             maxLines: 3,
             minLines: 1,
             textCapitalization: TextCapitalization.sentences,
@@ -994,6 +1056,7 @@ class _ExpenseForm extends ConsumerWidget {
 class _SplitBillForm extends ConsumerWidget {
   const _SplitBillForm({
     required this.amountController,
+    required this.amountFocusNode,
     required this.noteController,
     required this.selectedCategoryId,
     required this.selectedAccountId,
@@ -1014,12 +1077,14 @@ class _SplitBillForm extends ConsumerWidget {
     required this.onAddAccount,
     required this.onAddReceipt,
     required this.onDeleteReceipt,
+    required this.onNonAmountFocus,
     this.splitError,
     this.receiptUrl,
     this.receiptUploading = false,
   });
 
   final TextEditingController amountController;
+  final FocusNode amountFocusNode;
   final TextEditingController noteController;
   final String? selectedCategoryId;
   final String? selectedAccountId;
@@ -1043,6 +1108,7 @@ class _SplitBillForm extends ConsumerWidget {
   final VoidCallback onAddAccount;
   final VoidCallback onAddReceipt;
   final VoidCallback onDeleteReceipt;
+  final VoidCallback onNonAmountFocus;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1083,10 +1149,9 @@ class _SplitBillForm extends ConsumerWidget {
                 Expanded(
                   child: TextField(
                     controller: amountController,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    inputFormatters: [AmountInputFormatter()],
+                    focusNode: amountFocusNode,
+                    readOnly: true,
+                    showCursor: true,
                     style: const TextStyle(
                       fontSize: 32,
                       fontWeight: FontWeight.w600,
@@ -1292,6 +1357,7 @@ class _SplitBillForm extends ConsumerWidget {
           const SizedBox(height: AppSpacing.md),
           TextField(
             controller: noteController,
+            onTap: onNonAmountFocus,
             maxLines: 2,
             minLines: 1,
             textCapitalization: TextCapitalization.sentences,
@@ -1459,7 +1525,7 @@ class _ParticipantRow extends StatelessWidget {
   });
 
   final _SplitParticipant participant;
-  final bool readOnly;
+  final bool readOnly; // true = equal split (locked, greyed out)
   final VoidCallback? onRemove;
 
   @override
@@ -1510,11 +1576,9 @@ class _ParticipantRow extends StatelessWidget {
             width: 88,
             child: TextField(
               controller: participant.controller,
-              readOnly: readOnly,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              inputFormatters: [AmountInputFormatter()],
+              focusNode: readOnly ? null : participant.focusNode,
+              readOnly: true,
+              showCursor: !readOnly,
               textAlign: TextAlign.right,
               style: TextStyle(
                 fontSize: 14,
@@ -2296,4 +2360,10 @@ class _SplitParticipant {
   final String displayName;
   final bool isCurrentUser;
   final TextEditingController controller = TextEditingController();
+  final FocusNode focusNode = FocusNode();
+
+  void dispose() {
+    controller.dispose();
+    focusNode.dispose();
+  }
 }

@@ -6,7 +6,7 @@ class TagRepository {
     final userId = supabase.auth.currentUser!.id;
     final rows = await supabase
         .from('tags')
-        .select('id, name, color, is_default, sort_order')
+        .select('id, name, color, is_default, requires_premium, sort_order')
         .eq('user_id', userId)
         .isFilter('deleted_at', null)
         .order('is_default', ascending: false)
@@ -18,10 +18,10 @@ class TagRepository {
   }
 
   Future<String> createTag(String name, String color) async {
-    final result = await supabase.rpc('create_tag', params: {
-      'p_name': name,
-      'p_color': color,
-    });
+    final result = await supabase.rpc(
+      'create_tag',
+      params: {'p_name': name, 'p_color': color},
+    );
     return result as String;
   }
 

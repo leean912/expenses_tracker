@@ -1,6 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -8,7 +7,6 @@ import 'package:intl/intl.dart';
 import '../../../../core/routes/routes.dart';
 import '../../../../core/services/receipt_upload_service.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/utils/amount_input_formatter.dart';
 import '../../../../core/widgets/receipt_viewer.dart';
 import '../../../../core/widgets/upgrade_sheet.dart';
 import '../../../../service_locator.dart';
@@ -25,6 +23,7 @@ import '../../data/models/collab_model.dart';
 import '../../providers/collab_expenses_provider.dart';
 import '../../providers/collab_summary_provider.dart';
 import '../../../tags/presentation/widgets/tag_picker_row.dart';
+import '../../../../core/widgets/amount_keyboard.dart';
 
 class CollabExpenseSheet extends ConsumerStatefulWidget {
   const CollabExpenseSheet({
@@ -44,10 +43,15 @@ class _CollabExpenseSheetState extends ConsumerState<CollabExpenseSheet>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController;
 
+  // ── Keyboard state ─────────────────────────────────────────────────────────
+  TextEditingController? _keyboardController;
+
   // ── Expense tab state ──────────────────────────────────────────────────────
   final _amountController = TextEditingController();
+  final _amountFocus = FocusNode();
   final _noteController = TextEditingController();
   final _rateController = TextEditingController();
+  final _rateFocus = FocusNode();
   String? _categoryId;
   String? _accountId;
   String? _tagId;
@@ -63,8 +67,10 @@ class _CollabExpenseSheetState extends ConsumerState<CollabExpenseSheet>
 
   // ── Split bill tab state ───────────────────────────────────────────────────
   final _splitAmountController = TextEditingController();
+  final _splitAmountFocus = FocusNode();
   final _splitNoteController = TextEditingController();
   final _splitRateController = TextEditingController();
+  final _splitRateFocus = FocusNode();
   String? _splitCategoryId;
   String? _splitAccountId;
   String? _splitTagId;
@@ -85,7 +91,19 @@ class _CollabExpenseSheetState extends ConsumerState<CollabExpenseSheet>
       initialIndex: widget.initialTab,
     );
     _tabController.addListener(() {
-      if (mounted) setState(() {});
+      if (mounted) setState(() => _keyboardController = null);
+    });
+    _amountFocus.addListener(() {
+      if (_amountFocus.hasFocus) _activateKeyboard(_amountController);
+    });
+    _rateFocus.addListener(() {
+      if (_rateFocus.hasFocus) _activateKeyboard(_rateController);
+    });
+    _splitAmountFocus.addListener(() {
+      if (_splitAmountFocus.hasFocus) _activateKeyboard(_splitAmountController);
+    });
+    _splitRateFocus.addListener(() {
+      if (_splitRateFocus.hasFocus) _activateKeyboard(_splitRateController);
     });
 
     if (collab.isForeignCurrency && collab.exchangeRate != null) {
@@ -99,6 +117,9 @@ class _CollabExpenseSheetState extends ConsumerState<CollabExpenseSheet>
     final userId = supabase.auth.currentUser?.id ?? '';
     final you = _Participant(userId: userId, displayName: 'You', isMe: true);
     you.controller.addListener(_onParticipantChanged);
+    you.focusNode.addListener(() {
+      if (you.focusNode.hasFocus && !_equalSplit) _activateKeyboard(you.controller);
+    });
     _participants.add(you);
 
     for (final member in collab.members.where(
@@ -110,9 +131,13 @@ class _CollabExpenseSheetState extends ConsumerState<CollabExpenseSheet>
         isMe: false,
       );
       p.controller.addListener(_onParticipantChanged);
+      p.focusNode.addListener(() {
+        if (p.focusNode.hasFocus && !_equalSplit) _activateKeyboard(p.controller);
+      });
       _participants.add(p);
     }
 
+    _amountController.addListener(() { if (mounted) setState(() {}); });
     _splitAmountController.addListener(_onSplitAmountChanged);
   }
 
@@ -120,15 +145,28 @@ class _CollabExpenseSheetState extends ConsumerState<CollabExpenseSheet>
   void dispose() {
     _tabController.dispose();
     _amountController.dispose();
+    _amountFocus.dispose();
     _noteController.dispose();
     _rateController.dispose();
+    _rateFocus.dispose();
     _splitAmountController.dispose();
+    _splitAmountFocus.dispose();
     _splitNoteController.dispose();
     _splitRateController.dispose();
+    _splitRateFocus.dispose();
     for (final p in _participants) {
       p.controller.dispose();
+      p.focusNode.dispose();
     }
     super.dispose();
+  }
+
+  void _activateKeyboard(TextEditingController c) {
+    if (_keyboardController != c) setState(() => _keyboardController = c);
+  }
+
+  void _deactivateKeyboard() {
+    if (_keyboardController != null) setState(() => _keyboardController = null);
   }
 
   // ── Receipt actions ───────────────────────────────────────────────────────
@@ -218,6 +256,12 @@ class _CollabExpenseSheetState extends ConsumerState<CollabExpenseSheet>
     return total - allocated;
   }
 
+  bool get _expenseCanSubmit {
+    if (_expenseLoading) return false;
+    final v = double.tryParse(_amountController.text.trim());
+    return v != null && v > 0;
+  }
+
   bool get _splitCanSubmit {
     if (_splitLoading ||
         _splitTotalCents <= 0 ||
@@ -247,10 +291,12 @@ class _CollabExpenseSheetState extends ConsumerState<CollabExpenseSheet>
   }
 
   void _removeParticipant(int index) {
+    final p = _participants[index];
+    if (_keyboardController == p.controller) _keyboardController = null;
+    p.controller.removeListener(_onParticipantChanged);
     setState(() {
-      _participants[index].controller
-        ..removeListener(_onParticipantChanged)
-        ..dispose();
+      p.controller.dispose();
+      p.focusNode.dispose();
       _participants.removeAt(index);
       if (_equalSplit) _applyEqualSplit();
     });
@@ -441,8 +487,13 @@ class _CollabExpenseSheetState extends ConsumerState<CollabExpenseSheet>
     final accountsAsync = ref.watch(accountsProvider);
     final isExpenseTab = _tabController.index == 0;
 
+    final showKeyboard = _keyboardController != null;
+
     return GestureDetector(
-      onTap: () => FocusScope.of(context).unfocus(),
+      onTap: () {
+        FocusScope.of(context).unfocus();
+        _deactivateKeyboard();
+      },
       child: Container(
         height: MediaQuery.sizeOf(context).height * .9,
         decoration: const BoxDecoration(
@@ -453,7 +504,7 @@ class _CollabExpenseSheetState extends ConsumerState<CollabExpenseSheet>
         ),
         child: Padding(
           padding: EdgeInsets.only(
-            bottom: MediaQuery.viewInsetsOf(context).bottom,
+            bottom: showKeyboard ? 0 : MediaQuery.viewInsetsOf(context).bottom,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -552,8 +603,11 @@ class _CollabExpenseSheetState extends ConsumerState<CollabExpenseSheet>
                     _ExpenseForm(
                       collab: collab,
                       amountController: _amountController,
+                      amountFocusNode: _amountFocus,
                       noteController: _noteController,
                       rateController: _rateController,
+                      rateFocusNode: _rateFocus,
+                      onNonAmountFocus: _deactivateKeyboard,
                       categoryId: _categoryId,
                       accountId: _accountId,
                       tagId: _tagId,
@@ -574,8 +628,11 @@ class _CollabExpenseSheetState extends ConsumerState<CollabExpenseSheet>
                     _SplitBillForm(
                       collab: collab,
                       amountController: _splitAmountController,
+                      amountFocusNode: _splitAmountFocus,
                       noteController: _splitNoteController,
                       rateController: _splitRateController,
+                      rateFocusNode: _splitRateFocus,
+                      onNonAmountFocus: _deactivateKeyboard,
                       categoryId: _splitCategoryId,
                       accountId: _splitAccountId,
                       tagId: _splitTagId,
@@ -608,20 +665,28 @@ class _CollabExpenseSheetState extends ConsumerState<CollabExpenseSheet>
                 ),
               ),
 
+              // ── Custom keyboard ─────────────────────────────────────────────
+              if (showKeyboard)
+                AmountKeyboard(controller: _keyboardController!),
+
               // ── Submit ────────────────────────────────────────────────────
               Padding(
                 padding: EdgeInsets.fromLTRB(
                   AppSpacing.xl,
                   AppSpacing.md,
                   AppSpacing.xl,
-                  AppSpacing.xl + MediaQuery.of(context).padding.bottom,
+                  showKeyboard
+                      ? AppSpacing.md
+                      : AppSpacing.xl + MediaQuery.of(context).padding.bottom,
                 ),
                 child: isExpenseTab
                     ? FilledButton(
-                        onPressed: _expenseLoading ? null : _submitExpense,
+                        onPressed: _expenseCanSubmit ? _submitExpense : null,
                         style: FilledButton.styleFrom(
                           backgroundColor: AppColors.accent,
                           foregroundColor: AppColors.accentText,
+                          disabledBackgroundColor: AppColors.surfaceMuted,
+                          disabledForegroundColor: AppColors.textTertiary,
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(AppRadius.lg),
@@ -688,8 +753,11 @@ class _ExpenseForm extends StatelessWidget {
   const _ExpenseForm({
     required this.collab,
     required this.amountController,
+    required this.amountFocusNode,
     required this.noteController,
     required this.rateController,
+    required this.rateFocusNode,
+    required this.onNonAmountFocus,
     required this.categoryId,
     required this.accountId,
     required this.tagId,
@@ -709,8 +777,11 @@ class _ExpenseForm extends StatelessWidget {
 
   final CollabModel collab;
   final TextEditingController amountController;
+  final FocusNode amountFocusNode;
   final TextEditingController noteController;
   final TextEditingController rateController;
+  final FocusNode rateFocusNode;
+  final VoidCallback onNonAmountFocus;
   final String? categoryId;
   final String? accountId;
   final String? tagId;
@@ -771,10 +842,9 @@ class _ExpenseForm extends StatelessWidget {
                 Expanded(
                   child: TextField(
                     controller: amountController,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    inputFormatters: [AmountInputFormatter()],
+                    focusNode: amountFocusNode,
+                    readOnly: true,
+                    showCursor: true,
                     style: const TextStyle(
                       fontSize: 32,
                       fontWeight: FontWeight.w600,
@@ -814,12 +884,9 @@ class _ExpenseForm extends StatelessWidget {
             const SizedBox(height: AppSpacing.md),
             TextField(
               controller: rateController,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
-              ],
+              focusNode: rateFocusNode,
+              readOnly: true,
+              showCursor: true,
               style: const TextStyle(
                 fontSize: 14,
                 color: AppColors.textPrimary,
@@ -845,6 +912,7 @@ class _ExpenseForm extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
           TextField(
             controller: noteController,
+            onTap: onNonAmountFocus,
             maxLines: 2,
             minLines: 1,
             textCapitalization: TextCapitalization.sentences,
@@ -984,8 +1052,11 @@ class _SplitBillForm extends StatelessWidget {
   const _SplitBillForm({
     required this.collab,
     required this.amountController,
+    required this.amountFocusNode,
     required this.noteController,
     required this.rateController,
+    required this.rateFocusNode,
+    required this.onNonAmountFocus,
     required this.categoryId,
     required this.accountId,
     required this.tagId,
@@ -1011,8 +1082,11 @@ class _SplitBillForm extends StatelessWidget {
 
   final CollabModel collab;
   final TextEditingController amountController;
+  final FocusNode amountFocusNode;
   final TextEditingController noteController;
   final TextEditingController rateController;
+  final FocusNode rateFocusNode;
+  final VoidCallback onNonAmountFocus;
   final String? categoryId;
   final String? accountId;
   final String? tagId;
@@ -1079,10 +1153,9 @@ class _SplitBillForm extends StatelessWidget {
                 Expanded(
                   child: TextField(
                     controller: amountController,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    inputFormatters: [AmountInputFormatter()],
+                    focusNode: amountFocusNode,
+                    readOnly: true,
+                    showCursor: true,
                     style: const TextStyle(
                       fontSize: 32,
                       fontWeight: FontWeight.w600,
@@ -1122,12 +1195,9 @@ class _SplitBillForm extends StatelessWidget {
             const SizedBox(height: AppSpacing.md),
             TextField(
               controller: rateController,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
-              ],
+              focusNode: rateFocusNode,
+              readOnly: true,
+              showCursor: true,
               style: const TextStyle(
                 fontSize: 14,
                 color: AppColors.textPrimary,
@@ -1246,6 +1316,7 @@ class _SplitBillForm extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
           TextField(
             controller: noteController,
+            onTap: onNonAmountFocus,
             maxLines: 2,
             minLines: 1,
             textCapitalization: TextCapitalization.sentences,
@@ -1529,6 +1600,7 @@ class _Participant {
   final String displayName;
   final bool isMe;
   final TextEditingController controller = TextEditingController();
+  final FocusNode focusNode = FocusNode();
 }
 
 // ── Participant row ───────────────────────────────────────────────────────────
@@ -1602,11 +1674,9 @@ class _ParticipantRow extends StatelessWidget {
             width: 88,
             child: TextField(
               controller: participant.controller,
-              readOnly: readOnly,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              inputFormatters: [AmountInputFormatter()],
+              focusNode: readOnly ? null : participant.focusNode,
+              readOnly: true,
+              showCursor: !readOnly,
               textAlign: TextAlign.right,
               style: TextStyle(
                 fontSize: 14,

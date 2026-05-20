@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 
 import '../../../../core/routes/routes.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../settings/expense_type/providers/expense_type_provider.dart';
 import '../../../../core/utils/currencies.dart';
 import '../../../../service_locator.dart';
 import '../../../expenses/presentation/widgets/edit_expense_sheet.dart';
@@ -103,6 +104,7 @@ class _CollabDetailBody extends ConsumerStatefulWidget {
 
 class _CollabDetailBodyState extends ConsumerState<_CollabDetailBody> {
   CollabModel get collab => widget.collab;
+  bool? _useActualAmount;
 
   String get _currentUserId => supabase.auth.currentUser?.id ?? '';
   bool get _isOwner => collab.ownerId == _currentUserId;
@@ -275,6 +277,10 @@ class _CollabDetailBodyState extends ConsumerState<_CollabDetailBody> {
 
   @override
   Widget build(BuildContext context) {
+    final expenseTypeAsync = ref.watch(expenseTypeProvider);
+    final effectiveUseActual =
+        _useActualAmount ?? (expenseTypeAsync.valueOrNull == ExpenseType.actual);
+
     final expensesAsync = ref.watch(collabExpensesProvider(collab.id));
     final summaryAsync = ref.watch(collabSummaryProvider(collab.id));
     final expensesState = expensesAsync.valueOrNull;
@@ -284,8 +290,12 @@ class _CollabDetailBodyState extends ConsumerState<_CollabDetailBody> {
         .where((m) => m.userId == _currentUserId && m.isActive)
         .firstOrNull;
 
-    final totalSpentCents = summaryData?.totalSpentCents ?? 0;
-    final mySpentCents = summaryData?.memberSpentCents[_currentUserId] ?? 0;
+    final totalSpentCents = effectiveUseActual
+        ? (summaryData?.totalActualCents ?? 0)
+        : (summaryData?.totalSpentCents ?? 0);
+    final mySpentCents = effectiveUseActual
+        ? (summaryData?.memberActualCents[_currentUserId] ?? 0)
+        : (summaryData?.memberSpentCents[_currentUserId] ?? 0);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -371,6 +381,22 @@ class _CollabDetailBodyState extends ConsumerState<_CollabDetailBody> {
                     ),
                   ),
 
+                  // ── Amount toggle ───────────────────────────────────────────
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.xl,
+                        AppSpacing.lg,
+                        AppSpacing.xl,
+                        0,
+                      ),
+                      child: _AmountToggle(
+                        useActualAmount: effectiveUseActual,
+                        onChanged: (v) => setState(() => _useActualAmount = v),
+                      ),
+                    ),
+                  ),
+
                   // ── Empty state ─────────────────────────────────────────────
                   if (state.expenses.isEmpty)
                     const SliverFillRemaining(
@@ -423,6 +449,7 @@ class _CollabDetailBodyState extends ConsumerState<_CollabDetailBody> {
                               expense: expense,
                               collab: collab,
                               isOwn: isOwn,
+                              useActualAmount: effectiveUseActual,
                               onTap: isOwn
                                   ? () => showModalBottomSheet<void>(
                                       context: context,
@@ -918,12 +945,14 @@ class _ExpenseTile extends StatelessWidget {
     required this.expense,
     required this.collab,
     required this.isOwn,
+    required this.useActualAmount,
     this.onTap,
   });
 
   final CollabExpense expense;
   final CollabModel collab;
   final bool isOwn;
+  final bool useActualAmount;
   final VoidCallback? onTap;
 
   @override
@@ -933,8 +962,12 @@ class _ExpenseTile extends StatelessWidget {
         ? hexToColor(expense.categoryColor ?? '#888780')
         : AppColors.textTertiary;
 
+    final showActual =
+        useActualAmount && isOwn && expense.actualAmountCents != null;
+    final displayCents =
+        showActual ? expense.actualAmountCents! : expense.amountCents;
     final amountStr =
-        '${expense.currency} ${_fmtAmount(expense.amountCents, expense.currency)}';
+        '${expense.currency} ${_fmtAmount(displayCents, expense.currency)}';
     final primaryAmount = '${expense.isIncome ? "+" : "−"}$amountStr';
     final isForeignExpense = expense.currency != collab.homeCurrency;
     final homeAmount = isForeignExpense
@@ -1112,7 +1145,7 @@ class _ExpenseTile extends StatelessWidget {
                           color: AppColors.textTertiary,
                         ),
                       ),
-                    if (isOwn && expense.hasActualDifference)
+                    if (isOwn && expense.hasActualDifference && !showActual)
                       Text(
                         'Actual: ${collab.homeCurrency} ${(expense.actualAmountCents! / 100).toStringAsFixed(2)}',
                         style: const TextStyle(
@@ -1134,6 +1167,72 @@ class _ExpenseTile extends StatelessWidget {
     final noDecimal = {'JPY', 'KRW', 'VND', 'IDR'}.contains(currency);
     if (noDecimal) return (cents ~/ 100).toString();
     return (cents / 100).toStringAsFixed(2);
+  }
+}
+
+// ── Amount toggle ─────────────────────────────────────────────────────────────
+
+class _AmountToggle extends StatelessWidget {
+  const _AmountToggle({required this.useActualAmount, required this.onChanged});
+
+  final bool useActualAmount;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _ToggleChip(
+          label: 'Total',
+          selected: !useActualAmount,
+          onTap: () => onChanged(false),
+        ),
+        const SizedBox(width: 4),
+        _ToggleChip(
+          label: 'Actual',
+          selected: useActualAmount,
+          onTap: () => onChanged(true),
+        ),
+      ],
+    );
+  }
+}
+
+class _ToggleChip extends StatelessWidget {
+  const _ToggleChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.accent : AppColors.surface,
+          borderRadius: BorderRadius.circular(AppRadius.pill),
+          border: selected
+              ? null
+              : Border.all(color: AppColors.border, width: 0.5),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: selected ? FontWeight.w500 : FontWeight.w400,
+            color: selected ? AppColors.accentText : AppColors.textSecondary,
+          ),
+        ),
+      ),
+    );
   }
 }
 

@@ -33,6 +33,7 @@ class RecurringExpensesNotifier
     String? categoryId,
     String? accountId,
     String? note,
+    String? tagId,
   }) async {
     try {
       await supabase.rpc('create_recurring_expense', params: {
@@ -44,6 +45,7 @@ class RecurringExpensesNotifier
         'p_category_id': categoryId,
         'p_account_id': accountId,
         'p_note': note,
+        'p_tag_id': tagId,
       });
       ref.invalidateSelf();
       ref.invalidate(homeAnalyticsProvider);
@@ -65,6 +67,7 @@ class RecurringExpensesNotifier
     String? categoryId,
     String? accountId,
     String? note,
+    String? tagId,
   }) async {
     try {
       await supabase.rpc('update_recurring_expense', params: {
@@ -77,6 +80,7 @@ class RecurringExpensesNotifier
         'p_category_id': categoryId,
         'p_account_id': accountId,
         'p_note': note,
+        'p_tag_id': tagId,
       });
       ref.invalidateSelf();
       return null;

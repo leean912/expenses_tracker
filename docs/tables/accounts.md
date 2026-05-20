@@ -31,11 +31,13 @@ create table accounts (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references profiles(id) on delete cascade,
   name text not null,
+  account_type text not null,
   icon text not null default 'account_balance_wallet',
   color text not null default '#378ADD',
   currency text not null default 'MYR',
   is_default boolean not null default false,
   is_archived boolean not null default false,
+  requires_premium boolean not null default false,
   sort_order integer not null default 0,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
@@ -50,11 +52,13 @@ create table accounts (
 | `id` | uuid | PK |
 | `user_id` | uuid | Owner |
 | `name` | text | "Maybank Savings", "Cash", "Touch'nGo" |
+| `account_type` | text | Account type classification |
 | `icon` | text | Material icon name |
 | `color` | text | Hex color |
 | `currency` | text | ISO code (default 'MYR') |
 | `is_default` | boolean | True for auto-seeded; false for user-created |
 | `is_archived` | boolean | Hide from picker but keep history |
+| `requires_premium` | boolean | True when account exceeds free tier limit after subscription lapses; unlocks on resubscribe |
 | `sort_order` | integer | Display order |
 | `deleted_at` | timestamptz | Soft delete |
 
@@ -77,17 +81,6 @@ We deliberately don't store `current_balance` because:
 2. **Different product positioning.** This is an expense tracker, not a personal finance / net-worth app.
 
 Spending totals are computed via the `my_account_spending` RPC. Real balances are derivable from `sum(income) - sum(expense)` if ever needed in V2.
-
-## Why no `account_type` column
-
-Earlier designs included an `account_type` enum ('cash', 'bank', 'credit_card', 'investment', 'wallet', 'loan', 'other'). This was removed because:
-
-- It didn't drive any behavior (just visual hints)
-- Users distinguish accounts by name + icon, not by type
-- Categories don't have types and that's fine
-- Removing it makes accounts truly mirror categories
-
-If V2 wants type-based analytics ("spending by credit card"), the icon string can be used as a soft proxy, or a `type` column can be added back via migration.
 
 ## Freemium limits
 

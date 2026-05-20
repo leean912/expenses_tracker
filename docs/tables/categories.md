@@ -13,9 +13,10 @@ create table categories (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references profiles(id) on delete cascade,
   name text not null,
-  icon text not null default 'category',
+  icon text not null default 'receipt',
   color text not null default '#888888',
   is_default boolean not null default false,
+  requires_premium boolean not null default false,
   sort_order integer not null default 0,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
@@ -30,9 +31,10 @@ create table categories (
 | `id` | uuid | PK |
 | `user_id` | uuid | Owner |
 | `name` | text | Display name (e.g., "Food", "Transport") |
-| `icon` | text | Material icon name (e.g., "restaurant", "directions_car") |
+| `icon` | text | Material icon name (e.g., "restaurant", "directions_car"); default is `'receipt'` |
 | `color` | text | Hex color (e.g., "#E85D24") |
 | `is_default` | boolean | True for auto-seeded defaults; false for user-created customs |
+| `requires_premium` | boolean | True when category exceeds free tier limit after subscription lapses; unlocks on resubscribe |
 | `sort_order` | integer | Display order |
 | `deleted_at` | timestamptz | Soft delete |
 

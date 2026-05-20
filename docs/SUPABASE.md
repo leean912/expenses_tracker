@@ -69,7 +69,7 @@ SQL source: `expense_tracker_schema.sql` (sections 14s–14v).
 |---|---|---|
 | `home_analytics(p_start, p_end)` | `date, date` | Home screen: period totals, avg/day, this/last month change, per-category spend. Returns one JSON. |
 | `analysis_summary(p_start, p_end, p_include_collab)` | `date, date, boolean` | Analysis screen: by-category, by-account, by-tag, daily buckets, daily-per-category buckets. Returns one JSON with pre-aggregated daily rows (max 365/year); Dart does week/month bucketing. Untagged expenses appear as `tag_name = 'Untagged'` in `by_tag`. |
-| `collab_summary(p_collab_id)` | `uuid` | Collab detail header + members screen: all-time net spend totals + per-member net spend map. No date filter. |
+| `collab_summary(p_collab_id)` | `uuid` | Collab detail header + members screen: all-time spend totals (excluding settlement rows) + per-member spend map. Returns both `total_spent_cents` (home_amount) and `total_actual_cents` (actual_amount). No date filter. |
 | `collab_analytics(p_collab_id, p_start, p_end)` | `uuid, date, date` | Collab analysis screen: self-only category/account breakdowns + daily buckets per member. Returns one JSON. |
 
 **JSON field convention for dual-amount RPCs:**
@@ -93,7 +93,7 @@ SQL source: `expense_tracker_schema.sql` (sections 14s–14v).
 
 | RPC | Purpose |
 |---|---|
-| `create_tag(p_name, p_color)` | Create a new tag. Restores soft-deleted tag with same name. Enforces 5-custom limit for free tier (raises `hint = 'upgrade_required'`). Default tags do not count toward the limit. |
+| `create_tag(p_name, p_color)` | Create a new tag. Restores soft-deleted tag with same name (always allowed, before limit check). Enforces 5-custom limit for free tier counting only `requires_premium = false` tags (raises `hint = 'upgrade_required'`). Default tags do not count toward the limit. Premium users can create unlimited tags; tags created beyond the 5-slot free threshold are marked `requires_premium = true` so they lock automatically if the subscription lapses. |
 
 ### Categories
 
@@ -148,9 +148,10 @@ SQL source: `expense_tracker_schema.sql` (sections 14s–14v).
 
 | RPC | Purpose |
 |---|---|
-| `create_recurring_expense(p_title, p_amount_cents, p_frequency, p_first_run_at, ...)` | Create a recurring expense template. Fires immediately if `first_run_at <= today`. 3 active limit for free tier. |
-| `create_recurring_split_bill(p_title, p_amount_cents, p_frequency, p_first_run_at, p_split_method, p_shares, ...)` | Create a recurring split bill template. Fires immediately if `first_run_at <= today`. 1 active limit for free tier. |
-| `update_recurring_split_bill(p_id, ...)` | Update a recurring split bill template metadata and/or shares |
+| `create_recurring_expense(p_title, p_amount_cents, p_frequency, p_first_run_at, p_type, p_category_id, p_account_id, p_note, p_tag_id)` | Create a recurring expense template. Fires immediately if `first_run_at <= today`. 3 active limit for free tier. `p_tag_id` applied to template and any immediately-fired expense row. |
+| `update_recurring_expense(p_id, p_title, p_amount_cents, p_frequency, p_next_run_at, p_type, p_category_id, p_account_id, p_note, p_tag_id)` | Update a recurring expense template. All params optional except `p_id`. |
+| `create_recurring_split_bill(p_title, p_amount_cents, p_frequency, p_first_run_at, p_split_method, p_shares, p_category_id, p_account_id, p_note, p_tag_id)` | Create a recurring split bill template. Fires immediately if `first_run_at <= today`. 1 active limit for free tier. `p_tag_id` applied to template and any immediately-fired payer expense row. |
+| `update_recurring_split_bill(p_id, p_title, p_amount_cents, p_frequency, p_next_run_at, p_split_method, p_category_id, p_account_id, p_note, p_tag_id, p_shares)` | Update a recurring split bill template metadata and/or shares. All params optional except `p_id`. |
 
 ### Referrals
 

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../../../core/routes/routes.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../providers/tags_provider.dart';
 
@@ -21,28 +23,46 @@ class TagPickerRow extends ConsumerWidget {
       loading: () => const SizedBox(height: 36),
       error: (_, _) => const SizedBox.shrink(),
       data: (tags) {
-        if (tags.isEmpty) return const SizedBox.shrink();
-        return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: [
-              _TagChip(
-                label: 'None',
-                color: null,
-                selected: selectedTagId == null,
-                onTap: () => onChanged(null),
+        return Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            ...tags.map(
+              (tag) => _TagChip(
+                label: tag.name,
+                color: _hexToColor(tag.color),
+                selected: selectedTagId == tag.id,
+                onTap: () =>
+                    onChanged(selectedTagId == tag.id ? null : tag.id),
               ),
-              ...tags.map(
-                (tag) => _TagChip(
-                  label: tag.name,
-                  color: _hexToColor(tag.color),
-                  selected: selectedTagId == tag.id,
-                  onTap: () =>
-                      onChanged(selectedTagId == tag.id ? null : tag.id),
+            ),
+            GestureDetector(
+              onTap: () => context.push(settingsTagsRoute),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppColors.borderDashed, width: 1.5),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.add_rounded, size: 14, color: AppColors.textSecondary),
+                    SizedBox(width: 4),
+                    Text(
+                      'Add',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         );
       },
     );
@@ -74,7 +94,6 @@ class _TagChip extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        margin: const EdgeInsets.only(right: 8),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
           color: selected

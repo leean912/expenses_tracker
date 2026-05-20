@@ -7,7 +7,8 @@ import '../../../../core/routes/routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../data/models/my_share_item.dart';
 import '../../data/models/split_bill_model.dart';
-import '../../providers/split_bills_provider.dart' show myBillsProvider, mySharesProvider;
+import '../../providers/split_bills_provider.dart'
+    show myBillsProvider, mySharesProvider;
 
 // enum _ViewMode { byBills, byFriends }
 
@@ -55,7 +56,8 @@ class _SplitBillsScreenState extends ConsumerState<SplitBillsScreen>
     final allShares = sharesAsync.valueOrNull?.items ?? [];
 
     final filteredBills = allBills.where((b) {
-      final allSettled = b.shares.isNotEmpty && b.settledCount == b.shares.length;
+      final allSettled =
+          b.shares.isNotEmpty && b.settledCount == b.shares.length;
       return isPending ? !allSettled : allSettled;
     }).toList();
     final filteredShares = allShares.where((s) {
@@ -631,8 +633,8 @@ class _ShareCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isPending = item.share.isPending;
-    final isOverdue = isPending &&
-        DateTime.now().difference(item.expenseDate).inDays > 5;
+    final isOverdue =
+        isPending && DateTime.now().difference(item.expenseDate).inDays > 5;
 
     return GestureDetector(
       onTap: () => context.push('$splitBillsRoute/${item.billId}'),
@@ -645,8 +647,8 @@ class _ShareCard extends StatelessWidget {
             color: isOverdue
                 ? AppColors.overdueDark
                 : isPending
-                    ? AppColors.pendingStatus
-                    : AppColors.border,
+                ? AppColors.pendingStatus
+                : AppColors.border,
           ),
         ),
         child: Column(
@@ -721,7 +723,7 @@ class _StatusBadge extends StatelessWidget {
     } else if (isOverdue) {
       bgColor = AppColors.overdueLight;
       textColor = AppColors.overdueDark;
-      label = 'Overdue';
+      label = 'Pending';
     } else {
       bgColor = AppColors.pendingStatus;
       textColor = AppColors.accentText;

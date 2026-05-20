@@ -11,6 +11,7 @@ User-defined labels for expenses and split bills. Orthogonal to categories and a
 | `name` | text | NOT NULL | — | Display name |
 | `color` | text | NOT NULL | `'#888780'` | Hex color for chip display |
 | `is_default` | boolean | NOT NULL | false | True for system-seeded tags (cannot be deleted) |
+| `requires_premium` | boolean | NOT NULL | false | True when tag exceeds free tier limit after subscription lapses; unlocks on resubscribe. **Not yet in DB — migration required** (mirrors accounts/categories pattern) |
 | `sort_order` | integer | NOT NULL | 0 | Display ordering (defaults first) |
 | `created_at` | timestamptz | NOT NULL | now() | — |
 | `updated_at` | timestamptz | NOT NULL | now() | — |
@@ -31,7 +32,9 @@ Default tags (`is_default = true`) cannot be deleted — no delete icon is shown
 - **Free tier**: up to 5 custom (non-default) active tags
 - **Premium/Lifetime**: unlimited tags
 - Soft-deleted tags do not count toward the limit
-- Restoring a soft-deleted tag (via `create_tag` with same name) bypasses the limit check
+- `requires_premium = true` tags do not count toward the free limit (so a downgraded user with locked tags can still fill their 5 free slots)
+- Restoring a soft-deleted tag (via `create_tag` with same name) bypasses the limit check — restore always happens before the freemium gate
+- Premium users creating beyond the 5-slot threshold get `requires_premium = true` on new tags; these lock automatically on subscription lapse
 
 ## Constraints
 

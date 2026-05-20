@@ -11,6 +11,7 @@ class CollabAnalysisFilter {
     required this.defaultEnd,
     this.customStart,
     this.customEnd,
+    this.useActualAmount = false,
   });
 
   final String collabId;
@@ -18,6 +19,7 @@ class CollabAnalysisFilter {
   final DateTime defaultEnd;
   final DateTime? customStart;
   final DateTime? customEnd;
+  final bool useActualAmount;
 
   DateTime get effectiveStart => customStart ?? defaultStart;
   DateTime get effectiveEnd => customEnd ?? defaultEnd;
@@ -37,7 +39,8 @@ class CollabAnalysisFilter {
       other.defaultStart == defaultStart &&
       other.defaultEnd == defaultEnd &&
       other.customStart == customStart &&
-      other.customEnd == customEnd;
+      other.customEnd == customEnd &&
+      other.useActualAmount == useActualAmount;
 
   @override
   int get hashCode => Object.hash(
@@ -46,6 +49,7 @@ class CollabAnalysisFilter {
         defaultEnd,
         customStart,
         customEnd,
+        useActualAmount,
       );
 }
 

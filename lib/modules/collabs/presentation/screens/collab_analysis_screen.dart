@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/upgrade_sheet.dart';
 import '../../../analysis/presentation/widgets/category_pie_chart.dart';
+import '../../../settings/expense_type/providers/expense_type_provider.dart';
 import '../../../subscription/providers/subscription_provider.dart';
 import '../../data/models/collab_model.dart';
 import '../../providers/collab_analysis_provider.dart';
@@ -23,6 +24,7 @@ class CollabAnalysisScreen extends ConsumerStatefulWidget {
 
 class _CollabAnalysisScreenState extends ConsumerState<CollabAnalysisScreen> {
   DateTimeRange? _customRange;
+  bool? _useActualAmount;
 
   CollabModel get collab => widget.collab;
 
@@ -40,13 +42,15 @@ class _CollabAnalysisScreenState extends ConsumerState<CollabAnalysisScreen> {
     return candidate.isBefore(_defaultStart) ? _defaultStart : candidate;
   }
 
-  CollabAnalysisFilter get _filter => CollabAnalysisFilter(
-    collabId: collab.id,
-    defaultStart: _defaultStart,
-    defaultEnd: _defaultEnd,
-    customStart: _customRange?.start,
-    customEnd: _customRange?.end,
-  );
+  CollabAnalysisFilter _buildFilter(bool useActualAmount) =>
+      CollabAnalysisFilter(
+        collabId: collab.id,
+        defaultStart: _defaultStart,
+        defaultEnd: _defaultEnd,
+        customStart: _customRange?.start,
+        customEnd: _customRange?.end,
+        useActualAmount: useActualAmount,
+      );
 
   String _fmtDate(DateTime d) {
     const months = [
@@ -66,9 +70,9 @@ class _CollabAnalysisScreenState extends ConsumerState<CollabAnalysisScreen> {
     return '${d.day} ${months[d.month - 1]} ${d.year}';
   }
 
-  String get _dateRangeLabel {
-    final start = _filter.effectiveStart;
-    final end = _filter.effectiveEnd;
+  String _dateRangeLabel(CollabAnalysisFilter filter) {
+    final start = filter.effectiveStart;
+    final end = filter.effectiveEnd;
     return '${_fmtDate(start)} – ${_fmtDate(end)}';
   }
 
@@ -128,7 +132,13 @@ class _CollabAnalysisScreenState extends ConsumerState<CollabAnalysisScreen> {
   @override
   Widget build(BuildContext context) {
     final isPremium = ref.watch(isPremiumProvider);
-    final analysisAsync = ref.watch(collabAnalysisProvider(_filter));
+    final expenseTypeAsync = ref.watch(expenseTypeProvider);
+    final effectiveUseActual =
+        _useActualAmount ??
+        (expenseTypeAsync.valueOrNull == ExpenseType.actual);
+    final filter = _buildFilter(effectiveUseActual);
+
+    final analysisAsync = ref.watch(collabAnalysisProvider(filter));
     final data = analysisAsync.valueOrNull;
     final isLoading = analysisAsync.isLoading;
     final hasError = analysisAsync.hasError && data == null;
@@ -170,7 +180,7 @@ class _CollabAnalysisScreenState extends ConsumerState<CollabAnalysisScreen> {
       ),
       body: RefreshIndicator(
         color: AppColors.accent,
-        onRefresh: () => ref.refresh(collabAnalysisProvider(_filter).future),
+        onRefresh: () => ref.refresh(collabAnalysisProvider(filter).future),
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
@@ -187,10 +197,24 @@ class _CollabAnalysisScreenState extends ConsumerState<CollabAnalysisScreen> {
                   icon: isPremium
                       ? Icons.calendar_today_rounded
                       : Icons.lock_rounded,
-                  label: _dateRangeLabel,
+                  label: _dateRangeLabel(filter),
                   isActive: _customRange != null,
                   isPremiumLocked: !isPremium,
                   onTap: () => _pickCustomDate(isPremium),
+                ),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.xl,
+                  AppSpacing.lg,
+                  AppSpacing.xl,
+                  0,
+                ),
+                child: _AmountToggle(
+                  useActualAmount: effectiveUseActual,
+                  onChanged: (v) => setState(() => _useActualAmount = v),
                 ),
               ),
             ),
@@ -221,7 +245,7 @@ class _CollabAnalysisScreenState extends ConsumerState<CollabAnalysisScreen> {
                       const SizedBox(height: 12),
                       TextButton(
                         onPressed: () =>
-                            ref.invalidate(collabAnalysisProvider(_filter)),
+                            ref.invalidate(collabAnalysisProvider(filter)),
                         child: const Text('Retry'),
                       ),
                     ],
@@ -340,6 +364,72 @@ class _CollabAnalysisScreenState extends ConsumerState<CollabAnalysisScreen> {
   }
 
   String _fmtCents(int cents) => (cents / 100).toStringAsFixed(2);
+}
+
+// ── Amount toggle ─────────────────────────────────────────────────────────────
+
+class _AmountToggle extends StatelessWidget {
+  const _AmountToggle({required this.useActualAmount, required this.onChanged});
+
+  final bool useActualAmount;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _ToggleChip(
+          label: 'Total',
+          selected: !useActualAmount,
+          onTap: () => onChanged(false),
+        ),
+        const SizedBox(width: 4),
+        _ToggleChip(
+          label: 'Actual',
+          selected: useActualAmount,
+          onTap: () => onChanged(true),
+        ),
+      ],
+    );
+  }
+}
+
+class _ToggleChip extends StatelessWidget {
+  const _ToggleChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.accent : AppColors.surface,
+          borderRadius: BorderRadius.circular(AppRadius.pill),
+          border: selected
+              ? null
+              : Border.all(color: AppColors.border, width: 0.5),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: selected ? FontWeight.w500 : FontWeight.w400,
+            color: selected ? AppColors.accentText : AppColors.textSecondary,
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 // ── Filter chip ───────────────────────────────────────────────────────────────

@@ -5,8 +5,9 @@ import 'package:intl/intl.dart';
 
 import '../../../../core/routes/routes.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/utils/amount_input_formatter.dart';
+import '../../../../core/widgets/amount_keyboard.dart';
 import '../../../../service_locator.dart';
+import '../../../tags/presentation/widgets/tag_picker_row.dart';
 import '../../../contacts/data/models/contact_model.dart';
 import '../../../contacts/data/models/group_model.dart';
 import '../../../contacts/providers/contacts_provider.dart';
@@ -36,12 +37,15 @@ class _RecurringSplitBillFormScreenState
   final _titleController = TextEditingController();
   final _amountController = TextEditingController();
   final _noteController = TextEditingController();
+  final _amountFocus = FocusNode();
+  TextEditingController? _keyboardController;
 
   String _frequency = 'monthly';
   DateTime _runAt = DateTime.now();
   bool _equalSplit = true;
   String? _categoryId;
   String? _accountId;
+  String? _tagId;
   bool _loading = false;
   String? _error;
 
@@ -49,9 +53,28 @@ class _RecurringSplitBillFormScreenState
 
   bool get _isEdit => widget.existing != null;
 
+  void _activateKeyboard(TextEditingController c) {
+    if (_keyboardController != c) setState(() => _keyboardController = c);
+  }
+
+  void _deactivateKeyboard() {
+    FocusScope.of(context).unfocus();
+    if (_keyboardController != null) setState(() => _keyboardController = null);
+  }
+
+  void _wireParticipantFocus(_Participant p) {
+    p.focusNode.addListener(() {
+      if (p.focusNode.hasFocus) _activateKeyboard(p.controller);
+    });
+  }
+
   @override
   void initState() {
     super.initState();
+    _amountFocus.addListener(() {
+      if (_amountFocus.hasFocus) _activateKeyboard(_amountController);
+    });
+
     final userId = supabase.auth.currentUser?.id ?? '';
 
     final e = widget.existing;
@@ -63,6 +86,7 @@ class _RecurringSplitBillFormScreenState
       _equalSplit = e.splitMethod == 'equal';
       _categoryId = e.categoryId;
       _accountId = e.accountId;
+      _tagId = e.tagId;
       _noteController.text = e.note ?? '';
 
       for (final share in e.shares) {
@@ -75,11 +99,13 @@ class _RecurringSplitBillFormScreenState
           p.controller.text = (share.shareCents! / 100).toStringAsFixed(2);
         }
         p.controller.addListener(_onParticipantChanged);
+        _wireParticipantFocus(p);
         _participants.add(p);
       }
     } else {
       final p = _Participant(userId: userId, displayName: 'You', isMe: true);
       p.controller.addListener(_onParticipantChanged);
+      _wireParticipantFocus(p);
       _participants.add(p);
     }
 
@@ -91,6 +117,7 @@ class _RecurringSplitBillFormScreenState
     _titleController.dispose();
     _amountController.dispose();
     _noteController.dispose();
+    _amountFocus.dispose();
     for (final p in _participants) {
       p.dispose();
     }
@@ -160,6 +187,7 @@ class _RecurringSplitBillFormScreenState
       isMe: false,
     );
     p.controller.addListener(_onParticipantChanged);
+    _wireParticipantFocus(p);
     setState(() {
       _participants.add(p);
       if (_equalSplit) _applyEqualSplit();
@@ -167,10 +195,11 @@ class _RecurringSplitBillFormScreenState
   }
 
   void _removeParticipant(int index) {
+    final p = _participants[index];
+    if (_keyboardController == p.controller) _deactivateKeyboard();
+    p.controller.removeListener(_onParticipantChanged);
+    p.dispose();
     setState(() {
-      _participants[index].controller
-        ..removeListener(_onParticipantChanged)
-        ..dispose();
       _participants.removeAt(index);
       if (_equalSplit) _applyEqualSplit();
     });
@@ -188,6 +217,7 @@ class _RecurringSplitBillFormScreenState
           isMe: false,
         );
         p.controller.addListener(_onParticipantChanged);
+        _wireParticipantFocus(p);
         _participants.add(p);
       }
       if (_equalSplit) _applyEqualSplit();
@@ -288,6 +318,7 @@ class _RecurringSplitBillFormScreenState
         categoryId: _categoryId,
         accountId: _accountId,
         note: note,
+        tagId: _tagId,
       );
     } else {
       err = await notifier.create(
@@ -300,6 +331,7 @@ class _RecurringSplitBillFormScreenState
         categoryId: _categoryId,
         accountId: _accountId,
         note: note,
+        tagId: _tagId,
       );
     }
 
@@ -322,8 +354,11 @@ class _RecurringSplitBillFormScreenState
     final categoriesAsync = ref.watch(pickerCategoriesProvider);
     final accountsAsync = ref.watch(pickerAccountsProvider);
 
+    final showKeyboard = _keyboardController != null;
+    final padding = MediaQuery.of(context).padding;
+
     return GestureDetector(
-      onTap: () => FocusScope.of(context).unfocus(),
+      onTap: _deactivateKeyboard,
       child: Scaffold(
         backgroundColor: AppColors.background,
         appBar: AppBar(
@@ -347,7 +382,12 @@ class _RecurringSplitBillFormScreenState
             ),
           ),
         ),
-        body: SingleChildScrollView(
+        body: MediaQuery(
+          data: MediaQuery.of(context).copyWith(viewInsets: EdgeInsets.zero),
+          child: Column(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(
             AppSpacing.xl,
             AppSpacing.lg,
@@ -361,6 +401,7 @@ class _RecurringSplitBillFormScreenState
               const SizedBox(height: AppSpacing.md),
               TextField(
                 controller: _titleController,
+                onTap: _deactivateKeyboard,
                 style: const TextStyle(
                   fontSize: 14,
                   color: AppColors.textPrimary,
@@ -376,10 +417,9 @@ class _RecurringSplitBillFormScreenState
               const SizedBox(height: AppSpacing.md),
               TextField(
                 controller: _amountController,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                inputFormatters: [AmountInputFormatter()],
+                focusNode: _amountFocus,
+                readOnly: true,
+                showCursor: true,
                 style: const TextStyle(
                   fontSize: 14,
                   color: AppColors.textPrimary,
@@ -455,10 +495,13 @@ class _RecurringSplitBillFormScreenState
                   const SizedBox(width: AppSpacing.sm),
                   Switch(
                     value: _equalSplit,
-                    onChanged: (value) => setState(() {
-                      _equalSplit = value;
-                      if (value) _applyEqualSplit();
-                    }),
+                    onChanged: (value) {
+                      if (value) _deactivateKeyboard();
+                      setState(() {
+                        _equalSplit = value;
+                        if (value) _applyEqualSplit();
+                      });
+                    },
                     activeThumbColor: AppColors.accentText,
                     activeTrackColor: AppColors.accent,
                     materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -620,6 +663,7 @@ class _RecurringSplitBillFormScreenState
               const SizedBox(height: AppSpacing.md),
               TextField(
                 controller: _noteController,
+                onTap: _deactivateKeyboard,
                 style: const TextStyle(
                   fontSize: 14,
                   color: AppColors.textPrimary,
@@ -670,72 +714,58 @@ class _RecurringSplitBillFormScreenState
 
               const SizedBox(height: AppSpacing.xxl),
 
-              // SizedBox(
-              //   width: double.infinity,
-              //   child: FilledButton(
-              //     onPressed: _loading ? null : _save,
-              //     style: FilledButton.styleFrom(
-              //       backgroundColor: AppColors.accent,
-              //       foregroundColor: AppColors.accentText,
-              //       padding: const EdgeInsets.symmetric(vertical: 16),
-              //       shape: RoundedRectangleBorder(
-              //         borderRadius: BorderRadius.circular(AppRadius.lg),
-              //       ),
-              //     ),
-              //     child: _loading
-              //         ? const SizedBox(
-              //             width: 20,
-              //             height: 20,
-              //             child: CircularProgressIndicator(
-              //               strokeWidth: 2,
-              //               color: AppColors.accentText,
-              //             ),
-              //           )
-              //         : Text(
-              //             _isEdit ? 'Update' : 'Save',
-              //             style: const TextStyle(
-              //               fontSize: 15,
-              //               fontWeight: FontWeight.w600,
-              //             ),
-              //           ),
-              //   ),
-              // ),
+              const FormLabel('Tag (Optional)'),
+              const SizedBox(height: AppSpacing.md),
+              TagPickerRow(
+                selectedTagId: _tagId,
+                onChanged: (id) => setState(() => _tagId = id),
+              ),
+
+              const SizedBox(height: AppSpacing.xxl),
             ],
           ),
         ),
-        bottomNavigationBar: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.xl),
-            child: SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: _loading ? null : _save,
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.accent,
-                  foregroundColor: AppColors.accentText,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppRadius.lg),
+              ),
+              if (showKeyboard) AmountKeyboard(controller: _keyboardController!),
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                  AppSpacing.xl,
+                  AppSpacing.md,
+                  AppSpacing.xl,
+                  showKeyboard ? AppSpacing.md : AppSpacing.xl + padding.bottom,
+                ),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: _loading ? null : _save,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.accent,
+                      foregroundColor: AppColors.accentText,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppRadius.lg),
+                      ),
+                    ),
+                    child: _loading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.accentText,
+                            ),
+                          )
+                        : Text(
+                            _isEdit ? 'Update' : 'Save',
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                   ),
                 ),
-                child: _loading
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: AppColors.accentText,
-                        ),
-                      )
-                    : Text(
-                        _isEdit ? 'Update' : 'Save',
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
               ),
-            ),
+            ],
           ),
         ),
       ),
@@ -802,11 +832,9 @@ class _ParticipantRow extends StatelessWidget {
             width: 88,
             child: TextField(
               controller: participant.controller,
-              readOnly: readOnly,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              inputFormatters: [AmountInputFormatter()],
+              focusNode: readOnly ? null : participant.focusNode,
+              readOnly: true,
+              showCursor: !readOnly,
               textAlign: TextAlign.right,
               style: TextStyle(
                 fontSize: 14,
@@ -1360,8 +1388,10 @@ class _Participant {
   final String displayName;
   final bool isMe;
   final TextEditingController controller = TextEditingController();
+  final FocusNode focusNode = FocusNode();
 
   void dispose() {
     controller.dispose();
+    focusNode.dispose();
   }
 }
